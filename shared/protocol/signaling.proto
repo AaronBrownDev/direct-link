@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package directlink.signaling;
+
+// Go package path for generated code
+option go_package = "github.com/AaronBrownDev/direct-link/shared/protocol/signaling";
+
+// SignalingService handles WebRTC signaling
+service SignalingService {
+    // Signal is a bidirectional stream for WebRTC signaling
+    rpc Signal(stream SignalRequest) returns (stream SignalReply);
+}
+
+// SignalRequest is sent from client to server
+message SignalRequest {
+    oneof payload {
+        JoinRequest join = 1;
+        Trickle trickle = 2;
+        SessionDescription description = 3;
+    }
+}
+
+// SignalReply is sent from server to client
+message SignalReply {
+    oneof payload {
+        JoinReply join = 1;
+        Trickle trickle = 2;
+        SessionDescription description = 3;
+    }
+}
+
+// JoinRequest initiates joining a session
+message JoinRequest {
+    string session_id = 1; // Room/session to join
+    string user_id = 2; // unique identifier for who request
+    bytes offer = 3; // SDP offer (JSON-encoded)
+}
+
+// JoinReply confirms joining with SDP answer
+message JoinReply {
+    bytes answer = 1; // SDP answer (JSON-encoded)
+}
+
+// Trickle carries ICE candidates
+message Trickle {
+    Target target = 1;
+    string candidate = 2; // ICE candidate (JSON-encoded)
+
+    enum Target {
+        PUBLISHER = 0;
+        SUBSCRIBER = 1;
+    }
+}
+
+// SessionDescription for renegotiation
+message SessionDescription {
+    string type = 1; // offer or answer
+    bytes sdp = 2;
+}
+
