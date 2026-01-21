@@ -5,7 +5,11 @@
 	"workspaceFolder": "/workspace",
 	"features": {
 		"ghcr.io/devcontainers/features/docker-in-docker:2": {},
-		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {},
+		"ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+			"version": "1.35.0",
+			"helm": "4.0.2",
+			"minikube": "none"
+		},
 		"ghcr.io/devcontainers/features/terraform:1": {},
 		"ghcr.io/devcontainers-extra/features/protoc:1": {},
     	"ghcr.io/42atomys/devcontainers-features/redis-cli:1": {}
