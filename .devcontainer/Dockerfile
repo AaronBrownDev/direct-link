@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install FFmpeg dev libraries
 RUN apt-get update && apt-get install -y \
+    ffmpeg \
     libavcodec-dev \
     libavformat-dev \
     libavutil-dev \
