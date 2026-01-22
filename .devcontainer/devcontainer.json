@@ -20,6 +20,9 @@
 				// Go Development
 				"golang.go",
 
+				// C++ Development
+				"ms-vscode.cpptools-extension-pack",
+
 				// Infrastructure & Devops
 				"hashicorp.terraform",
 				"redhat.vscode-yaml",
