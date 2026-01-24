@@ -1,0 +1,33 @@
+# Auto-detect text files and normalize line endings to LF
+* text=auto
+
+# Explicitly declare text files with LF line endings
+*.go text eol=lf
+*.cpp text eol=lf
+*.hpp text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+
+# Shell scripts must use LF
+*.sh text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.svg binary
+*.mp4 binary
+*.a binary
+*.o binary
+
+# Generated files 
+go.sum linguist-generated=true
+
+# Documentation
+*.md linguist-documentation
+docs/** linguist-documentation
+
+# Keep files
+.gitkeep linguist-generated=true
