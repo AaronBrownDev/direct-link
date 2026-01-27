@@ -51,6 +51,13 @@ int main() {
         return 1;
     }
 
+    std::cout << "\n======== Encoder Information ===========\n";
+    std::cout << "Codec name: " << codec->name << "\n";
+    std::cout << "Codec long name: " << codec->long_name << "\n";
+    std::cout << "Using hardware: " << (codec->capabilities & AV_CODEC_CAP_HARDWARE ? "YES" : "NO") << "\n";
+    std::cout << "Pixel format: " << av_get_pix_fmt_name(ctx->pix_fmt) << "\n";
+    std::cout << "==========================================\n\n";
+
     // Allocate frame
     AVFrame* frame = av_frame_alloc();
     if (!frame) {
