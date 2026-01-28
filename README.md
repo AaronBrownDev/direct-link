@@ -13,6 +13,43 @@ The [DirectLink milestones](https://github.com/AaronBrownDev/direct-link/milesto
 - **Milestone 1: MVP** (Jan-March 2025) - Working 4-camera transmission with infrastructure
 - **Milestone 2: Capstone Presentation** (April 2025) - Polish, documentation, and demo preparation
 
+## Build Instructions
+
+**Linux**
+
+1. Install the packages for Qt Creator, Qt 5, and CMake.
+```bash
+sudo apt install -y qtcreator qtbase5-dev qt5-qmake cmake
+```
+2. Open Qt Creator.
+
+```bash
+qtcreator
+```
+
+3. Select Open Project, then select CMakeLists.txt in the direct-link/client/ directory.
+
+4. If prompted, check the 'Select all kits' checkbox when configuring the project.
+
+5. Build, then run the project.
+
+
+**Windows + MacOS**
+
+1. Create or Sign into a Qt Account (https://login.qt.io/login).
+
+2. Download Qt Installer (https://www.qt.io/download-qt-installer).
+
+3. Run the Installer and follow the installation steps. Select the default options where applicable.
+
+4. Open Qt Creator.
+
+5. Select Open Project, then select CMakeLists.txt in the direct-link/client/ directory.
+
+6. If prompted, check the 'Select all kits' checkbox when configuring the project.
+
+7. Build, then run the project.
+
 ## Documentation
 
 - [Architecture Overview](docs/architecture/)
