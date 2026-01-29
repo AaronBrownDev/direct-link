@@ -77,7 +77,6 @@ tags
 .DS_Store
 .directory
 *.debug
-Makefile*
 *.prl
 moc_*.cpp
 ui_*.h
