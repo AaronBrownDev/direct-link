@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
+	ionsfu "github.com/pion/ion-sfu/pkg/sfu"
 )
 
 type Server struct {
@@ -19,6 +20,7 @@ type Server struct {
 	grpcServer *grpc.Server
 	logger     *slog.Logger
 	ready      atomic.Bool
+	sfu        *ionsfu.SFU
 	pb.UnimplementedSignalingServiceServer
 }
 
@@ -43,6 +45,9 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	server.grpcServer = grpc.NewServer()
 	// TODO: make Server implement the gRPC functions
 	pb.RegisterSignalingServiceServer(server.grpcServer, server)
+
+	// Initialize sfu
+	server.sfu = ionsfu.NewSFU(cfg.SFU)
 
 	return server
 }
