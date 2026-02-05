@@ -1,4 +1,4 @@
-.PHONY: proto run-sfu run-signaling build-sfu build-signaling
+.PHONY: proto run-signaling build-signaling
 
 # Directories
 PROTO_DIR := ../shared/protocol
@@ -14,14 +14,8 @@ proto:
 		-I $(PROTO_DIR) \
 		$(PROTO_DIR)/signaling.proto
 
-run-sfu:
-	go run ./cmd/sfu
-
 run-signaling:
 	go run ./cmd/signaling
-
-build-sfu:
-	go build -o bin/sfu ./cmd/sfu
 
 build-signaling:
 	go build -o bin/signaling ./cmd/signaling
