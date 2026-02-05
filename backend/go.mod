@@ -5,6 +5,7 @@ go 1.25.4
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/pion/ion-sfu v1.11.0
+	github.com/pion/webrtc/v3 v3.1.7
 	github.com/redis/go-redis/v9 v9.17.2
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.10
@@ -38,7 +39,6 @@ require (
 	github.com/pion/transport v0.12.3 // indirect
 	github.com/pion/turn/v2 v2.0.5 // indirect
 	github.com/pion/udp v0.1.1 // indirect
-	github.com/pion/webrtc/v3 v3.1.7 // indirect
 	github.com/prometheus/client_golang v1.11.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.26.0 // indirect
