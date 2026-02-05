@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
 	ionsfu "github.com/pion/ion-sfu/pkg/sfu"
@@ -43,8 +44,10 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 
 	// Create new gRPC server and register
 	server.grpcServer = grpc.NewServer()
-	// TODO: make Server implement the gRPC functions
 	pb.RegisterSignalingServiceServer(server.grpcServer, server)
+
+	// needed for grpcurl testing
+	reflection.Register(server.grpcServer)
 
 	// Initialize sfu
 	server.sfu = ionsfu.NewSFU(cfg.SFU)
