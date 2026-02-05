@@ -1,6 +1,8 @@
 # Dev container image
 FROM mcr.microsoft.com/devcontainers/go:2-1.25-bookworm
 
+RUN rm -f /etc/apt/sources.list.d/yarn.list
+
 # Install C++ build tools
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -36,4 +38,5 @@ USER vscode
 
 # Install Go tools
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
-    && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+    && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest \
+    && go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
