@@ -1,6 +1,6 @@
 root = true
 
-# Unix-style newlines with a newline ending every file
+# Defaults
 [*]
 end_of_line = lf
 insert_final_newline = true
@@ -13,39 +13,38 @@ indent_style = tab
 indent_size = 4
 
 # C++ files
-[*.{cpp,hpp}]
+[*.{cpp,hpp,h,cc,cxx}]
 indent_style = space
 indent_size = 4
 
 # CMake
-[CMakeLists.txt]
-indent_style = tab
+[CMakeLists.txt,*.cmake]
+indent_style = space
 indent_size = 2
 
-# YAML files
+# YAML 
 [*.{yml,yaml}]
-indent_style = tab
+indent_style = space
 indent_size = 2
 
-# JSON files
+# JSON
 [*.json]
-indent_style = tab
+indent_style = space
 indent_size = 2
 
-# Markdown files
+# Markdown
 [*.md]
 trim_trailing_whitespace = false
-indent_style = tab
+indent_style = space
 indent_size = 2
 
 # Shell scripts
 [*.sh]
 indent_style = space
 indent_size = 2
-end_of_line = lf
 
-# Makefile
-[Makefile]
+# Makefile 
+[Makefile,*.mk]
 indent_style = tab
 
 # Dockerfile
@@ -53,7 +52,7 @@ indent_style = tab
 indent_style = space
 indent_size = 2
 
-# Git config files
-[.gitattributes,.gitignore]
+# Protobuf
+[*.proto]
 indent_style = space
 indent_size = 2
