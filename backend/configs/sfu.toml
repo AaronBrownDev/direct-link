@@ -84,3 +84,22 @@ address = "0.0.0.0:3478"
 # credentials = "username=password"
 # Shared secret for time-limited credentials (recommended)
 # secret = "your-turn-secret"
+
+#Redis Configuration
+[redis]
+addr = "localhost:6379" # Where Redis is running
+password = ""
+db = 0 # Redis database number
+pool_size = 10 #Max number of connections to keep open
+min_idle_conns = 2 #Min number of connections to keep alive
+
+
+[redis.timeouts]
+dial = "5s"
+read = "3s"
+write = "3s"
+
+#How long before keys automatically expire
+[redis.ttl]
+session = "24h"
+peer = "1h"
