@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(Qt5 REQUIRED COMPONENTS Widgets Qml Quick QuickWidgets)
 
 set(PROJECT_SOURCES
         src/main.cpp
@@ -38,7 +38,12 @@ else()
     endif()
 endif()
 
-target_link_libraries(direct-link PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(direct-link PRIVATE
+    Qt5::Widgets
+    Qt5::Qml
+    Qt5::Quick
+    Qt5::QuickWidgets
+)
 
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.direct-link)
