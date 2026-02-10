@@ -1,36 +1,46 @@
 package signaling
 
 import (
+	"os"
 	"time"
-
-	"github.com/BurntSushi/toml"
-	ionsfu "github.com/pion/ion-sfu/pkg/sfu"
 )
 
 type Config struct {
 	HTTPPort        int
 	GRPCPort        int
 	ShutdownTimeout time.Duration
-	SFU             ionsfu.Config
+
+	// LiveKit connection
+	LiveKitHost      string
+	LiveKitAPIKey    string
+	LiveKitAPISecret string
 }
 
 func DefaultConfig() Config {
 	return Config{
-		// differing ports to avoid conflicts with local testing
-		// TODO: create a docker-compose.yml for local testing to avoid this
-		HTTPPort:        8081,
-		GRPCPort:        50051,
-		ShutdownTimeout: time.Second * 5,
-		SFU:             ionsfu.Config{}, // Gets overridden by TOML
+		HTTPPort:         8081,
+		GRPCPort:         50051,
+		ShutdownTimeout:  time.Second * 5,
+		LiveKitHost:      "http://localhost:7880",
+		LiveKitAPIKey:    "devkey", // dev default
+		LiveKitAPISecret: "secret", // dev default
 	}
 }
 
-func LoadConfig(path string) (*Config, error) {
+func LoadConfig() *Config {
 	cfg := DefaultConfig()
 
-	if _, err := toml.Decode(path, &cfg); err != nil {
-		return nil, err
+	if host := os.Getenv("LIVEKIT_HOST"); host != "" {
+		cfg.LiveKitHost = host
 	}
 
-	return &cfg, nil
+	if key := os.Getenv("LIVEKIT_API_KEY"); key != "" {
+		cfg.LiveKitAPIKey = key
+	}
+
+	if secret := os.Getenv("LIVEKIT_API_SECRET"); secret != "" {
+		cfg.LiveKitAPISecret = secret
+	}
+
+	return &cfg
 }
