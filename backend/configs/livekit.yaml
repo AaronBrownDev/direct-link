@@ -1,0 +1,7 @@
+port: 7880
+rtc:
+  port_range_start: 50000
+  port_range_end: 52000
+  use_ice_lite: true
+keys:
+  devkey: secret
