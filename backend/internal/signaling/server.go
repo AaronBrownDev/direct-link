@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
-	ionsfu "github.com/pion/ion-sfu/pkg/sfu"
+	lksdk "github.com/livekit/server-sdk-go/v2"
 )
 
 type Server struct {
@@ -21,7 +21,7 @@ type Server struct {
 	grpcServer *grpc.Server
 	logger     *slog.Logger
 	ready      atomic.Bool
-	sfu        *ionsfu.SFU
+	lkClient   *lksdk.RoomServiceClient
 	pb.UnimplementedSignalingServiceServer
 }
 
@@ -46,11 +46,15 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	server.grpcServer = grpc.NewServer()
 	pb.RegisterSignalingServiceServer(server.grpcServer, server)
 
-	// needed for grpcurl testing
+	// Needed for grpcurl testing
 	reflection.Register(server.grpcServer)
 
-	// Initialize sfu
-	server.sfu = ionsfu.NewSFU(cfg.SFU)
+	// Initialize LiveKit room service client
+	server.lkClient = lksdk.NewRoomServiceClient(
+		cfg.LiveKitHost,
+		cfg.LiveKitAPIKey,
+		cfg.LiveKitAPISecret,
+	)
 
 	return server
 }
