@@ -1,0 +1,24 @@
+BasedOnStyle: LLVM
+
+IndentWidth: 4
+UseTab: Never
+TabWidth: 4
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: false
+
+NamespaceIndentation: None
+AccessModifierOffset: -4
+
+SortIncludes: true
