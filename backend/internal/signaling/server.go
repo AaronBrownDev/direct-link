@@ -60,9 +60,13 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 }
 
 func (s *Server) registerRoutes(mux *http.ServeMux) {
+	// Kubernetes
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReadiness)
 	mux.HandleFunc("GET /livez", s.handleLiveness)
+
+	// LiveKit
+	mux.HandleFunc("POST /webhooks/livekit", s.handleLiveKitWebhook)
 }
 
 // ListenAndServe starts the signaling server through http and gRPC
