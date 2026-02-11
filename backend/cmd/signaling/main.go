@@ -14,7 +14,7 @@ func main() {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	cfg := signaling.DefaultConfig()
+	cfg := signaling.LoadConfig()
 	server := signaling.NewServer(cfg, logger)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

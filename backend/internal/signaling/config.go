@@ -27,7 +27,7 @@ func DefaultConfig() Config {
 	}
 }
 
-func LoadConfig() *Config {
+func LoadConfig() Config {
 	cfg := DefaultConfig()
 
 	if host := os.Getenv("LIVEKIT_HOST"); host != "" {
@@ -42,5 +42,5 @@ func LoadConfig() *Config {
 		cfg.LiveKitAPISecret = secret
 	}
 
-	return &cfg
+	return cfg
 }

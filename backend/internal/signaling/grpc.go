@@ -50,8 +50,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 
 	at.SetVideoGrant(grant).
 		SetIdentity(req.UserId).
-		SetName(req.UserId).
-		SetValidFor(24 * time.Hour)
+		SetValidFor(time.Hour)
 
 	token, err := at.ToJWT()
 	if err != nil {
