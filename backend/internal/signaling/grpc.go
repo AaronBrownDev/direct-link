@@ -1,186 +1,84 @@
 package signaling
 
 import (
-	"encoding/json"
-	"io"
+	"context"
+	"fmt"
+	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
-	"github.com/pion/ion-sfu/pkg/sfu"
-	"github.com/pion/webrtc/v3"
+	"github.com/livekit/protocol/auth"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-// Signal handles bidirectional streaming for WebRTC signaling
-func (s *Server) Signal(stream pb.SignalingService_SignalServer) error {
+// JoinSession authenticates a user and returns a LiveKit access token.
+// The client uses this token to connect directly to LiveKit for media.
+func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.JoinReply, error) {
 
-	// Peer represents one client's WebRTC connection
-	peer := sfu.NewPeer(s.sfu)
-	defer peer.Close()
-
-	s.logger.Info("new peer connected")
-
-	// Set up callbacks (SFU -> Client)
-
-	// Called when ion-sfu finds a new ICE candidate.
-	peer.OnIceCandidate = func(candidate *webrtc.ICECandidateInit, target int) {
-
-		// Convert candidate to JSON since gRPC expects string type
-		candidateJSON, err := json.Marshal(candidate)
-		if err != nil {
-			s.logger.Error("failed to marshal ice candidate", "error", err)
-			return
-		}
-
-		// Send to client via gRPC stream
-		err = stream.Send(&pb.SignalReply{
-			Payload: &pb.SignalReply_Trickle{
-				Trickle: &pb.Trickle{
-					Target:    pb.Trickle_Target(target), // Publisher or Subscriber
-					Candidate: string(candidateJSON),
-				},
-			},
-		})
-		if err != nil {
-			s.logger.Error("failed to send trickle", "error", err)
-		}
-
+	// Validate required fields
+	if req.SessionId == "" {
+		return nil, status.Error(codes.InvalidArgument, "session_id is required")
+	}
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+	if req.Role == "" {
+		return nil, status.Error(codes.InvalidArgument, "role is required")
 	}
 
-	// Called when ion-sfu needs to renegotiate the connection.
-	peer.OnOffer = func(offer *webrtc.SessionDescription) {
-		err := stream.Send(&pb.SignalReply{
-			Payload: &pb.SignalReply_Description{
-				Description: &pb.SessionDescription{
-					Type: offer.Type.String(), // "offer"
-					Sdp:  []byte(offer.SDP),
-				},
-			},
-		})
-		if err != nil {
-			s.logger.Error("failed to send offer", "offer", err)
-		}
+	// Determine permissions based on role
+	canPublish, canSubscribe, err := permissionsForRole(req.Role)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	// Message loop (Client -> SFU direction)
+	s.logger.Info("generating LiveKit token",
+		"session_id", req.SessionId,
+		"user_id", req.UserId,
+		"role", req.Role,
+	)
 
-	for {
-		// Blocks and waits until next message is received
-		req, err := stream.Recv()
-		if err == io.EOF {
-			s.logger.Info("peer disconnected")
-			return nil
-		}
-		if err != nil {
-			s.logger.Error("stream error", "error", err)
-			return err
-		}
+	// Build LiveKit access token with role-based permissions
+	at := auth.NewAccessToken(s.cfg.LiveKitAPIKey, s.cfg.LiveKitAPISecret)
 
-		switch payload := req.Payload.(type) {
+	grant := &auth.VideoGrant{
+		RoomJoin:     true,
+		Room:         req.SessionId,
+		CanPublish:   &canPublish,
+		CanSubscribe: &canSubscribe,
+	}
 
-		// JOIN: Client wants to join a session/room
-		case *pb.SignalRequest_Join:
-			s.logger.Info("peer joining session",
-				"session_id", payload.Join.SessionId,
-				"user_id", payload.Join.UserId)
+	at.SetVideoGrant(grant).
+		SetIdentity(req.UserId).
+		SetName(req.UserId).
+		SetValidFor(24 * time.Hour)
 
-			// Joins session / registers peer
-			err := peer.Join(payload.Join.SessionId, payload.Join.UserId)
-			if err != nil {
-				s.logger.Error("failed to join session", "error", err)
-				// TODO: send error reply to client
-				continue
-			}
+	token, err := at.ToJWT()
+	if err != nil {
+		s.logger.Error("failed to generate token", "error", err)
+		return nil, status.Error(codes.Internal, "failed to generate access token")
+	}
 
-			// Parse SDP offer from client.
-			// SDP describes their WebRTC capabilities
-			offer := webrtc.SessionDescription{
-				Type: webrtc.SDPTypeOffer,
-				SDP:  string(payload.Join.Offer),
-			}
+	s.logger.Info("peer joined session",
+		"session_id", req.SessionId,
+		"user_id", req.UserId,
+		"role", req.Role,
+	)
 
-			// Generates SDP answer
-			answer, err := peer.Answer(offer)
-			if err != nil {
-				s.logger.Error("failed to create answer", "error", err)
-				// TODO: send error reply to client
-				continue
-			}
+	return &pb.JoinReply{
+		Token:      token,
+		LivekitUrl: s.cfg.LiveKitHost,
+	}, nil
+}
 
-			// Sends answer to client
-			err = stream.Send(&pb.SignalReply{
-				Payload: &pb.SignalReply_Join{
-					Join: &pb.JoinReply{
-						Answer: []byte(answer.SDP),
-					},
-				},
-			})
-			if err != nil {
-				s.logger.Error("failed to send join reply", "error", err)
-				return err
-			}
-
-			s.logger.Info("peer joined session", "session_id", payload.Join.SessionId)
-
-		// TRICKLE: Client is sending an ICE candidate
-		case *pb.SignalRequest_Trickle:
-
-			var candidate webrtc.ICECandidateInit
-			err := json.Unmarshal([]byte(payload.Trickle.Candidate), &candidate)
-			if err != nil {
-				s.logger.Error("failed to parse ICE candidate", "error", err)
-				continue
-			}
-
-			target := int(payload.Trickle.Target) // Publisher or subscriber
-			err = peer.Trickle(candidate, target)
-			if err != nil {
-				s.logger.Error("failed to trickle", "error", err)
-			}
-
-		// DESCRIPTION: Renegotiation (SDP offer or answer)
-		case *pb.SignalRequest_Description:
-
-			sdpType := payload.Description.Type // "offer" or "answer"
-			sdp := string(payload.Description.Sdp)
-
-			if sdpType == "answer" {
-				// Client answered offer
-				answer := webrtc.SessionDescription{
-					Type: webrtc.SDPTypeAnswer,
-					SDP:  sdp,
-				}
-
-				err := peer.SetRemoteDescription(answer)
-				if err != nil {
-					s.logger.Error("failed to set remote description", "error", err)
-				}
-			} else if sdpType == "offer" {
-				// Client sent new offer
-				offer := webrtc.SessionDescription{
-					Type: webrtc.SDPTypeOffer,
-					SDP:  sdp,
-				}
-				answer, err := peer.Answer(offer)
-				if err != nil {
-					s.logger.Error("failed to answer offer", "error", err)
-					continue
-				}
-
-				err = stream.Send(&pb.SignalReply{
-					Payload: &pb.SignalReply_Description{
-						Description: &pb.SessionDescription{
-							Type: answer.Type.String(),
-							Sdp:  []byte(answer.SDP),
-						},
-					},
-				})
-				if err != nil {
-					s.logger.Error("failed to send answer", "error", err)
-				}
-			}
-
-		default:
-			s.logger.Warn("unknown message type")
-		}
-
+// permissionsForRole maps a DirectLink role to LiveKit publish/subscribe permissions.
+func permissionsForRole(role string) (canPublish bool, canSubscribe bool, err error) {
+	switch role {
+	case "camera":
+		return true, false, nil
+	case "director":
+		return false, true, nil
+	default:
+		return false, false, fmt.Errorf("unknown role %q: must be \"camera\" or \"director\"", role)
 	}
 }
