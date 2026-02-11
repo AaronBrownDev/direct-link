@@ -14,9 +14,9 @@ find_package(Qt5 REQUIRED COMPONENTS Widgets Qml Quick QuickWidgets)
 
 set(PROJECT_SOURCES
         src/main.cpp
-        src/ui/mainwindow.cpp
-        src/ui/mainwindow.h
-        src/ui/mainwindow.ui
+
+
+
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -34,6 +34,8 @@ else()
     else()
         add_executable(direct-link
             ${PROJECT_SOURCES}
+
+            resources.qrc
         )
     endif()
 endif()
