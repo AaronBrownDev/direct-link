@@ -1,3 +1,12 @@
+/*
+ * File: main.qml
+ * Author: Justin Williams
+ * Date: 2/10/26
+ * File Description: The qml file that the application loads on startup.
+   Currently, it contains a nonfunctional window for the Director session page.
+   The Leave button closes the application.
+ */
+
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
@@ -260,25 +269,106 @@ Window {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 100
 
-                Button {
-                    id: dl_control_app_exit
-                    width: 120
-                    height: 50
-                    background: Rectangle {
-                        radius: 25
-                        color: dl_control_app_exit.down ? "#B02120" : "#EC221F"
-                        Text {
-                            text: "Close"
-                            font.pointSize: 15
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 10
+
+                    Text {
+                        id: dl_label_field_address
+                        text: "Address"
+                        color: "white"
+                        font.pointSize: 18
+                    }
+
+                    Rectangle {
+                        id: dl_bg_field_address
+                        width: 400
+                        height: 50
+                        color: "#0F172A"
+                        radius: 5
+
+                        Layout.rightMargin: 20
+
+                        TextInput {
+                            id: dl_field_address
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 15
+                            width: parent.width
                             color: "white"
-                            anchors.centerIn: parent
+                            maximumLength: 24
+                            font.pointSize: 18
                         }
                     }
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: 20
-                    onClicked: Qt.quit()
+
+                    Text {
+                        id: dl_label_field_room_id
+                        text: "Room ID"
+                        color: "white"
+                        font.pointSize: 18
+                    }
+
+                    Rectangle {
+                        id: dl_bg_field_room_id
+                        width: 400
+                        height: 50
+                        color: "#0F172A"
+                        radius: 5
+
+                        Layout.rightMargin: 20
+
+                        TextInput {
+                            id: dl_field_room_id
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 15
+                            width: parent.width
+                            color: "white"
+                            maximumLength: 12
+                            font.pointSize: 18
+                        }
+                    }
+
+                    Button {
+                        id: dl_control_connect
+                        Layout.preferredWidth: 120
+                        Layout.preferredHeight: 50
+                        background: Rectangle {
+                            radius: 25
+                            color: dl_control_connect.down ? "#6AE276" : "#77FF85"
+                            Text {
+                                text: "Connect"
+                                font.pointSize: 15
+                                color: "black"
+                                anchors.centerIn: parent
+                            }
+                        }
+                    }
+
+                    // Spacer
+                    Item { Layout.fillWidth: true }
+
+                    Button {
+                        id: dl_control_app_exit
+                        Layout.preferredWidth: 120
+                        Layout.preferredHeight: 50
+                        background: Rectangle {
+                            radius: 25
+                            color: dl_control_app_exit.down ? "#B02120" : "#EC221F"
+                            Text {
+                                text: "Leave"
+                                font.pointSize: 15
+                                color: "white"
+                                anchors.centerIn: parent
+                            }
+                        }
+                        onClicked: Qt.quit()
+                    }
+
                 }
+
+
             }
         }
 }
