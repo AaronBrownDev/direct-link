@@ -10,6 +10,9 @@ type Config struct {
 	GRPCPort        int
 	ShutdownTimeout time.Duration
 
+	// Redis connection
+	RedisAddr string
+
 	// LiveKit connection
 	LiveKitHost      string
 	LiveKitAPIKey    string
@@ -21,6 +24,7 @@ func DefaultConfig() Config {
 		HTTPPort:         8081,
 		GRPCPort:         50051,
 		ShutdownTimeout:  time.Second * 5,
+		RedisAddr:        "redis:6379",
 		LiveKitHost:      "http://localhost:7880",
 		LiveKitAPIKey:    "devkey", // dev default
 		LiveKitAPISecret: "secret", // dev default
@@ -29,6 +33,10 @@ func DefaultConfig() Config {
 
 func LoadConfig() Config {
 	cfg := DefaultConfig()
+
+	if addr := os.Getenv("REDIS_ADDR"); addr != "" {
+		cfg.RedisAddr = addr
+	}
 
 	if host := os.Getenv("LIVEKIT_HOST"); host != "" {
 		cfg.LiveKitHost = host

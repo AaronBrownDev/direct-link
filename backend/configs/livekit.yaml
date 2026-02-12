@@ -9,4 +9,4 @@ keys:
 webhook:
   api_key: devkey
   urls:
-    - http://signaling:8080/webhooks/livekit
+    - http://dev:8081/webhooks/livekit
