@@ -1,0 +1,12 @@
+port: 7880
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 52000 # Narrowed for local development environment
+  use_ice_lite: true
+keys:
+  devkey: secret
+webhook:
+  api_key: devkey
+  urls:
+    - http://dev:8081/webhooks/livekit
