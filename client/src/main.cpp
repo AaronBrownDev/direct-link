@@ -6,7 +6,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
 
     QQmlApplicationEngine engine;
-    const QUrl url(QStringLiteral("qrc:/src/application/main.qml"));
+    const QUrl url(QStringLiteral("qrc:/src/application/Main.qml"));
     engine.load(url);
 
 
