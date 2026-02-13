@@ -3,6 +3,9 @@ package signaling
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/livekit/protocol/auth"
+	"github.com/livekit/protocol/webhook"
 )
 
 // handleHealth is for doing a general health check
@@ -34,6 +37,49 @@ func (s *Server) handleLiveness(w http.ResponseWriter, r *http.Request) {
 		"status":  "alive",
 		"service": "signaling",
 	})
+}
+
+// handleLiveKitWebhook receives event notification from LiveKit.
+func (s *Server) handleLiveKitWebhook(w http.ResponseWriter, r *http.Request) {
+
+	authProvider := auth.NewSimpleKeyProvider(s.cfg.LiveKitAPIKey, s.cfg.LiveKitAPISecret)
+
+	event, err := webhook.ReceiveWebhookEvent(r, authProvider)
+	if err != nil {
+		s.logger.Error("webhook validation failed", "error", err)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	switch event.GetEvent() {
+	case "participant_joined":
+		s.logger.Info(
+			"participant joined",
+			"room", event.GetRoom().GetName(),
+			"identity", event.GetParticipant().GetIdentity(),
+		)
+	case "participant_left":
+		s.logger.Info(
+			"participant left",
+			"room", event.GetRoom().GetName(),
+			"identity", event.GetParticipant().GetIdentity(),
+		)
+	case "track_published":
+		s.logger.Info(
+			"track published",
+			"room", event.GetRoom().GetName(),
+			"identity", event.GetParticipant().GetIdentity(),
+		)
+	case "room_finished":
+		s.logger.Info(
+			"room finished",
+			"room", event.GetRoom().GetName(),
+		)
+	default:
+		s.logger.Debug("unhandled webhook event", "event", event.GetEvent())
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // writeJSON is a helper func for http handlers
