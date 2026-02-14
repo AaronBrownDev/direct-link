@@ -11,6 +11,10 @@ services:
         condition: service_healthy
       livekit:
         condition: service_started
+    devices:
+      - /dev/video0:/dev/video0
+    group_add:
+      - "985"
 
   dev-gpu:
     extends: dev

@@ -2,8 +2,8 @@
 
 CXX := g++
 CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic
-LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale)
-INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale)
+LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale libavdevice)
+INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale libavdevice)
 
 # Directories
 BUILD_DIR := build
@@ -29,7 +29,7 @@ else
 endif
 
 # Targets
-.PHONY: all clean encode_test nvenc_test run_encode_test run_nvenc_test tests help
+.PHONY: all clean encode_test nvenc_test run_encode_test run_nvenc_test tests help capture_pipeline run_capture_pipeline
 
 all: tests
 
@@ -96,3 +96,21 @@ help:
 	@echo "  make DEBUG=1            # Build all tests (debug)"
 	@echo "  make nvenc_test         # Build only NVENC test"
 	@echo "  make run_nvenc_test     # Build and run NVENC test"
+
+# Capture pipeline test
+CAPTURE_PIPELINE_SRC := tests/manual/capture_pipeline.cpp
+CAPTURE_PIPELINE_OBJ := $(OBJ_DIR)/capture_pipeline.o
+CAPTURE_PIPELINE_BIN := $(BIN_DIR)/capture_pipeline
+
+capture_pipeline: $(CAPTURE_PIPELINE_BIN)
+
+$(CAPTURE_PIPELINE_BIN): $(CAPTURE_PIPELINE_OBJ) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -pthread
+	@echo "Built capture_pipeline -> $@"
+
+$(OBJ_DIR)/capture_pipeline.o: $(CAPTURE_PIPELINE_SRC) | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
+
+run_capture_pipeline: $(CAPTURE_PIPELINE_BIN)
+	@echo "Running capture pipeline..."
+	@$(CAPTURE_PIPELINE_BIN)
