@@ -25,10 +25,25 @@ type RedisStore struct {
 }
 
 // NewReidStore creates a new Redis-backed store
-func NewRedisStore(addr string, sessionTTL time.Duration) (*RedisStore, error) {
+func NewRedisStore(addr string,
+	password string,
+	db int,
+	poolSize int,
+	minIdleConns int,
+	dialTimeout time.Duration,
+	readTimeout time.Duration,
+	writeTimeout time.Duration,
+	sessionTTL time.Duration) (*RedisStore, error) {
 	//TODO: What happened to these ? why did it change to just Addr
 	client := redis.NewClient(&redis.Options{
-		Addr: addr,
+		Addr:         addr,
+		Password:     password,
+		DB:           db,
+		PoolSize:     poolSize,
+		MinIdleConns: minIdleConns,
+		DialTimeout:  dialTimeout,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
 	})
 
 	//Test connection
