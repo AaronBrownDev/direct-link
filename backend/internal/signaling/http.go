@@ -18,6 +18,26 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 // handleReadiness is for seeing if signaling server can handle traffic
 func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
+	if s.store == nil {
+		s.writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"status":  "not_ready",
+			"service": "signaling",
+			"reason":  "redis_store_not_initialized",
+		})
+		return
+
+	}
+
+	if err := s.store.Ping(r.Context()); err != nil {
+		s.logger.Error("Redis health check failed", "error", err)
+		s.writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"status":  "not_ready",
+			"service": "signalling",
+			"reason":  "redis_unavailable",
+		})
+		return
+	}
+
 	if s.ready.Load() {
 		s.writeJSON(w, http.StatusOK, map[string]string{
 			"status":  "ready",
