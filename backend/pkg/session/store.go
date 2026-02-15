@@ -8,12 +8,16 @@ type Store interface {
 	CreateSession(ctx context.Context, session *Session) error
 	GetSession(ctx context.Context, sessionID string) (*Session, error)
 	GetSessionByRoomCode(ctx context.Context, code string) (*Session, error)
+	UpdateSessionStatus(ctx context.Context, sessionID string, status string) error
+	DeleteSession(ctx context.Context, sessionID string) error
 
-	//Peer operations
-	AddPeer(ctx context.Context, peer *Peer) error
-	RemovePeer(ctx context.Context, peerID string) error
-	GetSessionPeers(ctx context.Context, sessionId string) ([]Peer, error)
-	UpdatePeerStatus(ctx context.Context, peerID string, status string) error
+	//Access control
+	GrantAccess(ctx context.Context, sessionID, userID, role string) error
+	RevokeAccess(ctx context.Context, sessionID, userID string) error
+	HasAccess(ctx context.Context, sessionID, userID string) (bool, error)
+
+	//User Sessions
+	GetUserSessions(ctx context.Context, userID string) ([]Session, error)
 
 	//Health check
 	Ping(ctx context.Context) error

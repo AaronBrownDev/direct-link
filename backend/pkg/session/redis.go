@@ -10,33 +10,25 @@ import (
 
 // Key prefixes following the technical design
 const (
-	sessionPrefix      = "session:"
-	sessionPeersPrefix = "session:%s:peers" //Format with session ID
-	peerPrefix         = "peer:"
-	roomCodePrefix     = "roomcode:"
-	activeSessionsKey  = "session:active"
+	sessionPrefix       = "session:"
+	sessionAccessSuffix = ":access"
+	roomCodePrefix      = "roomcode:"
+	userSessionsPrefix  = "user:"
+	activeSessionsKey   = "sessions:active"
+	defaultSessionTTL   = 24 * time.Hour
 )
 
 // RedisStore implements the Store interface using redis
 type RedisStore struct {
 	client     *redis.Client
 	sessionTTL time.Duration
-	peerTTL    time.Duration
 }
 
 // NewReidStore creates a new Redis-backed store
-func NewRedisStore(addr, password string, db, poolSize, minIdleConns int,
-	dialTimeout, readTimeout, writeTimeout time.Duration,
-	sessionTTL, peerTTL time.Duration) (*RedisStore, error) {
+func NewRedisStore(addr string, sessionTTL time.Duration) (*RedisStore, error) {
+	//TODO: What happened to these ? why did it change to just Addr
 	client := redis.NewClient(&redis.Options{
-		Addr:         addr,
-		Password:     password,
-		DB:           db,
-		PoolSize:     poolSize,
-		MinIdleConns: minIdleConns,
-		DialTimeout:  dialTimeout,
-		ReadTimeout:  readTimeout,
-		WriteTimeout: writeTimeout,
+		Addr: addr,
 	})
 
 	//Test connection
@@ -44,13 +36,12 @@ func NewRedisStore(addr, password string, db, poolSize, minIdleConns int,
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w:%v,ErrRedisUnavailable, err")
 	}
 
 	return &RedisStore{
 		client:     client,
 		sessionTTL: sessionTTL,
-		peerTTL:    peerTTL,
 	}, nil
 
 }
@@ -62,11 +53,12 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) error 
 
 	// Convert session to map for HSET
 	sessionData := map[string]interface{}{
-		"id":         session.ID,
-		"room_code":  session.RoomCode,
-		"created_at": session.CreatedAt.Format(time.RFC3339),
-		"max_peers":  session.MaxPeers,
-		"status":     session.Status,
+		"id":          session.ID,
+		"room_code":   session.RoomCode,
+		"created_by":  session.CreatedBy,
+		"created_at":  session.CreatedAt.Format(time.RFC3339),
+		"max_cameras": session.MaxCameras,
+		"status":      session.Status,
 	}
 
 	// Use pipeline for atomic operations
@@ -81,6 +73,11 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) error 
 		roomCodeKey := roomCodePrefix + session.RoomCode
 		pipe.Set(ctx, roomCodeKey, session.ID, r.sessionTTL)
 	}
+
+	//Add to user's sessions
+	userSessionsKey := userSessionsPrefix + session.CreatedBy + ":sessions"
+	pipe.SAdd(ctx, userSessionsKey, session.ID)
+	pipe.Expire(ctx, userSessionsKey, r.sessionTTL)
 
 	//3. Add to active sessions set
 	pipe.SAdd(ctx, activeSessionsKey, session.ID)
@@ -115,18 +112,17 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session
 		return nil, fmt.Errorf("failed to parse created_at %w", err)
 	}
 
-	var maxPeers int
-	fmt.Scanf(result["max_peers"], "%d", &maxPeers)
+	var maxCameras int
+	fmt.Scanf(result["max_cameras"], "%d", &maxCameras)
 
-	session := &Session{
-		ID:        result["id"],
-		RoomCode:  result["room_code"],
-		CreatedAt: createdAt,
-		MaxPeers:  maxPeers,
-		Status:    result["status"],
-	}
-
-	return session, nil
+	return &Session{
+		ID:         result["id"],
+		RoomCode:   result["room_code"],
+		CreatedBy:  result["created_by"],
+		CreatedAt:  createdAt,
+		MaxCameras: maxCameras,
+		Status:     result["status"],
+	}, nil
 }
 
 func (r *RedisStore) GetSessionByRoomCode(ctx context.Context, code string) (*Session, error) {
@@ -139,11 +135,33 @@ func (r *RedisStore) GetSessionByRoomCode(ctx context.Context, code string) (*Se
 		return nil, ErrInvalidRoomCode
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to lookup room code: %w", err)
+		return nil, err
 	}
 
 	// Get the actual session
 	return r.GetSession(ctx, sessionID)
+}
+func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, status string) error {
+	sessionKey := sessionPrefix + sessionID
+
+	exists, err := r.client.Exists(ctx, sessionKey).Result()
+
+	if err != nil {
+		return err
+	}
+	if exists == 0 {
+		return ErrSessionNotFound
+	}
+	if err := r.client.HSet(ctx, sessionKey, "status", status).Err(); err != nil {
+		return err
+	}
+
+	// If closing, remove from active sessions
+	if status == "closed" {
+		r.client.SRem(ctx, activeSessionsKey, sessionID)
+	}
+	return nil
+
 }
 
 func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) error {
@@ -155,175 +173,113 @@ func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) error 
 	}
 
 	sessionKey := sessionPrefix + sessionID
-	peersKey := fmt.Sprintf(sessionPeersPrefix, sessionID)
+	accessKey := sessionKey + sessionAccessSuffix
+	userSessionsKey := userSessionsPrefix + session.CreatedBy + ":sessions"
 
-	//Get all peers to delete them too
-	peerIDs, err := r.client.SMembers(ctx, peersKey).Result()
-	if err != nil && err != redis.Nil {
-		return fmt.Errorf("failed to get peers for deletion: %w", err)
-	}
-
-	//Use pipeline for atomic election
 	pipe := r.client.Pipeline()
-
-	//Delete session
 	pipe.Del(ctx, sessionKey)
-	pipe.Del(ctx, peersKey)
+	pipe.Del(ctx, accessKey)
+	pipe.SRem(ctx, userSessionsKey, sessionID)
+	pipe.SRem(ctx, activeSessionsKey, sessionID)
 
-	//Delete room code mapping
 	if session.RoomCode != "" {
 		pipe.Del(ctx, roomCodePrefix+session.RoomCode)
 	}
 
-	//Remove from active sessions
-	pipe.SRem(ctx, activeSessionsKey, sessionID)
+	_, err = pipe.Exec(ctx)
+	return err
+}
 
-	//Delete all peers
-	for _, peerID := range peerIDs {
-		pipe.Del(ctx, peerPrefix+peerID)
+// GrantAccess gives a user access to a session
+func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role string) error {
+	sessionKey := sessionPrefix + sessionID
+	accessKey := sessionKey + sessionAccessSuffix
+
+	//Verify session exists
+	exists, err := r.client.Exists(ctx, sessionKey).Result()
+	if err != nil {
+		return err
 	}
+	if exists == 0 {
+		return ErrSessionNotFound
+	}
+
+	//Store as "userID:role" for easy lookup
+	accessValue := fmt.Sprintf("%s:%s", userID, role)
+
+	pipe := r.client.Pipeline()
+	pipe.SAdd(ctx, accessKey, accessValue)
+	pipe.Expire(ctx, accessKey, r.sessionTTL)
 
 	_, err = pipe.Exec(ctx)
 	return err
 }
 
-func (r *RedisStore) AddPeer(ctx context.Context, peer *Peer) error {
-	//Check is session exists and is active
-	session, err := r.GetSession(ctx, peer.SessionID)
+func (r *RedisStore) RevokeAccess(ctx context.Context, sessionID, userID string) error {
+	sessionKey := sessionPrefix + sessionID
+	accessKey := sessionKey + sessionAccessSuffix
+
+	//Get all access entries to find the one for this user
+	members, err := r.client.SMembers(ctx, accessKey).Result()
+
 	if err != nil {
 		return err
 	}
 
-	if session.Status == "closed" {
-		return ErrSessionClosed
+	for _, member := range members {
+		var storedUserID string
+		fmt.Scanf(member, "%s:", &storedUserID)
+
+		if storedUserID == userID {
+			return r.client.SRem(ctx, accessKey, member).Err()
+		}
 	}
-
-	//Check if session is full
-	peerCount, err := r.client.SCard(ctx, fmt.Sprintf(sessionPeersPrefix, peer.SessionID)).Result()
-	if err != nil && err != redis.Nil {
-		return fmt.Errorf("failed to check peer count: %w", err)
-	}
-	if int(peerCount) >= session.MaxPeers {
-		return ErrSessionFull
-	}
-
-	peerKey := peerPrefix + peer.ID
-	peersKey := fmt.Sprintf(sessionPeersPrefix, peer.SessionID)
-
-	//Store peer data as hash
-	peerData := map[string]interface{}{
-		"id":         peer.ID,
-		"session_id": peer.SessionID,
-		"user_id":    peer.UserID,
-		"role":       peer.Role,
-		"joined_at":  peer.JoinedAt.Format(time.RFC3339),
-		"status":     peer.Status,
-	}
-
-	//Use pipeline for atomic operations
-	pipe := r.client.Pipeline()
-
-	//Store peer hash
-	pipe.HSet(ctx, peerKey, peerData)
-	pipe.Expire(ctx, peerKey, r.peerTTL)
-
-	//Add to session's peer set
-	pipe.SAdd(ctx, peersKey, peer.ID)
-	pipe.Expire(ctx, peersKey, r.sessionTTL)
-
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to add peer: %w", err)
-	}
-
 	return nil
 }
 
-func (r *RedisStore) RemovePeer(ctx context.Context, peerID string) error {
-	peerKey := peerPrefix + peerID
+// HasAccess checks if a user has access to a session
+func (r *RedisStore) HasAccess(ctx context.Context, sessionID, userID string) (bool, error) {
+	sessionKey := sessionPrefix + sessionID
+	accessKey := sessionKey + sessionAccessSuffix
 
-	//Get peer to find sessionID
-	peerData, err := r.client.HGetAll(ctx, peerKey).Result()
+	members, err := r.client.SMembers(ctx, accessKey).Result()
+
 	if err != nil {
-		return fmt.Errorf("failed to get peer: %w", err)
+		return false, err
 	}
 
-	if len(peerData) == 0 {
-		return ErrPeerNotFound
-	}
+	for _, member := range members {
+		var storedUserID string
+		fmt.Scanf(member, "%s:", &storedUserID)
 
-	sessionID := peerData["session_id"]
-	peersKey := fmt.Sprintf(sessionPeersPrefix, sessionID)
-
-	//Use pipeline for atomic removal
-	pipe := r.client.Pipeline()
-	pipe.Del(ctx, peerKey)
-	pipe.SRem(ctx, peersKey, peerID)
-
-	_, err = pipe.Exec(ctx)
-
-	return err
-}
-
-func (r *RedisStore) GetSessionPeers(ctx context.Context, sessionID string) ([]Peer, error) {
-	peersKey := fmt.Sprintf(sessionPeersPrefix, sessionID)
-
-	//Get All peer IDs
-	peerIDs, err := r.client.SMembers(ctx, peersKey).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get peer IDs: %w", err)
-	}
-	peers := make([]Peer, 0, len(peerIDs))
-
-	//Get each peer's data
-	for _, peerID := range peerIDs {
-		peerKey := peerPrefix + peerID
-		peerData, err := r.client.HGetAll(ctx, peerKey).Result()
-		if err != nil || len(peerData) == 0 {
-			continue //Skip id peer data is missing
+		if storedUserID == userID {
+			return true, nil
 		}
-
-		joinedAt, _ := time.Parse(time.RFC3339, peerData["joined_at"])
-
-		peer := Peer{
-			ID:        peerData["id"],
-			SessionID: peerData["session_id"],
-			UserID:    peerData["user_id"],
-			Role:      peerData["role"],
-			JoinedAt:  joinedAt,
-			Status:    peerData["status"],
-		}
-
-		peers = append(peers, peer)
 	}
-
-	return peers, nil
+	return false, nil
 }
 
-func (r *RedisStore) UpdatePeerStatus(ctx context.Context, peerID string, status string) error {
-	peerKey := peerPrefix + peerID
+// GetUserSessions retrieves all sessions created by a user
+func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Session, error) {
+	userSessionsKey := userSessionsPrefix + userID + ":sessions"
 
-	// Check if peer exists
-	exists, err := r.client.Exists(ctx, peerKey).Result()
+	sessionIDs, err := r.client.SMembers(ctx, userSessionsKey).Result()
 	if err != nil {
-		return fmt.Errorf("failed to check peer existence: %w", err)
+		return nil, err
 	}
 
-	if exists == 0 {
-		return ErrPeerNotFound
+	sessions := make([]Session, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		session, err := r.GetSession(ctx, sessionID)
+		if err != nil {
+			continue //Skip if session no longer exists
+		}
+		sessions = append(sessions, *session)
 	}
-
-	// Update status field
-	if err := r.client.HSet(ctx, peerKey, "status", status).Err(); err != nil {
-		return fmt.Errorf("failed to update peer status: %w", err)
-	}
-
-	// Refresh TTL
-	r.client.Expire(ctx, peerKey, r.peerTTL)
-
-	return nil
+	return sessions, nil
 }
 
+// Ping checks Redis availabilty
 func (r *RedisStore) Ping(ctx context.Context) error {
 	if err := r.client.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("%w: %v", ErrRedisUnavailable, err)
@@ -331,6 +287,7 @@ func (r *RedisStore) Ping(ctx context.Context) error {
 	return nil
 }
 
+// Close closes the redis connection
 func (r *RedisStore) Close() error {
 	return r.client.Close()
 }
