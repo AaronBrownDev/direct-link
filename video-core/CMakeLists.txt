@@ -30,7 +30,7 @@ include_directories(
 )
 
 # CPU encoding test executable
-add_executable(encode_te1.0.0st
+add_executable(encode_test
     tests/manual/encode_test.cpp
 )
 
