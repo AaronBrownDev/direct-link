@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     libavformat-dev \
     libavutil-dev \
     libswscale-dev \
+    libavdevice-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set g++ as default C++ compiler
