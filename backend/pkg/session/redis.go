@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -51,7 +53,7 @@ func NewRedisStore(addr string,
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("%w:%v,ErrRedisUnavailable, err")
+		return nil, fmt.Errorf("%w: %v", ErrRedisUnavailable, err)
 	}
 
 	return &RedisStore{
@@ -127,8 +129,10 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session
 		return nil, fmt.Errorf("failed to parse created_at %w", err)
 	}
 
-	var maxCameras int
-	fmt.Scanf(result["max_cameras"], "%d", &maxCameras)
+	maxCameras, err := strconv.Atoi(result["max_cameras"])
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse max_cameras: %w", err)
+	}
 
 	return &Session{
 		ID:         result["id"],
@@ -242,10 +246,8 @@ func (r *RedisStore) RevokeAccess(ctx context.Context, sessionID, userID string)
 	}
 
 	for _, member := range members {
-		var storedUserID string
-		fmt.Scanf(member, "%s:", &storedUserID)
-
-		if storedUserID == userID {
+		parts := strings.Split(member, ":")
+		if len(parts) >= 1 && parts[0] == userID {
 			return r.client.SRem(ctx, accessKey, member).Err()
 		}
 	}
@@ -264,10 +266,8 @@ func (r *RedisStore) HasAccess(ctx context.Context, sessionID, userID string) (b
 	}
 
 	for _, member := range members {
-		var storedUserID string
-		fmt.Scanf(member, "%s:", &storedUserID)
-
-		if storedUserID == userID {
+		parts := strings.Split(member, ":")
+		if len(parts) >= 1 && parts[0] == userID {
 			return true, nil
 		}
 	}
