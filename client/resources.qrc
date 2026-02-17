@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/">
+        <file>src/application/Main.qml</file>
+        <file>resources/icons/settings.png</file>
+        <file>src/application/Header.qml</file>
+        <file>src/application/Footer.qml</file>
+        <file>src/application/Camera.qml</file>
+        <file>src/application/ThumbnailList.qml</file>
+        <file>src/application/SessionLog.qml</file>
+        <file>src/application/SessionInfo.qml</file>
+    </qresource>
+</RCC>

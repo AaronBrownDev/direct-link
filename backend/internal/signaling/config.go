@@ -20,6 +20,7 @@ type Config struct {
 	RedisReadTimeout  time.Duration
 	RedisWriteTimeout time.Duration
 	SessionTTL        time.Duration
+	RedisAddr string
 
 	// LiveKit connection
 	LiveKitHost      string
@@ -44,6 +45,10 @@ func DefaultConfig() Config {
 		RedisWriteTimeout: 3 * time.Second,
 		SessionTTL:        24 * time.Hour,
 
+		HTTPPort:         8081,
+		GRPCPort:         50051,
+		ShutdownTimeout:  time.Second * 5,
+		RedisAddr:        "redis:6379",
 		LiveKitHost:      "http://localhost:7880",
 		LiveKitAPIKey:    "devkey", // dev default
 		LiveKitAPISecret: "secret", // dev default

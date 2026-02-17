@@ -45,7 +45,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 			s.logger.Warn("user joining without explicit access", "user_id", req.UserId, "session_id", req.SessionId)
 		}
 	}
-
+	
 	// Determine permissions based on role
 	canPublish, canSubscribe, err := permissionsForRole(req.Role)
 	if err != nil {
