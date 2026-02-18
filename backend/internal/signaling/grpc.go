@@ -26,6 +26,27 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.InvalidArgument, "role is required")
 	}
 
+	// Verify session exists and is active
+	if s.store != nil {
+		sess, err := s.store.GetSession(ctx, req.SessionId)
+		if err != nil {
+			s.logger.Error("session not found", "session_id", req.SessionId, "error", err)
+			return nil, status.Error(codes.NotFound, "session not found")
+		}
+		if sess.Status == "closed" {
+			return nil, status.Error(codes.FailedPrecondition, "session is closed")
+		}
+		// Check if user has access
+		hasAccess, err := s.store.HasAccess(ctx, req.SessionId, req.UserId)
+		if err != nil {
+			s.logger.Error("failed to check access", "error", err)
+			return nil, status.Error(codes.Internal, "failed to verify access")
+		}
+		if !hasAccess {
+			return nil, status.Error(codes.PermissionDenied, "access denied")
+		}
+	}
+
 	// Determine permissions based on role
 	canPublish, canSubscribe, err := permissionsForRole(req.Role)
 	if err != nil {

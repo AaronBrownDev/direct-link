@@ -3,6 +3,7 @@ module github.com/AaronBrownDev/direct-link
 go 1.25.4
 
 require (
+	github.com/alicebob/miniredis/v2 v2.36.1
 	github.com/livekit/protocol v1.44.1-0.20260120134243-0914cc74653e
 	github.com/livekit/server-sdk-go/v2 v2.13.3
 	github.com/redis/go-redis/v9 v9.17.3
@@ -70,6 +71,7 @@ require (
 	github.com/stoewer/go-strcase v1.3.1 // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	go.opentelemetry.io/otel v1.39.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
