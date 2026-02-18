@@ -56,3 +56,31 @@ set_target_properties(encode_test nvenc_test PROPERTIES
 install(TARGETS encode_test nvenc_test
     RUNTIME DESTINATION bin
 )
+# =================================================================
+# Google Test
+# =================================================================
+include(FetchContent)
+FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/v1.17.0.zip
+)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+add_executable(video_core_tests
+    tests/unit/test_types.cpp
+)
+
+target_link_libraries(video_core_tests
+    GTest::gtest_main
+    ${FFMPEG_LIBRARIES}
+)
+
+target_include_directories(video_core_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${FFMPEG_INCLUDE_DIRS}
+)
+
+include(GoogleTest)
+gtest_discover_tests(video_core_tests)

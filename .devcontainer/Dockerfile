@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     clang-format \
     clang-tidy \
     pkg-config \
+    libgtest-dev \
     && rm -rf /var/lib/apt/lists/*
 
 
