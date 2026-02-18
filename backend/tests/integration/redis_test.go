@@ -71,7 +71,7 @@ func TestRedisStoreIntegration(t *testing.T) {
 	}
 
 	//Test 2: Create and retrieve session
-	sessionID := fmt.Sprintf("integration-test-%d", time.Now().Unix())
+	sessionID := fmt.Sprintf("integration-test-%d", time.Now().UnixNano())
 
 	sess := &session.Session{
 		ID:         sessionID,
@@ -85,6 +85,7 @@ func TestRedisStoreIntegration(t *testing.T) {
 	if err := store.CreateSession(ctx, sess); err != nil {
 		t.Fatalf("Create Session failed: %v", err)
 	}
+	defer store.DeleteSession(ctx, sessionID)
 
 	retrieved, err := store.GetSession(ctx, sessionID)
 	if err != nil {
