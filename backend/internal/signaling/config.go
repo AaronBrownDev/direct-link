@@ -11,6 +11,7 @@ type Config struct {
 	ShutdownTimeout time.Duration
 
 	// Redis connection
+	RedisAddr         string
 	RedisPassword     string
 	RedisDB           int
 	RedisPoolSize     int
@@ -19,7 +20,6 @@ type Config struct {
 	RedisReadTimeout  time.Duration
 	RedisWriteTimeout time.Duration
 	SessionTTL        time.Duration
-	RedisAddr         string
 
 	// LiveKit connection
 	LiveKitHost      string
