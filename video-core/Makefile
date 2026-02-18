@@ -74,6 +74,19 @@ clean:
 	rm -f output.h264 output_nvenc.h264
 	@echo "Cleaned build artifacts"
 
+# Unit Tests
+UNIT_TEST_SRC := tests/unit/test_types.cpp
+UNIT_TEST_BIN := $(BIN_DIR)/video_core_tests
+GTEST_FLAGS := -lgtest -lgtest_main -pthread
+
+test: $(UNIT_TEST_BIN)
+	@echo "Running unit tests..."
+	@$(UNIT_TEST_BIN)
+
+$(UNIT_TEST_BIN): $(UNIT_TEST_SRC) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@ $(LDFLAGS) $(GTEST_FLAGS)
+	@echo "Built unit tests -> $@"
+
 # Help
 help:
 	@echo "DirectLink Video Core Build System"
