@@ -40,8 +40,9 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		hasAccess, err := s.store.HasAccess(ctx, req.SessionId, req.UserId)
 		if err != nil {
 			s.logger.Error("failed to check access", "error", err)
-		} else if !hasAccess {
-			// You could either deny or auto-grant here
+			return nil, status.Error(codes.Internal, "failed to verify access")
+		}
+		if !hasAccess {
 			return nil, status.Error(codes.PermissionDenied, "access denied")
 		}
 	}
