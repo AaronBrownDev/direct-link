@@ -32,7 +32,7 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("Redis health check failed", "error", err)
 		s.writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 			"status":  "not_ready",
-			"service": "signalling",
+			"service": "signaling",
 			"reason":  "redis_unavailable",
 		})
 		return

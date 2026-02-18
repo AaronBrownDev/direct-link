@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync/atomic"
 
 	"github.com/AaronBrownDev/direct-link/pkg/session"
@@ -43,6 +44,7 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	)
 	if err != nil {
 		logger.Error("failed to create Redis store", "error", err)
+		os.Exit(1)
 	}
 
 	server := &Server{

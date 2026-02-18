@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ type RedisStore struct {
 	sessionTTL time.Duration
 }
 
-// NewReidStore creates a new Redis-backed store
+// NewRedisStore creates a new Redis-backed store
 func NewRedisStore(addr string,
 	password string,
 	db int,
@@ -36,7 +37,6 @@ func NewRedisStore(addr string,
 	readTimeout time.Duration,
 	writeTimeout time.Duration,
 	sessionTTL time.Duration) (*RedisStore, error) {
-	//TODO: What happened to these ? why did it change to just Addr
 	client := redis.NewClient(&redis.Options{
 		Addr:         addr,
 		Password:     password,
@@ -97,7 +97,10 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) error 
 	pipe.Expire(ctx, userSessionsKey, r.sessionTTL)
 
 	//3. Add to active sessions set
-	pipe.SAdd(ctx, activeSessionsKey, session.ID)
+	pipe.ZAdd(ctx, activeSessionsKey, redis.Z{
+		Score:  float64(time.Now().Add(r.sessionTTL).Unix()),
+		Member: session.ID,
+	})
 
 	//Execute all commands atomically
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -287,7 +290,12 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Sess
 	for _, sessionID := range sessionIDs {
 		session, err := r.GetSession(ctx, sessionID)
 		if err != nil {
-			continue //Skip if session no longer exists
+			//Only skip if session expired/deleted (expected)
+			if errors.Is(err, ErrSessionNotFound) {
+				continue
+			}
+			//For any other error (Redis down, parse error, etc.), fail fast
+			return nil, fmt.Errorf("failed to get session %s: %w", sessionID, err)
 		}
 		sessions = append(sessions, *session)
 	}
