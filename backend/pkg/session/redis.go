@@ -78,6 +78,10 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) error 
 		"status":      session.Status,
 	}
 
+	//Prune expired session IDs from active set
+	r.client.ZRemRangeByScore(ctx, activeSessionsKey, "-inf",
+		fmt.Sprintf("%d", time.Now().Unix()))
+
 	// Use pipeline for atomic operations
 	pipe := r.client.Pipeline()
 
@@ -180,7 +184,7 @@ func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, 
 
 	// If closing, remove from active sessions
 	if status == "closed" {
-		r.client.SRem(ctx, activeSessionsKey, sessionID)
+		r.client.ZRem(ctx, activeSessionsKey, sessionID)
 	}
 	return nil
 
@@ -202,7 +206,7 @@ func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) error 
 	pipe.Del(ctx, sessionKey)
 	pipe.Del(ctx, accessKey)
 	pipe.SRem(ctx, userSessionsKey, sessionID)
-	pipe.SRem(ctx, activeSessionsKey, sessionID)
+	pipe.ZRem(ctx, activeSessionsKey, sessionID)
 
 	if session.RoomCode != "" {
 		pipe.Del(ctx, roomCodePrefix+session.RoomCode)

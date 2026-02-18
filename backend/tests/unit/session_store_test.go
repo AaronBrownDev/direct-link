@@ -29,7 +29,7 @@ func setupTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
 	return store, mr
 }
 
-func TestCreateandGetSession(t *testing.T) {
+func TestCreateAndGetSession(t *testing.T) {
 	store, _ := setupTestStore(t)
 	defer store.Close()
 
@@ -91,7 +91,7 @@ func TestGetSessionByRoomCode(t *testing.T) {
 
 }
 
-func TestGrantandCheckAccess(t *testing.T) {
+func TestGrantAndCheckAccess(t *testing.T) {
 	store, _ := setupTestStore(t)
 	defer store.Close()
 
