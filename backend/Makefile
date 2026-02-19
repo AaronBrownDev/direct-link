@@ -1,4 +1,4 @@
-.PHONY: proto run-signaling build-signaling
+.PHONY: proto run-signaling build-signaling test-unit test-integration test-all
 
 # Directories
 PROTO_DIR := ../shared/protocol
@@ -19,3 +19,13 @@ run-signaling:
 
 build-signaling:
 	go build -o bin/signaling ./cmd/signaling
+
+# Testing
+test-unit:
+	go test -race ./tests/unit/...
+
+test-integration:
+	go test -race -count=1 ./tests/integration/...
+
+test-all:
+	go test -race -cover ./...

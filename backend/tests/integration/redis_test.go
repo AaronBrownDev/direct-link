@@ -12,7 +12,7 @@ import (
 
 func TestRedisConnection(t *testing.T) {
 	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
+		Addr: "redis:6379",
 	})
 	defer client.Close()
 
@@ -47,7 +47,7 @@ func TestRedisConnection(t *testing.T) {
 
 func TestRedisStoreIntegration(t *testing.T) {
 	store, err := session.NewRedisStore(
-		"localhost:6379",
+		"redis:6379",
 		"",
 		0,
 		10,
