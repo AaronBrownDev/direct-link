@@ -29,6 +29,16 @@ jobs:
   build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
@@ -66,6 +76,8 @@ jobs:
 
       # Test
       - name: Run tests with race detection
+        env:
+          REDIS_ADDR: localhost:6379
         run: go test -race -count=1 -timeout=5m ./...
 
   # Job 2
