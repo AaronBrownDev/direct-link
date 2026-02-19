@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync/atomic"
 
+	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -22,15 +24,33 @@ type Server struct {
 	logger     *slog.Logger
 	ready      atomic.Bool
 	lkClient   *lksdk.RoomServiceClient
+	store      session.Store
 	pb.UnimplementedSignalingServiceServer
 }
 
 // NewServer is a constructor for the signaling Server struct
 func NewServer(cfg Config, logger *slog.Logger) *Server {
+	//Create Redis store
+	store, err := session.NewRedisStore(
+		cfg.RedisAddr,
+		cfg.RedisPassword,
+		cfg.RedisDB,
+		cfg.RedisPoolSize,
+		cfg.RedisMinIdle,
+		cfg.RedisDialTimeout,
+		cfg.RedisReadTimeout,
+		cfg.RedisWriteTimeout,
+		cfg.SessionTTL,
+	)
+	if err != nil {
+		logger.Error("failed to create Redis store", "error", err)
+		os.Exit(1)
+	}
 
 	server := &Server{
 		cfg:    cfg,
 		logger: logger,
+		store:  store,
 	}
 
 	// Create new HTTP server and register
@@ -112,6 +132,12 @@ func (s *Server) shutdown() error {
 	s.ready.Store(false)
 
 	s.logger.Info("signaling server shutdown gracefully")
+
+	if s.store != nil {
+		if err := s.store.Close(); err != nil {
+			s.logger.Error("failed to close Redis store", "error", err)
+		}
+	}
 
 	s.grpcServer.GracefulStop()
 
