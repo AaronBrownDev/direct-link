@@ -41,6 +41,9 @@ Result CameraCapture::initialize(const CaptureConfig& config) {
 }
 
 Result CameraCapture::start(std::function<void(std::unique_ptr<Frame>)> frameCallback) {
+    if (formatCtx_ == nullptr) {
+        return Result::ErrorInitFailed; // Not initialized
+    }
     if (isRunning()) {
         return Result::ErrorInitFailed; // Already running
     }
@@ -134,7 +137,6 @@ Result CameraCapture::setupCodec() {
 }
 
 void CameraCapture::captureLoop(std::stop_token stopToken) {
-    // FIX: allocate packet and frame once outside the loop
     AVPacket* packet = av_packet_alloc();
     AVFrame* frame   = av_frame_alloc();
 
@@ -153,17 +155,16 @@ void CameraCapture::captureLoop(std::stop_token stopToken) {
                         if (frameCallback_) {
                             frameCallback_(std::move(wrappedFrame));
                         }
-
                         av_frame_unref(frame);
                     }
                 }
             }
             av_packet_unref(packet);
-        } else {
+        } 
+        else {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
-
     av_frame_free(&frame);
     av_packet_free(&packet);
 }

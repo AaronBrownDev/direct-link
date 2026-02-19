@@ -71,6 +71,7 @@ enable_testing()
 add_executable(video_core_tests
     tests/unit/test_types.cpp
     tests/unit/test_capture_config.cpp
+    tests/unit/test_camera_capture.cpp
 )
 
 target_link_libraries(video_core_tests

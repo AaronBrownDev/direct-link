@@ -76,7 +76,9 @@ clean:
 
 # Unit Tests
 UNIT_TEST_SRC := tests/unit/test_types.cpp \
-				tests/unit/test_capture_config.cpp
+				tests/unit/test_capture_config.cpp \
+				tests/unit/test_camera_capture.cpp \
+				src/capture/camera_capture.cpp
 UNIT_TEST_BIN := $(BIN_DIR)/video_core_tests
 GTEST_FLAGS := -lgtest -lgtest_main -pthread
 
