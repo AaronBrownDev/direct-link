@@ -1,0 +1,32 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    # Bug detection
+    - errcheck        # unchecked errors
+    - govet           # suspicious constructs (also run standalone)
+    - staticcheck     # advanced static analysis
+
+    # Style & simplification
+    - gofmt           # formatting
+    - goimports       # import ordering
+    - gosimple        # simplifications
+
+    # Performance & correctness
+    - ineffassign     # useless assignments
+    - unused          # unused code
+
+    # Security
+    - gosec           # security issues
+
+issues:
+  # Show all issues, don't cap per-linter
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  exclude-dirs:
+    - gen             # generated protobuf code — don't lint
