@@ -11,6 +11,10 @@ import (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
@@ -22,7 +26,8 @@ func main() {
 
 	if err := server.ListenAndServe(ctx); err != nil {
 		logger.Error("server exited with error", "error", err)
-		os.Exit(1)
+		return 1
 	}
-
+	
+	return 0
 }
