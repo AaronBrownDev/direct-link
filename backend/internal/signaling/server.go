@@ -124,12 +124,12 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
-		return s.shutdown()
+		return s.shutdown(context.Background())
 	}
 }
 
 // shutdown is a helper function for shutting down the grpc and http server gracefully.
-func (s *Server) shutdown() error {
+func (s *Server) shutdown(ctx context.Context) error {
 
 	s.ready.Store(false)
 
@@ -143,7 +143,7 @@ func (s *Server) shutdown() error {
 
 	s.grpcServer.GracefulStop()
 
-	httpCtx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownTimeout)
+	httpCtx, cancel := context.WithTimeout(ctx, s.cfg.ShutdownTimeout)
 	defer cancel()
 
 	return s.httpServer.Shutdown(httpCtx)
