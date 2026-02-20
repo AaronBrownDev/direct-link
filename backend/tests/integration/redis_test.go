@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -10,11 +11,22 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+func redisAddr() string {
+	if addr := os.Getenv("REDIS_ADDR"); addr != "" {
+		return addr
+	}
+	return "redis:6379"
+}
+
 func TestRedisConnection(t *testing.T) {
 	client := redis.NewClient(&redis.Options{
-		Addr: "redis:6379",
+		Addr: redisAddr(),
 	})
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			t.Logf("failed to close client: %v", err)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -47,7 +59,7 @@ func TestRedisConnection(t *testing.T) {
 
 func TestRedisStoreIntegration(t *testing.T) {
 	store, err := session.NewRedisStore(
-		"redis:6379",
+		redisAddr(),
 		"",
 		0,
 		10,
@@ -61,7 +73,11 @@ func TestRedisStoreIntegration(t *testing.T) {
 		t.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close redis connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -85,7 +101,11 @@ func TestRedisStoreIntegration(t *testing.T) {
 	if err := store.CreateSession(ctx, sess); err != nil {
 		t.Fatalf("Create Session failed: %v", err)
 	}
-	defer store.DeleteSession(ctx, sessionID)
+	defer func() {
+		if err := store.DeleteSession(ctx, sessionID); err != nil {
+			t.Logf("failed to delete session: %v", err)
+		}
+	}()
 
 	retrieved, err := store.GetSession(ctx, sessionID)
 	if err != nil {

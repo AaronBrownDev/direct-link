@@ -31,7 +31,11 @@ func setupTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
 
 func TestCreateAndGetSession(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -62,7 +66,11 @@ func TestCreateAndGetSession(t *testing.T) {
 
 func TestGetSessionByRoomCode(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -93,7 +101,11 @@ func TestGetSessionByRoomCode(t *testing.T) {
 
 func TestGrantAndCheckAccess(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -138,7 +150,11 @@ func TestGrantAndCheckAccess(t *testing.T) {
 
 func TestUpdateSessionStatus(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -171,7 +187,11 @@ func TestUpdateSessionStatus(t *testing.T) {
 }
 func TestDeleteSession(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -203,7 +223,12 @@ func TestDeleteSession(t *testing.T) {
 
 func TestPing(t *testing.T) {
 	store, mr := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
+
 	ctx := context.Background()
 
 	//Should succeed
