@@ -30,7 +30,7 @@ type Server struct {
 
 // NewServer is a constructor for the signaling Server struct
 func NewServer(cfg Config, logger *slog.Logger) *Server {
-	//Create Redis store
+	// Create Redis store
 	store, err := session.NewRedisStore(
 		cfg.RedisAddr,
 		cfg.RedisPassword,

@@ -82,12 +82,12 @@ func TestRedisStoreIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	//Test 1:Ping (verifies Redis is reachable)
+	// Test 1:Ping (verifies Redis is reachable)
 	if err := store.Ping(ctx); err != nil {
 		t.Fatalf("Ping failed: %v", err)
 	}
 
-	//Test 2: Create and retrieve session
+	// Test 2: Create and retrieve session
 	sessionID := fmt.Sprintf("integration-test-%d", time.Now().UnixNano())
 
 	sess := &session.Session{
@@ -116,7 +116,7 @@ func TestRedisStoreIntegration(t *testing.T) {
 		t.Errorf("expected RoomCode %s, got %s", sess.RoomCode, retrieved.RoomCode)
 	}
 
-	//Test 3 : Room code lookup
+	// Test 3 : Room code lookup
 	byCode, err := store.GetSessionByRoomCode(ctx, "INT-TEST")
 	if err != nil {
 		t.Fatalf("GetSessionByRoomCode failed %v", err)
@@ -126,7 +126,7 @@ func TestRedisStoreIntegration(t *testing.T) {
 		t.Errorf("expected session ID %s, got %s", sessionID, byCode.ID)
 	}
 
-	//Test 4: Access control
+	// Test 4: Access control
 	if err := store.GrantAccess(ctx, sessionID, "camera-test", "camera"); err != nil {
 		t.Fatalf("GrantAccess failed: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestRedisStoreIntegration(t *testing.T) {
 		t.Error("expected camera-test to have access")
 	}
 
-	//Test 5: Update session status
+	// Test 5: Update session status
 	if err := store.UpdateSessionStatus(ctx, sessionID, "closed"); err != nil {
 		t.Fatalf("UpdateSessionStatus failed: %v", err)
 	}
