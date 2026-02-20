@@ -2,6 +2,7 @@ package unit
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -216,7 +217,7 @@ func TestDeleteSession(t *testing.T) {
 
 	//Verify it's gone
 	_, err := store.GetSession(ctx, sess.ID)
-	if err != session.ErrSessionNotFound {
+	if !errors.Is(err, session.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound after deletion, got %v", err)
 	}
 }

@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -159,7 +160,7 @@ func TestRedisStoreIntegration(t *testing.T) {
 	}
 
 	_, err = store.GetSession(ctx, sessionID)
-	if err != session.ErrSessionNotFound {
+	if !errors.Is(err, session.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound after deletion, got %v", err)
 	}
 

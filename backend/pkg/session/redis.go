@@ -53,7 +53,7 @@ func NewRedisStore(addr string,
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrRedisUnavailable, err)
+		return nil, fmt.Errorf("%w: %w", ErrRedisUnavailable, err)
 	}
 
 	return &RedisStore{
@@ -157,7 +157,7 @@ func (r *RedisStore) GetSessionByRoomCode(ctx context.Context, code string) (*Se
 	//Get session ID from room code
 	sessionID, err := r.client.Get(ctx, roomCodeKey).Result()
 
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return nil, ErrInvalidRoomCode
 	}
 	if err != nil {
@@ -309,7 +309,7 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Sess
 // Ping checks Redis availabilty
 func (r *RedisStore) Ping(ctx context.Context) error {
 	if err := r.client.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrRedisUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrRedisUnavailable, err)
 	}
 	return nil
 }

@@ -44,7 +44,7 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	)
 	if err != nil {
 		logger.Error("failed to create Redis store", "error", err)
-		os.Exit(1)
+		os.Exit(1) // TODO: look into if this exit is safe
 	}
 
 	server := &Server{
@@ -95,11 +95,11 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	// Create listeners for ports
 	httpListener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.cfg.HTTPPort))
 	if err != nil {
-		return fmt.Errorf("failed to create http listener: %v", err)
+		return fmt.Errorf("failed to create http listener: %w", err)
 	}
 	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.cfg.GRPCPort))
 	if err != nil {
-		return fmt.Errorf("failed to create grpc listener: %v", err)
+		return fmt.Errorf("failed to create grpc listener: %w", err)
 	}
 
 	// create error channel
