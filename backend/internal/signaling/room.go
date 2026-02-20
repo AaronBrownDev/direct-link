@@ -9,12 +9,12 @@ import (
 )
 
 // Creates a unique Session identifier
-func generateSessionID() string {
+func GenerateSessionID() string {
 	return uuid.New().String()
 }
 
 // Created a human readable room code
-func generateRoomCode() string {
+func GenerateRoomCode() string {
 	n, _ := rand.Int(rand.Reader, big.NewInt(10000))
 	return fmt.Sprintf("ROOM-%04d", n.Int64())
 }
