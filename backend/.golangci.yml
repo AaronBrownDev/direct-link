@@ -1,36 +1,40 @@
 version: "2"
 
-run:
-  timeout: 5m
-
 linters:
   default: standard
   enable:
-    # Bug detection
-    - errcheck        # unchecked errors
-    - govet           # suspicious constructs (also run standalone)
-    - staticcheck     # advanced static analysis
-
-    # Simplification
-    - gosimple        # simplifications
-
-    # Performance & correctness
-    - ineffassign     # useless assignments
-    - unused          # unused code
-
     # Security
-    - gosec           # security issues
+    - gosec
+
+    # Bug prevention
+    - bodyclose
+    - contextcheck
+    - errorlint
+    - nilerr
+
+    # Code quality
+    - gocritic
+    - goconst
+    - revive
+    - unconvert
+    - unparam
+
+    # Performance
+    - prealloc
 
   exclusions:
     paths:
       - gen
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
 
 formatters:
   enable:
-    - gofmt           # formatting
-    - goimports       # import ordering
+    - gofmt
+    - goimports
 
 issues:
-  # Show all issues, don't cap per-linter
   max-issues-per-linter: 0
   max-same-issues: 0
