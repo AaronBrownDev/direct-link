@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"google.golang.org/grpc"
@@ -58,8 +59,9 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	server.registerRoutes(mux)
 
 	server.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.HTTPPort),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", cfg.HTTPPort),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second, // TODO: should eventually put into config
 	}
 
 	// Create new gRPC server and register
