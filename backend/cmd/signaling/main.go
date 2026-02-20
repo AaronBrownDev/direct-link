@@ -28,6 +28,6 @@ func run() int {
 		logger.Error("server exited with error", "error", err)
 		return 1
 	}
-	
+
 	return 0
 }
