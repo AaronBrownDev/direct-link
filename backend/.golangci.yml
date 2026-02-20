@@ -11,9 +11,7 @@ linters:
     - govet           # suspicious constructs (also run standalone)
     - staticcheck     # advanced static analysis
 
-    # Style & simplification
-    - gofmt           # formatting
-    - goimports       # import ordering
+    # Simplification
     - gosimple        # simplifications
 
     # Performance & correctness
@@ -22,10 +20,15 @@ linters:
 
     # Security
     - gosec           # security issues
-    
+
   exclusions:
     paths:
       - gen
+
+formatters:
+  enable:
+    - gofmt           # formatting
+    - goimports       # import ordering
 
 issues:
   # Show all issues, don't cap per-linter
