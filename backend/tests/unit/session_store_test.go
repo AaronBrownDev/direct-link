@@ -2,6 +2,7 @@ package unit
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -31,7 +32,11 @@ func setupTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
 
 func TestCreateAndGetSession(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -44,12 +49,12 @@ func TestCreateAndGetSession(t *testing.T) {
 		Status:     "active",
 	}
 
-	//Test Create
+	// Test Create
 	if err := store.CreateSession(ctx, session); err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	//Test Get by ID
+	// Test Get by ID
 	retrieved, err := store.GetSession(ctx, session.ID)
 	if err != nil {
 		t.Fatalf("GetSession failed: %v", err)
@@ -62,7 +67,11 @@ func TestCreateAndGetSession(t *testing.T) {
 
 func TestGetSessionByRoomCode(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -79,7 +88,7 @@ func TestGetSessionByRoomCode(t *testing.T) {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	//Test Get by room code
+	// Test Get by room code
 	retrieved, err := store.GetSessionByRoomCode(ctx, sess.RoomCode)
 	if err != nil {
 		t.Fatalf("GetSessionByRoomCode failed : %v", err)
@@ -93,7 +102,11 @@ func TestGetSessionByRoomCode(t *testing.T) {
 
 func TestGrantAndCheckAccess(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -110,12 +123,12 @@ func TestGrantAndCheckAccess(t *testing.T) {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	//Grant access
+	// Grant access
 	if err := store.GrantAccess(ctx, sess.ID, "camera-123", "camera"); err != nil {
 		t.Fatalf("GrantAccess failed %v", err)
 	}
 
-	//Check Access
+	// Check Access
 	hasAccess, err := store.HasAccess(ctx, sess.ID, "camera-123")
 	if err != nil {
 		t.Fatalf("HasAccess failed: %v", err)
@@ -138,7 +151,11 @@ func TestGrantAndCheckAccess(t *testing.T) {
 
 func TestUpdateSessionStatus(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -154,7 +171,7 @@ func TestUpdateSessionStatus(t *testing.T) {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	//Update Status
+	// Update Status
 	if err := store.UpdateSessionStatus(ctx, sess.ID, "closed"); err != nil {
 		t.Fatalf("UpdateSessionStatus failed %v", err)
 	}
@@ -171,7 +188,11 @@ func TestUpdateSessionStatus(t *testing.T) {
 }
 func TestDeleteSession(t *testing.T) {
 	store, _ := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
 
 	ctx := context.Background()
 
@@ -184,34 +205,39 @@ func TestDeleteSession(t *testing.T) {
 		Status:     "active",
 	}
 
-	//Create Session
+	// Create Session
 	if err := store.CreateSession(ctx, sess); err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
 
-	//Delete Session
+	// Delete Session
 	if err := store.DeleteSession(ctx, sess.ID); err != nil {
 		t.Fatalf("DeleteSession failed: %v", err)
 	}
 
-	//Verify it's gone
+	// Verify it's gone
 	_, err := store.GetSession(ctx, sess.ID)
-	if err != session.ErrSessionNotFound {
+	if !errors.Is(err, session.ErrSessionNotFound) {
 		t.Errorf("expected ErrSessionNotFound after deletion, got %v", err)
 	}
 }
 
 func TestPing(t *testing.T) {
 	store, mr := setupTestStore(t)
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
+
 	ctx := context.Background()
 
-	//Should succeed
+	// Should succeed
 	if err := store.Ping(ctx); err != nil {
 		t.Errorf("Ping failed: %v", err)
 	}
 
-	//Close miniredis to simulate failure
+	// Close miniredis to simulate failure
 	mr.Close()
 
 	// Should fail

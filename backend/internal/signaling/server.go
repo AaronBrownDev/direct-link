@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"google.golang.org/grpc"
@@ -30,7 +31,7 @@ type Server struct {
 
 // NewServer is a constructor for the signaling Server struct
 func NewServer(cfg Config, logger *slog.Logger) *Server {
-	//Create Redis store
+	// Create Redis store
 	store, err := session.NewRedisStore(
 		cfg.RedisAddr,
 		cfg.RedisPassword,
@@ -44,7 +45,7 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	)
 	if err != nil {
 		logger.Error("failed to create Redis store", "error", err)
-		os.Exit(1)
+		os.Exit(1) // TODO: look into if this exit is safe
 	}
 
 	server := &Server{
@@ -58,8 +59,9 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	server.registerRoutes(mux)
 
 	server.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.HTTPPort),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", cfg.HTTPPort),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second, // TODO: should eventually put into config
 	}
 
 	// Create new gRPC server and register
@@ -95,11 +97,11 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	// Create listeners for ports
 	httpListener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.cfg.HTTPPort))
 	if err != nil {
-		return fmt.Errorf("failed to create http listener: %v", err)
+		return fmt.Errorf("failed to create http listener: %w", err)
 	}
 	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.cfg.GRPCPort))
 	if err != nil {
-		return fmt.Errorf("failed to create grpc listener: %v", err)
+		return fmt.Errorf("failed to create grpc listener: %w", err)
 	}
 
 	// create error channel
@@ -122,12 +124,12 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
-		return s.shutdown()
+		return s.shutdown(context.Background()) //nolint:contextcheck // parent ctx is cancelled; fresh context needed for graceful shutdown
 	}
 }
 
 // shutdown is a helper function for shutting down the grpc and http server gracefully.
-func (s *Server) shutdown() error {
+func (s *Server) shutdown(ctx context.Context) error {
 
 	s.ready.Store(false)
 
@@ -141,7 +143,7 @@ func (s *Server) shutdown() error {
 
 	s.grpcServer.GracefulStop()
 
-	httpCtx, cancel := context.WithTimeout(context.Background(), s.cfg.ShutdownTimeout)
+	httpCtx, cancel := context.WithTimeout(ctx, s.cfg.ShutdownTimeout)
 	defer cancel()
 
 	return s.httpServer.Shutdown(httpCtx)

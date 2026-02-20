@@ -33,7 +33,7 @@ func DefaultConfig() Config {
 		GRPCPort:        50051,
 		ShutdownTimeout: time.Second * 5,
 
-		//Redis Default
+		// Redis Default
 		RedisAddr:         "redis:6379",
 		RedisPassword:     "",
 		RedisDB:           0,

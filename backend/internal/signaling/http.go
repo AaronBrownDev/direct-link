@@ -9,7 +9,7 @@ import (
 )
 
 // handleHealth is for doing a general health check
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]string{
 		"status":  "available",
 		"service": "signaling",
@@ -52,7 +52,7 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleLiveness is for checking if the process is alive
-func (s *Server) handleLiveness(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleLiveness(w http.ResponseWriter, _ *http.Request) {
 	s.writeJSON(w, http.StatusOK, map[string]string{
 		"status":  "alive",
 		"service": "signaling",

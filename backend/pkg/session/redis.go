@@ -48,12 +48,12 @@ func NewRedisStore(addr string,
 		WriteTimeout: writeTimeout,
 	})
 
-	//Test connection
+	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := client.Ping(ctx).Err(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrRedisUnavailable, err)
+		return nil, fmt.Errorf("%w: %w", ErrRedisUnavailable, err)
 	}
 
 	return &RedisStore{
@@ -78,14 +78,14 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) error 
 		"status":      session.Status,
 	}
 
-	//Prune expired session IDs from active set
+	// Prune expired session IDs from active set
 	r.client.ZRemRangeByScore(ctx, activeSessionsKey, "-inf",
 		fmt.Sprintf("%d", time.Now().Unix()))
 
 	// Use pipeline for atomic operations
 	pipe := r.client.Pipeline()
 
-	//1. Store session hash
+	// 1. Store session hash
 	pipe.HSet(ctx, sessionKey, sessionData)
 	pipe.Expire(ctx, sessionKey, r.sessionTTL)
 
@@ -95,18 +95,18 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) error 
 		pipe.Set(ctx, roomCodeKey, session.ID, r.sessionTTL)
 	}
 
-	//Add to user's sessions
+	// Add to user's sessions
 	userSessionsKey := userSessionsPrefix + session.CreatedBy + ":sessions"
 	pipe.SAdd(ctx, userSessionsKey, session.ID)
 	pipe.Expire(ctx, userSessionsKey, r.sessionTTL)
 
-	//3. Add to active sessions set
+	// 3. Add to active sessions set
 	pipe.ZAdd(ctx, activeSessionsKey, redis.Z{
 		Score:  float64(time.Now().Add(r.sessionTTL).Unix()),
 		Member: session.ID,
 	})
 
-	//Execute all commands atomically
+	// Execute all commands atomically
 	if _, err := pipe.Exec(ctx); err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session
 		return nil, ErrSessionNotFound
 	}
 
-	//Parse created_at timestamp
+	// Parse created_at timestamp
 	createdAt, err := time.Parse(time.RFC3339, result["created_at"])
 
 	if err != nil {
@@ -154,10 +154,10 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session
 func (r *RedisStore) GetSessionByRoomCode(ctx context.Context, code string) (*Session, error) {
 	roomCodeKey := roomCodePrefix + code
 
-	//Get session ID from room code
+	// Get session ID from room code
 	sessionID, err := r.client.Get(ctx, roomCodeKey).Result()
 
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return nil, ErrInvalidRoomCode
 	}
 	if err != nil {
@@ -191,7 +191,7 @@ func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, 
 }
 
 func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) error {
-	//Get session first to find room code
+	// Get session first to find room code
 	session, err := r.GetSession(ctx, sessionID)
 
 	if err != nil {
@@ -221,7 +221,7 @@ func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role st
 	sessionKey := sessionPrefix + sessionID
 	accessKey := sessionKey + sessionAccessSuffix
 
-	//Verify session exists
+	// Verify session exists
 	exists, err := r.client.Exists(ctx, sessionKey).Result()
 	if err != nil {
 		return err
@@ -230,7 +230,7 @@ func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role st
 		return ErrSessionNotFound
 	}
 
-	//Store as "userID:role" for easy lookup
+	// Store as "userID:role" for easy lookup
 	accessValue := fmt.Sprintf("%s:%s", userID, role)
 
 	pipe := r.client.Pipeline()
@@ -245,7 +245,7 @@ func (r *RedisStore) RevokeAccess(ctx context.Context, sessionID, userID string)
 	sessionKey := sessionPrefix + sessionID
 	accessKey := sessionKey + sessionAccessSuffix
 
-	//Get all access entries to find the one for this user
+	// Get all access entries to find the one for this user
 	members, err := r.client.SMembers(ctx, accessKey).Result()
 
 	if err != nil {
@@ -294,11 +294,11 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Sess
 	for _, sessionID := range sessionIDs {
 		session, err := r.GetSession(ctx, sessionID)
 		if err != nil {
-			//Only skip if session expired/deleted (expected)
+			// Only skip if session expired/deleted (expected)
 			if errors.Is(err, ErrSessionNotFound) {
 				continue
 			}
-			//For any other error (Redis down, parse error, etc.), fail fast
+			// For any other error (Redis down, parse error, etc.), fail fast
 			return nil, fmt.Errorf("failed to get session %s: %w", sessionID, err)
 		}
 		sessions = append(sessions, *session)
@@ -306,10 +306,10 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Sess
 	return sessions, nil
 }
 
-// Ping checks Redis availabilty
+// Ping checks Redis availability
 func (r *RedisStore) Ping(ctx context.Context) error {
 	if err := r.client.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("%w: %v", ErrRedisUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrRedisUnavailable, err)
 	}
 	return nil
 }
