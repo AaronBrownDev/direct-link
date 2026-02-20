@@ -22,11 +22,12 @@ linters:
 
     # Security
     - gosec           # security issues
+    
+  exclusions:
+    paths:
+      - gen
 
 issues:
   # Show all issues, don't cap per-linter
   max-issues-per-linter: 0
   max-same-issues: 0
-
-  exclude-dirs:
-    - gen             # generated protobuf code — don't lint
