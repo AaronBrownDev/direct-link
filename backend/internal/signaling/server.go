@@ -81,6 +81,39 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	return server
 }
 
+// Creates a Server with provided store
+// Used in test to inject a mock store without needing a read Redis Connection
+func NewServerWithStore(cfg Config, logger *slog.Logger, store session.Store) *Server {
+	return buildServer(cfg, logger, store)
+}
+
+func buildServer(cfg Config, logger *slog.Logger, store session.Store) *Server {
+	server := &Server{
+		cfg:    cfg,
+		logger: logger,
+		store:  store,
+	}
+
+	mux := http.NewServeMux()
+	server.registerRoutes(mux)
+
+	server.httpServer = &http.Server{
+		Addr:    fmt.Sprintf("%d", cfg.HTTPPort),
+		Handler: mux,
+	}
+
+	server.grpcServer = grpc.NewServer()
+	pb.RegisterSignalingServiceServer(server.grpcServer, server)
+	reflection.Register(server.grpcServer)
+
+	server.lkClient = lksdk.NewRoomServiceClient(
+		cfg.LiveKitHost,
+		cfg.LiveKitAPIKey,
+		cfg.LiveKitAPISecret,
+	)
+	return server
+}
+
 func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Kubernetes
 	mux.HandleFunc("GET /healthz", s.handleHealth)
