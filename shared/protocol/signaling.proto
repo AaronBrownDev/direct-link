@@ -9,6 +9,14 @@ option go_package = "github.com/AaronBrownDev/direct-link/shared/protocol/signal
 service SignalingService {
     // JoinSession authenticates a user and returns a LiveKit token for direct media connection
     rpc JoinSession(JoinRequest) returns (JoinReply);
+
+    //Room Creation
+    rpc CreateSession(CreateSessionRequest) returns (CreateSessionReply);
+    // Closes Room
+    rpc CloseSession(CloseSessionRequest) returns (CreateSessionReply);
+    // Returns current sessions
+    rpc GetMySessions(GetMySessionRequest) returns (GetMySessionReply);
+
 }
 
 // JoinRequest initiates joining a session
@@ -22,4 +30,40 @@ message JoinRequest {
 message JoinReply {
     string token = 1; // LiveKit JWT access token
     string livekit_url = 2; // LiveKit server URL for media connection
+}
+
+message CreateSessionRequest{
+    string user_id = 1;
+    int32 max_cameras = 2;
+}
+
+message CreateSessionReply{
+    string session_id = 1;
+    string room_code = 2;
+}
+
+message CloseSessionRequest{
+    string session_id = 1;
+    string user_id = 2;
+}
+
+message CloseSessionReply{
+    bool success = 1;
+}
+
+message GetMySessionRequest{
+    string user_id = 1;
+}
+
+message GetMySessionReply{
+    repeated SessionInfo sessions = 1;
+}
+
+message SessionInfo{
+    string session_id = 1;
+    string room_code = 2;
+    int64 created_at = 3;
+    int32 max_cameras = 4;
+    string status = 5;
+
 }
