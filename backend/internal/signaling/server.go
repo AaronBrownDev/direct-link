@@ -124,7 +124,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	case err := <-errCh:
 		return err
 	case <-ctx.Done():
-		return s.shutdown(context.Background())
+		return s.shutdown(context.Background()) //nolint:contextcheck // parent ctx is cancelled; fresh context needed for graceful shutdown
 	}
 }
 
