@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt5 REQUIRED COMPONENTS Widgets Qml Quick QuickWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickControls2 Multimedia)
 
 set(PROJECT_SOURCES
         src/main.cpp
@@ -36,15 +36,16 @@ else()
             ${PROJECT_SOURCES}
 
             resources.qrc
+            framereader.h framereader.cpp
         )
     endif()
 endif()
 
 target_link_libraries(direct-link PRIVATE
-    Qt5::Widgets
-    Qt5::Qml
-    Qt5::Quick
-    Qt5::QuickWidgets
+    Qt6::Core
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Multimedia
 )
 
 if(${QT_VERSION} VERSION_LESS 6.1.0)

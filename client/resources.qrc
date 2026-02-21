@@ -4,9 +4,10 @@
         <file>resources/icons/settings.png</file>
         <file>src/application/Header.qml</file>
         <file>src/application/Footer.qml</file>
-        <file>src/application/Camera.qml</file>
+        <file>src/application/Thumbnail.qml</file>
         <file>src/application/ThumbnailList.qml</file>
         <file>src/application/SessionLog.qml</file>
         <file>src/application/SessionInfo.qml</file>
+        <file>src/application/CameraFeed.qml</file>
     </qresource>
 </RCC>
