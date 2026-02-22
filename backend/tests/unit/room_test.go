@@ -43,7 +43,7 @@ func TestGenerateSessionID_UniqueAcrossCalls(t *testing.T) {
 	}
 }
 
-// Tests roomcode dormat
+// Tests RoomCode Format
 func TestGenerateRoomCode_Format(t *testing.T) {
 	code := signaling.GenerateRoomCode()
 
