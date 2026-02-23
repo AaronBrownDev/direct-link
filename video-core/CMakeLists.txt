@@ -69,9 +69,9 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 add_executable(video_core_tests
-    tests/unit/test_types.cpp
-    tests/unit/test_capture_config.cpp
-    tests/unit/test_camera_capture.cpp
+    tests/unit/capture/test_types.cpp
+    tests/unit/capture/test_capture_config.cpp
+    tests/unit/capture/test_camera_capture.cpp
 )
 
 target_link_libraries(video_core_tests
