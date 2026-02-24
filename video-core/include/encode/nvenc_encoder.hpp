@@ -11,7 +11,7 @@ public:
     ~NVENCEncoder() override;
 
     Result initialize(const EncoderConfig& config, 
-        std::function<void(std::unique_ptr<Packet>)>& packetCallback) override;
+        std::function<void(std::unique_ptr<Packet>)> packetCallback) override;
     Result encodeFrame(AVFrame* frame) override;
     Result stop() override;
 

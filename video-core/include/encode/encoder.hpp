@@ -12,7 +12,7 @@ public:
     virtual ~Encoder();
 
     virtual Result initialize(const EncoderConfig& config, 
-        std::function<void(std::unique_ptr<Packet>)>& packetCallback);
+        std::function<void(std::unique_ptr<Packet>)> packetCallback);
     virtual Result encodeFrame(AVFrame* frame) = 0;
     virtual Result stop() = 0;
 
