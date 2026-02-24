@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/AaronBrownDev/direct-link/internal/signaling"
+	"github.com/AaronBrownDev/direct-link/pkg/session"
 )
 
-// Generate Session ID
-func TestGenerateSessionID_isNonEmpty(t *testing.T) {
-	id := signaling.GenerateSessionID()
+// Tests NewSessionID
+func TestNewSessionID_isNonEmpty(t *testing.T) {
+	id := session.NewSessionID()
 	if id == "" {
 		t.Fatal("generateSessionID method returned empty string")
 	}
@@ -17,8 +17,8 @@ func TestGenerateSessionID_isNonEmpty(t *testing.T) {
 }
 
 // Tests for sessionID format
-func TestGenerateSessionID_isUUID(t *testing.T) {
-	id := signaling.GenerateSessionID()
+func TestNewSessionID_isUUID(t *testing.T) {
+	id := session.NewSessionID()
 	parts := strings.Split(id, "-")
 	if len(parts) != 5 {
 		t.Errorf("expected 5 UUID parts, got %d (id=%q)", len(parts), id)
@@ -32,10 +32,10 @@ func TestGenerateSessionID_isUUID(t *testing.T) {
 }
 
 // Tests for duplicate session id
-func TestGenerateSessionID_UniqueAcrossCalls(t *testing.T) {
+func TestNewSessionID_UniqueAcrossCalls(t *testing.T) {
 	seen := make(map[string]struct{}, 100)
 	for i := range 100 {
-		id := signaling.GenerateSessionID()
+		id := session.NewSessionID()
 		if _, dup := seen[id]; dup {
 			t.Fatalf("duplicate session ID on iteration %d: %q", i, id)
 		}
@@ -44,8 +44,11 @@ func TestGenerateSessionID_UniqueAcrossCalls(t *testing.T) {
 }
 
 // Tests RoomCode Format
-func TestGenerateRoomCode_Format(t *testing.T) {
-	code := signaling.GenerateRoomCode()
+func TestNewRoomCode_Format(t *testing.T) {
+	code, err := session.NewRoomCode()
+	if err != nil {
+		t.Fatalf("NewRoomCode returned error: %v", err)
+	}
 
 	if !strings.HasPrefix(code, "ROOM-") {
 		t.Errorf("expected ROOM-prefix, got %q", code)
@@ -64,11 +67,14 @@ func TestGenerateRoomCode_Format(t *testing.T) {
 }
 
 // Tests the duplicate room codes
-func TestGenerateRoomCode_UniqueAcrossCalls(t *testing.T) {
+func TestNewRoomCode_UniqueAcrossCalls(t *testing.T) {
 	seen := make(map[string]struct{}, 200)
 	collisions := 0
 	for range 200 {
-		code := signaling.GenerateRoomCode()
+		code, err := session.NewRoomCode()
+		if err != nil {
+			t.Errorf("NewRoomCode returned an error: %v", err)
+		}
 		if _, dup := seen[code]; dup {
 			collisions++
 		}
