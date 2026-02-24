@@ -36,32 +36,33 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 			sess, err = s.store.GetSessionByRoomCode(ctx, req.RoomCode)
 			if err != nil {
 				s.logger.Error("room code lookup failed", "room code", req.RoomCode, "Error", err)
+				return nil, status.Error(codes.NotFound, "session not found")
 			}
-			return nil, status.Error(codes.NotFound, "session not found")
-		}
-		sess, err = s.store.GetSession(ctx, req.SessionId)
-		if err != nil {
-			s.logger.Error("session not found", "session_id", req.SessionId, "error", err)
-			return nil, status.Error(codes.NotFound, "session not found")
-		}
-		hasAccess, err := s.store.HasAccess(ctx, req.SessionId, req.UserId)
-		if err != nil {
-			s.logger.Error("failed to check access", "error", err)
-			return nil, status.Error(codes.Internal, "failed to verify access")
-		}
-		if !hasAccess {
-			return nil, status.Error(codes.PermissionDenied, "access denied")
-		}
+			if sess.Status == "closed" {
+				return nil, status.Error(codes.FailedPrecondition, "session is closed")
+			}
+			if grantErr := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); grantErr != nil {
+				s.logger.Error("failed to grant access", "error", grantErr)
+				return nil, status.Error(codes.Internal, "failed to grant access")
+			}
 
-		if sess.Status == "closed" {
-			return nil, status.Error(codes.FailedPrecondition, "session is closed")
-		}
-		if grantErr := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); grantErr != nil {
-			s.logger.Error("failed to grant access", "error", grantErr)
-			return nil, status.Error(codes.Internal, "failed to grant access")
+		} else {
+			sess, err = s.store.GetSession(ctx, req.SessionId)
+			if err != nil {
+				s.logger.Error("session not found", "session_id", req.SessionId, "error", err)
+				return nil, status.Error(codes.NotFound, "session not found")
+			}
+			hasAccess, err := s.store.HasAccess(ctx, req.SessionId, req.UserId)
+			if err != nil {
+				s.logger.Error("failed to check access", "error", err)
+				return nil, status.Error(codes.Internal, "failed to verify access")
+			}
+			if !hasAccess {
+				return nil, status.Error(codes.PermissionDenied, "access denied")
+			}
 		}
 	}
-	sessionID := req.SessionId
+	sessionID := sess.ID
 	if sess != nil {
 		sessionID = sess.ID
 	}
