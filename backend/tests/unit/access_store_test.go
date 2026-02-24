@@ -9,7 +9,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 )
 
-func setTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
+func setTestStore(t *testing.T) (*session.RedisStore, *miniredis.Miniredis) {
 	t.Helper()
 	mr := miniredis.RunT(t)
 
@@ -118,9 +118,16 @@ func TestRevokeAccess_DoesNotAffectOtherUsers(t *testing.T) {
 	if err := store.CreateSession(ctx, sess); err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	store.GrantAccess(ctx, sess.ID, "cam-a", "camera")
-	store.GrantAccess(ctx, sess.ID, "cam-b", "camera")
-	store.RevokeAccess(ctx, sess.ID, "cam-a")
+	if err := store.GrantAccess(ctx, sess.ID, "cam-a", "camera"); err != nil {
+		t.Fatalf("GrantSession: %v", err)
+	}
+
+	if err := store.GrantAccess(ctx, sess.ID, "cam-b", "camera"); err != nil {
+		t.Fatalf("GrantAccess: %v", err)
+	}
+	if err := store.RevokeAccess(ctx, sess.ID, "cam-a"); err != nil {
+		t.Fatalf("RevokeAccess: %v", err)
+	}
 
 	has, err := store.HasAccess(ctx, sess.ID, "cam-b")
 	if err != nil {
