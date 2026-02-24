@@ -16,8 +16,11 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	sessionID := GenerateSessionID()
-	roomCode := GenerateRoomCode()
+	sessionID := session.NewSessionID()
+	roomCode, err := session.NewRoomCode()
+	if err != nil {
+		s.logger.Error("failed to generate room code", "error", err)
+	}
 
 	newSession := &session.Session{
 		ID:         sessionID,
@@ -33,10 +36,15 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 			s.logger.Error("failed to create session", "error", err)
 			return nil, status.Error(codes.Internal, "failed to create session")
 		}
+
+		if err := s.store.GrantAccess(ctx, sessionID, req.UserId, "director"); err != nil {
+			s.logger.Error("failed to grant creator access", "error", err)
+		}
 	}
 
 	s.logger.Info(
 		"session created",
+		"session_id", sessionID,
 		"room_code", roomCode,
 		"created_by", req.UserId,
 	)
