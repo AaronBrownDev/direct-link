@@ -13,7 +13,7 @@ service SignalingService {
     //Room Creation
     rpc CreateSession(CreateSessionRequest) returns (CreateSessionReply);
     // Closes Room
-    rpc CloseSession(CloseSessionRequest) returns (CreateSessionReply);
+    rpc CloseSession(CloseSessionRequest) returns (CloseSessionReply);
     // Returns current sessions
     rpc GetMySessions(GetMySessionRequest) returns (GetMySessionReply);
 
