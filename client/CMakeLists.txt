@@ -10,13 +10,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt6 REQUIRED COMPONENTS Core Quick QuickControls2 Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Widgets Core Quick QuickControls2 Multimedia)
 
 set(PROJECT_SOURCES
         src/main.cpp
-
-
-
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -36,7 +33,7 @@ else()
             ${PROJECT_SOURCES}
 
             resources.qrc
-            framereader.h framereader.cpp
+            src/framereader.h src/framereader.cpp
         )
     endif()
 endif()

@@ -9,5 +9,6 @@
         <file>src/application/SessionLog.qml</file>
         <file>src/application/SessionInfo.qml</file>
         <file>src/application/CameraFeed.qml</file>
+        <file>resources/ui/placeholderSplash.png</file>
     </qresource>
 </RCC>

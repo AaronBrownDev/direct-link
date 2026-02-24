@@ -52,12 +52,8 @@ Window {
                     Layout.minimumHeight: implicitWidth / aspect_ratio
                     implicitWidth: 500
 
-                    Text {
-                        id: dl_label_main_camera
-                        text: "Main Camera (16:9)"
-                        anchors.centerIn: parent
-                        color: "white"
-                        font.pointSize: 12
+                    Component.onCompleted: {
+                        FrameReader.videoSink = dl_active_camera.videoSink
                     }
                 }
 
