@@ -136,7 +136,7 @@ func TestGetMySessions_ReturnSessions(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	//Use a unique user ID per test run to avoid interference from other test
+	// Use a unique user ID per test run to avoid interference from other test
 	userID := "director-list-" + time.Now().Format("20060102150405")
 
 	srv.CreateSession(ctx, &pb.CreateSessionRequest{UserId: userID})

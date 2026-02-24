@@ -27,7 +27,7 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 		RoomCode:   roomCode,
 		CreatedBy:  req.UserId,
 		CreatedAt:  time.Now().UTC(),
-		MaxCameras: int(req.MaxCameras),
+		MaxCameras: int32(req.MaxCameras),
 		Status:     "active",
 	}
 

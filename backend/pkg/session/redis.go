@@ -145,7 +145,7 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session
 		RoomCode:   result["room_code"],
 		CreatedBy:  result["created_by"],
 		CreatedAt:  createdAt,
-		MaxCameras: int(maxCameras),
+		MaxCameras: int32(maxCameras),
 		Status:     result["status"],
 	}, nil
 }

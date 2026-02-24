@@ -73,7 +73,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	//Resolves final session ID when joining my req.RoomCode
+	// Resolves final session ID when joining my req.RoomCode
 	s.logger.Info("generating LiveKit token",
 		"session_id", sessionID,
 		"user_id", req.UserId,
