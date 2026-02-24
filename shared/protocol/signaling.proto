@@ -22,14 +22,16 @@ service SignalingService {
 // JoinRequest initiates joining a session
 message JoinRequest {
     string session_id = 1; // Room/session to join
-    string user_id = 2; // Unique identifier for who is requesting
-    string role = 3; // "camera" or "director"
+    string room_code =2;
+    string user_id = 3; // Unique identifier for who is requesting
+    string role = 4; // "camera" or "director"
 }
 
 // JoinReply provides credentials for connecting to LiveKit
 message JoinReply {
     string token = 1; // LiveKit JWT access token
     string livekit_url = 2; // LiveKit server URL for media connection
+    string session_id =3;
 }
 
 message CreateSessionRequest{
