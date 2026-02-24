@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
-#include "../../include/capture/capture_config.hpp"
-#include "../../include/capture/camera_capture.hpp"
+#include "../../../include/capture/capture_config.hpp"
+#include "../../../include/capture/camera_capture.hpp"
 
 using namespace videoCore::capture;
 

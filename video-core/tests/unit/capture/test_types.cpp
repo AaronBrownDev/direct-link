@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "../../include/common/types.hpp"
+#include "../../../include/common/types.hpp"
 #include <type_traits>
 
 using namespace videoCore;
