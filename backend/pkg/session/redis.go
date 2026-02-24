@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -216,6 +215,21 @@ func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) error 
 	return err
 }
 
+// GetRole returns the role assigned to a user in a session, or an empty
+// string if the user has no entry
+func (r *RedisStore) GetRole(ctx context.Context, sessionID, userID string) (string, error) {
+	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
+
+	role, err := r.client.HGet(ctx, accessKey, userID).Result()
+	if errors.Is(err, redis.Nil) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return role, nil
+}
+
 // GrantAccess gives a user access to a session
 func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role string) error {
 	sessionKey := sessionPrefix + sessionID
@@ -230,55 +244,27 @@ func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role st
 		return ErrSessionNotFound
 	}
 
-	// Store as "userID:role" for easy lookup
-	accessValue := fmt.Sprintf("%s:%s", userID, role)
-
 	pipe := r.client.Pipeline()
-	pipe.SAdd(ctx, accessKey, accessValue)
+	pipe.HSet(ctx, accessKey, userID, role)
 	pipe.Expire(ctx, accessKey, r.sessionTTL)
 
 	_, err = pipe.Exec(ctx)
 	return err
 }
 
+// RevokeAccess removes a user's access entry atomically
 func (r *RedisStore) RevokeAccess(ctx context.Context, sessionID, userID string) error {
-	sessionKey := sessionPrefix + sessionID
-	accessKey := sessionKey + sessionAccessSuffix
+	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
 
-	// Get all access entries to find the one for this user
-	members, err := r.client.SMembers(ctx, accessKey).Result()
+	return r.client.HDel(ctx, accessKey, userID).Err()
 
-	if err != nil {
-		return err
-	}
-
-	for _, member := range members {
-		parts := strings.Split(member, ":")
-		if len(parts) >= 1 && parts[0] == userID {
-			return r.client.SRem(ctx, accessKey, member).Err()
-		}
-	}
-	return nil
 }
 
 // HasAccess checks if a user has access to a session
 func (r *RedisStore) HasAccess(ctx context.Context, sessionID, userID string) (bool, error) {
-	sessionKey := sessionPrefix + sessionID
-	accessKey := sessionKey + sessionAccessSuffix
+	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
 
-	members, err := r.client.SMembers(ctx, accessKey).Result()
-
-	if err != nil {
-		return false, err
-	}
-
-	for _, member := range members {
-		parts := strings.Split(member, ":")
-		if len(parts) >= 1 && parts[0] == userID {
-			return true, nil
-		}
-	}
-	return false, nil
+	return r.client.HExists(ctx, accessKey, userID).Result()
 }
 
 // GetUserSessions retrieves all sessions created by a user
@@ -296,6 +282,8 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Sess
 		if err != nil {
 			// Only skip if session expired/deleted (expected)
 			if errors.Is(err, ErrSessionNotFound) {
+				// Delete old sessions reference from the user's set
+				r.client.SRem(ctx, userSessionsKey, sessionID)
 				continue
 			}
 			// For any other error (Redis down, parse error, etc.), fail fast
