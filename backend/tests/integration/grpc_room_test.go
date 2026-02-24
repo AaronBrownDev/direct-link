@@ -64,7 +64,7 @@ func TestCreateSession_MissingUserID(t *testing.T) {
 	_, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{})
 
 	if err != nil {
-		t.Fatal("CreateSession: %v", err)
+		t.Fatalf("CreateSession: %v", err)
 	}
 
 	if err == nil {
@@ -131,7 +131,7 @@ func TestCloseSession_SessionNotFound(t *testing.T) {
 	})
 
 	if err != nil {
-		t.Fatal("CloseSession: %v", err)
+		t.Fatalf("CloseSession: %v", err)
 	}
 	if err == nil {
 		t.Fatal("expected error for nonexistent session")
@@ -148,11 +148,11 @@ func TestGetMySessions_ReturnSessions(t *testing.T) {
 
 	_, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{UserId: userID})
 	if err != nil {
-		t.Fatal("CreateSession: %v", err)
+		t.Fatalf("CreateSession: %v", err)
 	}
 	_, err = srv.CreateSession(ctx, &pb.CreateSessionRequest{UserId: userID})
 	if err != nil {
-		t.Fatal("CreateSession: %v", err)
+		t.Fatalf("CreateSession: %v", err)
 	}
 
 	resp, err := srv.GetMySessions(ctx, &pb.GetMySessionRequest{UserId: userID})
@@ -171,7 +171,7 @@ func TestGetMySessions_MissingUserID(t *testing.T) {
 
 	_, err := srv.GetMySessions(ctx, &pb.GetMySessionRequest{})
 	if err != nil {
-		t.Fatal("GetMySesssion: %v", err)
+		t.Fatalf("GetMySesssion: %v", err)
 	}
 	if err == nil {
 		t.Fatal("expected error for missing user_id")
