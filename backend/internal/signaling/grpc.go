@@ -6,6 +6,7 @@ import (
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
+	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"github.com/livekit/protocol/auth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,35 +17,54 @@ import (
 func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.JoinReply, error) {
 
 	// Validate required fields
-	if req.SessionId == "" {
-		return nil, status.Error(codes.InvalidArgument, "session_id is required")
-	}
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 	if req.Role == "" {
 		return nil, status.Error(codes.InvalidArgument, "role is required")
 	}
+	if req.SessionId == "" && req.RoomCode == "" {
+		return nil, status.Error(codes.InvalidArgument, "session_id is required")
+	}
+
+	var sess *session.Session
+	var err error
 
 	// Verify session exists and is active
 	if s.store != nil {
-		sess, err := s.store.GetSession(ctx, req.SessionId)
-		if err != nil {
-			s.logger.Error("session not found", "session_id", req.SessionId, "error", err)
+		if req.RoomCode != "" {
+			sess, err = s.store.GetSessionByRoomCode(ctx, req.RoomCode)
+			if err != nil {
+				s.logger.Error("room code lookup failed", "room code", req.RoomCode, "Error", err)
+			}
 			return nil, status.Error(codes.NotFound, "session not found")
+		} else {
+			sess, err = s.store.GetSession(ctx, req.SessionId)
+			if err != nil {
+				s.logger.Error("session not found", "session_id", req.SessionId, "error", err)
+				return nil, status.Error(codes.NotFound, "session not found")
+			}
+			hasAccess, err := s.store.HasAccess(ctx, req.SessionId, req.UserId)
+			if err != nil {
+				s.logger.Error("failed to check access", "error", err)
+				return nil, status.Error(codes.Internal, "failed to verify access")
+			}
+			if !hasAccess {
+				return nil, status.Error(codes.PermissionDenied, "access denied")
+			}
+
 		}
 		if sess.Status == "closed" {
 			return nil, status.Error(codes.FailedPrecondition, "session is closed")
 		}
-		// Check if user has access
-		hasAccess, err := s.store.HasAccess(ctx, req.SessionId, req.UserId)
-		if err != nil {
-			s.logger.Error("failed to check access", "error", err)
-			return nil, status.Error(codes.Internal, "failed to verify access")
+		if grantErr := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); grantErr != nil {
+			s.logger.Error("failed to grant access", "error", grantErr)
+			return nil, status.Error(codes.Internal, "failed to grant access")
 		}
-		if !hasAccess {
-			return nil, status.Error(codes.PermissionDenied, "access denied")
-		}
+	}
+	sessionID := req.SessionId
+	if sess != nil {
+		sessionID = sess.ID
 	}
 
 	// Determine permissions based on role
@@ -53,8 +73,9 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	//Resolves final session ID when joining my req.RoomCode
 	s.logger.Info("generating LiveKit token",
-		"session_id", req.SessionId,
+		"session_id", sessionID,
 		"user_id", req.UserId,
 		"role", req.Role,
 	)
