@@ -12,6 +12,7 @@ type Store interface {
 	DeleteSession(ctx context.Context, sessionID string) error
 
 	// Access control
+	GetRole(ctx context.Context, sessionID, userID string) (string, error)
 	GrantAccess(ctx context.Context, sessionID, userID, role string) error
 	RevokeAccess(ctx context.Context, sessionID, userID string) error
 	HasAccess(ctx context.Context, sessionID, userID string) (bool, error)
