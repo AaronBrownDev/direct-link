@@ -135,7 +135,7 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session
 		return nil, fmt.Errorf("failed to parse created_at %w", err)
 	}
 
-	maxCameras, err := strconv.Atoi(result["max_cameras"])
+	maxCameras, err := strconv.ParseInt(result["max_cameras"], 10, 32)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse max_cameras: %w", err)
 	}
@@ -145,7 +145,7 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session
 		RoomCode:   result["room_code"],
 		CreatedBy:  result["created_by"],
 		CreatedAt:  createdAt,
-		MaxCameras: maxCameras,
+		MaxCameras: int(maxCameras),
 		Status:     result["status"],
 	}, nil
 }
