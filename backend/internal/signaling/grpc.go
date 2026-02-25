@@ -6,7 +6,6 @@ import (
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
-	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"github.com/livekit/protocol/auth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -23,48 +22,24 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 	if req.Role == "" {
 		return nil, status.Error(codes.InvalidArgument, "role is required")
 	}
-	if req.SessionId == "" && req.RoomCode == "" {
-		return nil, status.Error(codes.InvalidArgument, "session_id is required")
+	if req.RoomCode == "" {
+		return nil, status.Error(codes.InvalidArgument, "room_code is required")
 	}
 
-	var sess *session.Session
-	var err error
-
-	// Verify session exists and is active
-	if s.store != nil {
-		if req.RoomCode != "" {
-			sess, err = s.store.GetSessionByRoomCode(ctx, req.RoomCode)
-			if err != nil {
-				s.logger.Error("room code lookup failed", "room code", req.RoomCode, "Error", err)
-				return nil, status.Error(codes.NotFound, "session not found")
-			}
-			if sess.Status == "closed" {
-				return nil, status.Error(codes.FailedPrecondition, "session is closed")
-			}
-			if grantErr := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); grantErr != nil {
-				s.logger.Error("failed to grant access", "error", grantErr)
-				return nil, status.Error(codes.Internal, "failed to grant access")
-			}
-
-		} else {
-			sess, err = s.store.GetSession(ctx, req.SessionId)
-			if err != nil {
-				s.logger.Error("session not found", "session_id", req.SessionId, "error", err)
-				return nil, status.Error(codes.NotFound, "session not found")
-			}
-			hasAccess, err := s.store.HasAccess(ctx, req.SessionId, req.UserId)
-			if err != nil {
-				s.logger.Error("failed to check access", "error", err)
-				return nil, status.Error(codes.Internal, "failed to verify access")
-			}
-			if !hasAccess {
-				return nil, status.Error(codes.PermissionDenied, "access denied")
-			}
-		}
+	// Resolve room code to session and verify it is active
+	sess, err := s.store.GetSessionByRoomCode(ctx, req.RoomCode)
+	if err != nil {
+		s.logger.Error("room code lookup failed", "room_code", req.RoomCode, "error", err)
+		return nil, status.Error(codes.NotFound, "session not found")
 	}
-	sessionID := sess.ID
-	if sess != nil {
-		sessionID = sess.ID
+	if sess.Status == "closed" {
+		return nil, status.Error(codes.FailedPrecondition, "session is closed")
+	}
+
+	// Auto-grant acccess for valid room code join
+	if err := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); err != nil {
+		s.logger.Error("failed to grant access", "error", err)
+		return nil, status.Error(codes.Internal, "failed to grant access")
 	}
 
 	// Determine permissions based on role
@@ -75,7 +50,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 
 	// Resolves final session ID when joining my req.RoomCode
 	s.logger.Info("generating LiveKit token",
-		"session_id", sessionID,
+		"session_id", sess.ID,
 		"user_id", req.UserId,
 		"role", req.Role,
 	)
@@ -85,7 +60,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 
 	grant := &auth.VideoGrant{
 		RoomJoin:     true,
-		Room:         req.SessionId,
+		Room:         sess.ID,
 		CanPublish:   &canPublish,
 		CanSubscribe: &canSubscribe,
 	}
@@ -101,7 +76,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 	}
 
 	s.logger.Info("peer joined session",
-		"session_id", req.SessionId,
+		"session_id", sess.ID,
 		"user_id", req.UserId,
 		"role", req.Role,
 	)

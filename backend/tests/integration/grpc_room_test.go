@@ -26,9 +26,8 @@ func newTestServer(t *testing.T) *signaling.Server {
 		RedisWriteTimeout: 3 * time.Second,
 		SessionTTL:        24 * time.Hour,
 		LiveKitHost:       "http://livekit:7880",
-		//TODO: Check if this is hardcoded or called in the another
-		LiveKitAPIKey:    "devkey",
-		LiveKitAPISecret: "secret",
+		LiveKitAPIKey:     "devkey",
+		LiveKitAPISecret:  "secret",
 	}
 	return signaling.NewServer(cfg, logger)
 }
@@ -47,10 +46,6 @@ func TestCreateSession_Success(t *testing.T) {
 		t.Fatalf("CreateSession returned err: %v", err)
 	}
 
-	if resp.SessionId == "" {
-		t.Error("expected non-empty session_id")
-	}
-
 	if resp.RoomCode == "" {
 		t.Error("expected non-empty room_code")
 	}
@@ -63,10 +58,6 @@ func TestCreateSession_MissingUserID(t *testing.T) {
 
 	_, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{})
 
-	if err != nil {
-		t.Fatalf("CreateSession: %v", err)
-	}
-
 	if err == nil {
 		t.Fatal("expected error for missing user_id")
 	}
@@ -78,24 +69,23 @@ func TestCloseSession_OwnerCanClose(t *testing.T) {
 	ctx := context.Background()
 
 	createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
-		UserId: "owner-1"})
+		UserId:     "owner-1",
+		MaxCameras: 4,
+	})
 
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
 
-	closeResp, err := srv.CloseSession(ctx, &pb.CloseSessionRequest{
-		SessionId: createResp.SessionId,
-		UserId:    "owner-1",
+	_, err = srv.CloseSession(ctx, &pb.CloseSessionRequest{
+		RoomCode: createResp.RoomCode,
+		UserId:   "owner-1",
 	})
 
 	if err != nil {
 		t.Fatalf("CloseSession: %v", err)
 	}
 
-	if !closeResp.Success {
-		t.Errorf("expected success=true")
-	}
 }
 
 // Tests Close Session when a none owner tries to close the Session
@@ -104,15 +94,17 @@ func TestCloseSession_NonOwnerRejected(t *testing.T) {
 	ctx := context.Background()
 
 	createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
-		UserId: "owner-2"})
+		UserId:     "owner-2",
+		MaxCameras: 4,
+	})
 
 	if err != nil {
-		t.Fatalf("CreateSession gave an error: %v", err)
+		t.Fatalf("CreateSession: %v", err)
 	}
 
 	_, err = srv.CloseSession(ctx, &pb.CloseSessionRequest{
-		SessionId: createResp.SessionId,
-		UserId:    "intruder",
+		RoomCode: createResp.RoomCode,
+		UserId:   "intruder",
 	})
 
 	if err == nil {
@@ -126,13 +118,10 @@ func TestCloseSession_SessionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := srv.CloseSession(ctx, &pb.CloseSessionRequest{
-		SessionId: "nonexistent",
-		UserId:    "anyone",
+		RoomCode: "ROOM-0000",
+		UserId:   "anyone",
 	})
 
-	if err != nil {
-		t.Fatalf("CloseSession: %v", err)
-	}
 	if err == nil {
 		t.Fatal("expected error for nonexistent session")
 	}
@@ -146,16 +135,22 @@ func TestGetMySessions_ReturnSessions(t *testing.T) {
 	// Use a unique user ID per test run to avoid interference from other test
 	userID := "director-list-" + time.Now().Format("20060102150405")
 
-	_, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{UserId: userID})
+	_, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+		UserId:     userID,
+		MaxCameras: 4,
+	})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	_, err = srv.CreateSession(ctx, &pb.CreateSessionRequest{UserId: userID})
+	_, err = srv.CreateSession(ctx, &pb.CreateSessionRequest{
+		UserId:     userID,
+		MaxCameras: 4,
+	})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
 
-	resp, err := srv.GetMySessions(ctx, &pb.GetMySessionRequest{UserId: userID})
+	resp, err := srv.GetMySessions(ctx, &pb.GetMySessionsRequest{UserId: userID})
 	if err != nil {
 		t.Fatalf("GetMySessions: %v", err)
 	}
@@ -169,10 +164,8 @@ func TestGetMySessions_MissingUserID(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	_, err := srv.GetMySessions(ctx, &pb.GetMySessionRequest{})
-	if err != nil {
-		t.Fatalf("GetMySesssion: %v", err)
-	}
+	_, err := srv.GetMySessions(ctx, &pb.GetMySessionsRequest{})
+
 	if err == nil {
 		t.Fatal("expected error for missing user_id")
 	}

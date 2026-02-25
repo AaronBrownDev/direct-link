@@ -15,13 +15,18 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
+	if req.MaxCameras <= 0 {
+		return nil, status.Error(codes.InvalidArgument, ",max_cameras must be greater than zero")
+	}
 
+	// Generate session ID and room code
 	sessionID := session.NewSessionID()
 	roomCode, err := session.NewRoomCode()
 	if err != nil {
 		s.logger.Error("failed to generate room code", "error", err)
 	}
 
+	// Build the session
 	newSession := &session.Session{
 		ID:         sessionID,
 		RoomCode:   roomCode,
@@ -31,15 +36,15 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 		Status:     "active",
 	}
 
-	if s.store != nil {
-		if err := s.store.CreateSession(ctx, newSession); err != nil {
-			s.logger.Error("failed to create session", "error", err)
-			return nil, status.Error(codes.Internal, "failed to create session")
-		}
+	// Store the session
+	if err := s.store.CreateSession(ctx, newSession); err != nil {
+		s.logger.Error("failed to create session", "error", err)
+		return nil, status.Error(codes.Internal, "failed to create session")
+	}
 
-		if err := s.store.GrantAccess(ctx, sessionID, req.UserId, "director"); err != nil {
-			s.logger.Error("failed to grant creator access", "error", err)
-		}
+	// Grant the creator director access
+	if err := s.store.GrantAccess(ctx, sessionID, req.UserId, "director"); err != nil {
+		s.logger.Error("failed to grant creator access", "error", err)
 	}
 
 	s.logger.Info(
@@ -50,68 +55,66 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 	)
 
 	return &pb.CreateSessionReply{
-		SessionId: sessionID,
-		RoomCode:  roomCode,
+		RoomCode: roomCode,
 	}, nil
 }
 
 // Sets a session's status to "closed"
 // Only the session owner may close it
 func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) (*pb.CloseSessionReply, error) {
-	if req.SessionId == "" {
-		return nil, status.Error(codes.InvalidArgument, "session_id if required")
+	// Validate required fields
+	if req.RoomCode == "" {
+		return nil, status.Error(codes.InvalidArgument, "room_code is required")
 	}
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	if s.store != nil {
-		sess, err := s.store.GetSession(ctx, req.SessionId)
-		if err != nil {
-			s.logger.Error("session not found", "session_id", req.SessionId, "error", err)
-			return nil, status.Error(codes.NotFound, "session not found")
-		}
+	// Retrieves session by room code
+	sess, err := s.store.GetSessionByRoomCode(ctx, req.RoomCode)
+	if err != nil {
+		s.logger.Error("session not found", "room_code", req.RoomCode, "error", err)
+		return nil, status.Error(codes.NotFound, "session not found")
+	}
 
-		if sess.CreatedBy != req.UserId {
-			return nil, status.Error(codes.PermissionDenied, "only the session owner can close it")
-		}
+	// Verify ownership
+	if sess.CreatedBy != req.UserId {
+		return nil, status.Error(codes.PermissionDenied, "only the session owner can close it")
+	}
 
-		if sess.Status == "closed" {
-			return &pb.CloseSessionReply{Success: true}, nil
-		}
-
-		if err := s.store.UpdateSessionStatus(ctx, req.SessionId, "closed"); err != nil {
-			s.logger.Error("failed to close session", "error", err)
-			return nil, status.Error(codes.Internal, "failed to close session")
-		}
+	// Update session status to closed
+	if err := s.store.UpdateSessionStatus(ctx, sess.ID, "closed"); err != nil {
+		s.logger.Error("failed to close session", "error", err)
+		return nil, status.Error(codes.Internal, "failed to close session")
 	}
 
 	s.logger.Info(
 		"session closed",
-		"session_id", req.SessionId,
+		"session_id", sess.ID,
+		"room_code", req.RoomCode,
 		"closed_by", req.UserId,
 	)
-	return &pb.CloseSessionReply{Success: true}, nil
+	return &pb.CloseSessionReply{}, nil
 }
 
-// Returns all sessions created by the requesting user
-func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionRequest) (*pb.GetMySessionReply, error) {
+// GetMySessions returns all sessions created by the requesting user
+func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest) (*pb.GetMySessionsReply, error) {
+	//Validate required fields
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 
-	if s.store == nil {
-		return &pb.GetMySessionReply{Sessions: nil}, nil
-	}
-
+	// Fetch all sessions for this user
 	sessions, err := s.store.GetUserSessions(ctx, req.UserId)
 	if err != nil {
 		s.logger.Error("failed to get user sessions", "user_id", req.UserId, "error", err)
 		return nil, status.Error(codes.Internal, "failed to retrieved sessions")
 	}
-	infos := make([]*pb.SessionInfo, 0, len(sessions))
+
+	// Convert session slice to pb.SessioInfo slice
+	pbSessions := make([]*pb.SessionInfo, 0, len(sessions))
 	for _, sess := range sessions {
-		infos = append(infos, &pb.SessionInfo{
+		pbSessions = append(pbSessions, &pb.SessionInfo{
 			SessionId:  sess.ID,
 			RoomCode:   sess.RoomCode,
 			CreatedAt:  sess.CreatedAt.Unix(),
@@ -119,5 +122,5 @@ func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionRequest)
 			Status:     sess.Status,
 		})
 	}
-	return &pb.GetMySessionReply{Sessions: infos}, nil
+	return &pb.GetMySessionsReply{Sessions: pbSessions}, nil
 }
