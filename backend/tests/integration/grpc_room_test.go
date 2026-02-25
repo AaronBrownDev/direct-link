@@ -14,9 +14,13 @@ import (
 // Creates new test Server
 func newTestServer(t *testing.T) *signaling.Server {
 	t.Helper()
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "redis:6379"
+	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	cfg := signaling.Config{
-		RedisAddr:         "redis:6379",
+		RedisAddr:         redisAddr,
 		RedisPassword:     "",
 		RedisDB:           0,
 		RedisPoolSize:     10,

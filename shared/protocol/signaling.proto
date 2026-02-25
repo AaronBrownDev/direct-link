@@ -49,7 +49,9 @@ message CloseSessionRequest{
 }
 
 //CloseSessionReply confirms the session was closed 
-message CloseSessionReply{}
+message CloseSessionReply{
+    bool success =1;
+}
 
 // GetMySessionsRequest fetched all sessions for a user
 message GetMySessionsRequest{
