@@ -9,63 +9,64 @@ option go_package = "github.com/AaronBrownDev/direct-link/shared/protocol/signal
 service SignalingService {
     // JoinSession authenticates a user and returns a LiveKit token for direct media connection
     rpc JoinSession(JoinRequest) returns (JoinReply);
-
-    //Room Creation
+    // CreateSession creates a new production session and returns a room code
     rpc CreateSession(CreateSessionRequest) returns (CreateSessionReply);
-    // Closes Room
+    // CloseSession closes a active session, only the owner can do this
     rpc CloseSession(CloseSessionRequest) returns (CloseSessionReply);
-    // Returns current sessions
-    rpc GetMySessions(GetMySessionRequest) returns (GetMySessionReply);
+    // GetMySessions returns all sessions creates by the requesting user
+    rpc GetMySessions(GetMySessionsRequest) returns (GetMySessionsReply);
 
 }
 
 // JoinRequest initiates joining a session
 message JoinRequest {
-    string session_id = 1; // Room/session to join
-    string room_code =2;
-    string user_id = 3; // Unique identifier for who is requesting
-    string role = 4; // "camera" or "director"
+    string room_code =1; // Room/session to join
+    string user_id = 2; // Unique identifier for who is requesting
+    string role = 3; // "camera" or "director"
 }
 
 // JoinReply provides credentials for connecting to LiveKit
 message JoinReply {
     string token = 1; // LiveKit JWT access token
     string livekit_url = 2; // LiveKit server URL for media connection
-    string session_id =3;
 }
 
+// CreatesSessionRequest initiates creation of a new production session 
 message CreateSessionRequest{
-    string user_id = 1;
-    int32 max_cameras = 2;
+    string user_id = 1; // the director creating the session
+    int32 max_cameras = 2; // Maximum number of camera operators allowed
 }
 
+// CreateSession Reply returns the identifiers for the newly created session
 message CreateSessionReply{
-    string session_id = 1;
-    string room_code = 2;
+    string room_code = 1; // Human-readable code to share with camera operators
 }
 
+// CloseSessionRequest closes an active session
 message CloseSessionRequest{
-    string session_id = 1;
-    string user_id = 2;
+    string room_code = 1; // Room to to close
+    string user_id = 2; // Must match the session owner
 }
 
-message CloseSessionReply{
-    bool success = 1;
+//CloseSessionReply confirms the session was closed 
+message CloseSessionReply{}
+
+// GetMySessionsRequest fetched all sessions for a user
+message GetMySessionsRequest{
+    string user_id = 1; // The director whose sessions to fetch
 }
 
-message GetMySessionRequest{
-    string user_id = 1;
-}
-
-message GetMySessionReply{
+// GetMySessionsReply returns a list of the user's sessions
+message GetMySessionsReply{
     repeated SessionInfo sessions = 1;
 }
 
+// SessionInfo represents a single session in a list response
 message SessionInfo{
-    string session_id = 1;
-    string room_code = 2;
-    int64 created_at = 3;
+    string session_id = 1; // Internal UUID, informational only
+    string room_code = 2; // Primary identifier
+    int64 created_at = 3; // RFC3339 formatted timestamp
     int32 max_cameras = 4;
-    string status = 5;
+    string status = 5; // "active" or "closed"
 
 }
