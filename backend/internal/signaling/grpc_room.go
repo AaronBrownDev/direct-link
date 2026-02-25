@@ -99,7 +99,7 @@ func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) 
 
 // GetMySessions returns all sessions created by the requesting user
 func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest) (*pb.GetMySessionsReply, error) {
-	//Validate required fields
+	// Validate required fields
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
