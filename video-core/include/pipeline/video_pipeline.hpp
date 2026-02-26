@@ -30,9 +30,16 @@ public:
     // Statistics getters
     [[nodiscard]] int getCurrentFramerate() const noexcept { return currentFramerate_; }
     [[nodiscard]] int getFrameCount() const noexcept { return frameCount_; }
-    [[nodiscard]] int getBitrate() const noexcept { return bitrate_; }
+    
+    [[nodiscard]] int getBitrate() const {
+        if (!encodeThread_.joinable()) return 0;
+        auto elapsed = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - startTime_).count();
+        return elapsed > 0.0 ? static_cast<int>((bitrate_ * 8) / elapsed) : 0;
+    }
 
     [[nodiscard]] float getFPS() const {
+        if (!encodeThread_.joinable()) return 0;
         auto elapsed = std::chrono::steady_clock::now() - startTime_;
         double seconds = std::chrono::duration<double>(elapsed).count();
         return seconds > 0.0 ? static_cast<float>(frameCount_ / seconds) : 0.0f;
@@ -41,9 +48,10 @@ public:
     [[nodiscard]] float getLatency() const { return 0.0f;};
 
 private:
+    encode::EncoderConfig encoderConfig_;
     std::unique_ptr<capture::CameraCapture> captureDevice_;
     std::unique_ptr<encode::Encoder> encoder_;
-    std::function<void(std::unique_ptr<Packet>)> PacketCallback_;
+    std::function<void(std::unique_ptr<Packet>)> packetCallback_;
 
     // Frame queue  between capture and encode threads
     std::queue<std::unique_ptr<Frame>> frameQueue_;
@@ -56,6 +64,7 @@ private:
     // Statistics
     std::atomic<int> currentFramerate_ = 0;
     std::atomic<int> frameCount_ = 0;
+    std::atomic<int> framesEncoded_ = 0; // !TODO: add framesEncoded_ to stats and use it to calculate latency
     std::atomic<int> bitrate_ = 0;
     std::chrono::steady_clock::time_point startTime_;
 
