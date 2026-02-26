@@ -1,5 +1,4 @@
-#ifndef FRAMEREADER_H
-#define FRAMEREADER_H
+#pragma once
 
 #include <QObject>
 #include <QImage>
@@ -22,7 +21,7 @@ public:
     [[nodiscard]] QVideoSink *videoSink() const;
 
     void setVideoSink(QVideoSink *sink);
-    void pushFrame(videoCore::Frame *frame);
+    void pushFrame(std::unique_ptr<videoCore::Frame> frame);
 
 signals:
     void videoSinkChanged();
@@ -30,6 +29,3 @@ signals:
 private:
     QVideoSink *m_videoSink;
 };
-
-
-#endif // FRAMEREADER_H

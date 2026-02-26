@@ -7,7 +7,9 @@
  * a QVideoFrame and updates a VideoOutput QML object to display the frame in the app.
  */
 
-#include "framereader.h"
+#include "framereader.hpp"
+
+
 
 FrameReader::FrameReader(QObject *parent) : QObject(parent), m_videoSink(nullptr) {
 
@@ -26,7 +28,7 @@ void FrameReader::setVideoSink(QVideoSink *sink) {
     }
 }
 
-void FrameReader::pushFrame(videoCore::Frame *frame) {
+void FrameReader::pushFrame(std::unique_ptr<videoCore::Frame> frame) {
     if (m_videoSink == nullptr) {
         qDebug() << "Could not push frame. Video sink has not been set.";
         return;
@@ -37,9 +39,8 @@ void FrameReader::pushFrame(videoCore::Frame *frame) {
     const uchar *src = nullptr;
     std::size_t size = 0;
 
-
     if (frame != nullptr) {
-        qDebug() << "Frame support not yet implemented. Defaulting to placeholder frame";
+        qDebug() << "Frame support not yet implemented. Defaulting to placeholder frame.";
     }
 
     QSize frame_dimensions(placeholder.width(), placeholder.height());
@@ -52,7 +53,7 @@ void FrameReader::pushFrame(videoCore::Frame *frame) {
     QVideoFrame video_frame(format);
 
     video_frame.map(QVideoFrame::WriteOnly);
-    memcpy(video_frame.bits(0), src, size);
+    std::memcpy(video_frame.bits(0), src, size);
     video_frame.unmap();
 
     m_videoSink->setVideoFrame(video_frame);
