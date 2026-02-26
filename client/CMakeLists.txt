@@ -9,45 +9,40 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt5 REQUIRED COMPONENTS Widgets Qml Quick QuickWidgets)
+find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FFMPEG REQUIRED
+    libavcodec
+    libavutil
+)
 
 set(PROJECT_SOURCES
         src/main.cpp
-
-
-
 )
 
-if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(direct-link
+
+qt_add_executable(direct-link
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+        resources.qrc
+        src/framereader.cpp
+        src/framereader.hpp
     )
 
-else()
-    if(ANDROID)
-        add_library(direct-link SHARED
-            ${PROJECT_SOURCES}
-        )
-
-    else()
-        add_executable(direct-link
-            ${PROJECT_SOURCES}
-
-            resources.qrc
-        )
-    endif()
-endif()
-
-target_link_libraries(direct-link PRIVATE
-    Qt5::Widgets
-    Qt5::Qml
-    Qt5::Quick
-    Qt5::QuickWidgets
+target_include_directories(direct-link PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${FFMPEG_INCLUDE_DIRS}
 )
 
-if(${QT_VERSION} VERSION_LESS 6.1.0)
+target_link_libraries(direct-link PRIVATE
+    Qt6::Core
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Multimedia
+    ${FFMPEG_LIBRARIES}
+)
+
+if(Qt6_VERSION VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.direct-link)
 endif()
 set_target_properties(direct-link PROPERTIES

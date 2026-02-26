@@ -7,23 +7,22 @@
    The Leave button closes the application.
  */
 
-import QtQuick 2.15
-import QtQuick.Window 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
+import QtQuick
+import QtQuick.Window
+import QtQuick.Controls
+import QtQuick.Layouts
 
 Window {
         id: root
 
         property string user_type: "Director"
-        property real main_aspect_ratio: 16 / 9
         property real max_camera_count: 4
 
         visible: true
         minimumWidth: dl_root_layout.implicitWidth
         minimumHeight: dl_root_layout.implicitHeight
-        width: 2400
-        height: 1250
+        width: minimumWidth
+        height: minimumHeight
         color: "#0F172A"
         title: "Direct Link Session"
 
@@ -44,30 +43,25 @@ Window {
 
                 SessionLog { id: dl_session_log }
 
-                Item { Layout.fillWidth: true }
-
-                Camera {
-                    id: dl_main_camera
+                CameraFeed {
+                    id: dl_active_camera
 
                     Layout.alignment: Qt.AlignVCenter
                     Layout.fillWidth: true
-                    Layout.preferredHeight: width / main_aspect_ratio
-                    Layout.maximumHeight: dl_layout_cameras.height
-                    Layout.maximumWidth: Layout.maximumHeight * main_aspect_ratio
-                    Layout.preferredWidth: Layout.maximumWidth
+                    Layout.preferredHeight: width / aspect_ratio
+                    Layout.minimumHeight: implicitWidth / aspect_ratio
+                    implicitWidth: 500
 
-                    Text {
-                        id: dl_label_main_camera
-                        text: "Main Camera (16:9)"
-                        anchors.centerIn: parent
-                        color: "white"
-                        font.pointSize: 12
+                    Component.onCompleted: {
+                        FrameReader.videoSink = dl_active_camera.videoSink
                     }
                 }
 
-                Item { Layout.fillWidth: true }
+                ThumbnailList {
+                    id: dl_camera_list
+                    Layout.fillHeight: true
 
-                ThumbnailList { id: dl_camera_list }
+                }
             }
 
             Footer { id: dl_session_footer }
