@@ -9,10 +9,13 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
 
+    engine.addImportPath("qrc:/");
+
     FrameReader frame_reader;
     engine.rootContext()->setContextProperty("FrameReader", &frame_reader);
 
     const QUrl url(QStringLiteral("qrc:/src/application/Main.qml"));
+
     engine.load(url);
 
 

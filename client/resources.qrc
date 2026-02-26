@@ -10,5 +10,8 @@
         <file>src/application/SessionInfo.qml</file>
         <file>src/application/CameraFeed.qml</file>
         <file>resources/ui/placeholderSplash.png</file>
+        <file>src/framereader.cpp</file>
+        <file>src/framereader.hpp</file>
+        <file>src/main.cpp</file>
     </qresource>
 </RCC>
