@@ -79,7 +79,12 @@ UNIT_TEST_SRC := tests/unit/capture/test_types.cpp \
 				tests/unit/capture/test_capture_config.cpp \
 				tests/unit/capture/test_camera_capture.cpp \
 				tests/unit/encode/test_encoder_config.cpp \
-				src/capture/camera_capture.cpp
+				tests/unit/pipeline/test_pipeline.cpp \
+				src/capture/camera_capture.cpp \
+				src/encode/encoder.cpp \
+				src/encode/software_encoder.cpp \
+                src/encode/nvenc_encoder.cpp \
+				src/pipeline/video_pipeline.cpp
 UNIT_TEST_BIN := $(BIN_DIR)/video_core_tests
 GTEST_FLAGS := -lgtest -lgtest_main -pthread
 
