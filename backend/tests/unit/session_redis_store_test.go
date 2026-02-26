@@ -10,7 +10,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 )
 
-func setupTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
+func newSessionTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
 	mr := miniredis.RunT(t)
 
 	store, err := session.NewRedisStore(
@@ -31,7 +31,7 @@ func setupTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
 }
 
 func TestCreateAndGetSession(t *testing.T) {
-	store, _ := setupTestStore(t)
+	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -66,7 +66,7 @@ func TestCreateAndGetSession(t *testing.T) {
 }
 
 func TestGetSessionByRoomCode(t *testing.T) {
-	store, _ := setupTestStore(t)
+	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -101,7 +101,7 @@ func TestGetSessionByRoomCode(t *testing.T) {
 }
 
 func TestGrantAndCheckAccess(t *testing.T) {
-	store, _ := setupTestStore(t)
+	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -150,7 +150,7 @@ func TestGrantAndCheckAccess(t *testing.T) {
 }
 
 func TestUpdateSessionStatus(t *testing.T) {
-	store, _ := setupTestStore(t)
+	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -187,7 +187,7 @@ func TestUpdateSessionStatus(t *testing.T) {
 
 }
 func TestDeleteSession(t *testing.T) {
-	store, _ := setupTestStore(t)
+	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
@@ -223,7 +223,7 @@ func TestDeleteSession(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
-	store, mr := setupTestStore(t)
+	store, mr := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
 			t.Logf("failed to close connection: %v", err)
