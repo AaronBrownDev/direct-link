@@ -9,7 +9,8 @@ import (
 	"github.com/alicebob/miniredis/v2"
 )
 
-func setTestStore(t *testing.T) *session.RedisStore {
+// setTestStore
+func newAccessTestStore(t *testing.T) *session.RedisStore {
 	t.Helper()
 	mr := miniredis.RunT(t)
 
@@ -37,7 +38,7 @@ func newActiveSession(id, roomCode, owner string) *session.Session {
 
 // Tests GrantAccess
 func TestGrantAccess_UserHasAccess(t *testing.T) {
-	store := setTestStore(t)
+	store := newAccessTestStore(t)
 	defer store.Close()
 	ctx := context.Background()
 
@@ -60,7 +61,7 @@ func TestGrantAccess_UserHasAccess(t *testing.T) {
 
 // Tests GrantAccess for unknown user
 func TestGrantAccess_UnknownUserHasNoAccess(t *testing.T) {
-	store := setTestStore(t)
+	store := newAccessTestStore(t)
 	defer store.Close()
 	ctx := context.Background()
 
@@ -81,7 +82,7 @@ func TestGrantAccess_UnknownUserHasNoAccess(t *testing.T) {
 // Tests Revoke access
 // Removes users access
 func TestRevokeAccess_RemoveUser(t *testing.T) {
-	store := setTestStore(t)
+	store := newAccessTestStore(t)
 	defer store.Close()
 	ctx := context.Background()
 
@@ -109,7 +110,7 @@ func TestRevokeAccess_RemoveUser(t *testing.T) {
 // Test Revoke Access
 // Ensures that other uses are not affected when one user's access is removed
 func TestRevokeAccess_DoesNotAffectOtherUsers(t *testing.T) {
-	store := setTestStore(t)
+	store := newAccessTestStore(t)
 	defer store.Close()
 
 	ctx := context.Background()
@@ -141,7 +142,7 @@ func TestRevokeAccess_DoesNotAffectOtherUsers(t *testing.T) {
 // Tests GetRole
 // Returns the CorrectRole of the user
 func TestGetRole_ReturnsCorrectRole(t *testing.T) {
-	store := setTestStore(t)
+	store := newAccessTestStore(t)
 	defer store.Close()
 	ctx := context.Background()
 
@@ -165,7 +166,7 @@ func TestGetRole_ReturnsCorrectRole(t *testing.T) {
 // Tests Get Role
 // Returns empty because the user is empty
 func TestGetRole_MissingUserReturnsEmpty(t *testing.T) {
-	store := setTestStore(t)
+	store := newAccessTestStore(t)
 	defer store.Close()
 	ctx := context.Background()
 

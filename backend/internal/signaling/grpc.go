@@ -37,8 +37,9 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.FailedPrecondition, "session is closed")
 	}
 
-	// Auto-grant acccess for valid room code join
+	// Auto-grant access for valid room code join
 	if err := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); err != nil {
+		//TODO: handle orphaned session in redis
 		s.logger.Error("failed to grant access", "error", err)
 		return nil, status.Error(codes.Internal, "failed to grant access")
 	}
@@ -88,7 +89,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 	}, nil
 }
 
-// Creates a new production session and returns a room code
+// CreateSession creates a new production session and returns a room code
 func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest) (*pb.CreateSessionReply, error) {
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
@@ -140,7 +141,7 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 	}, nil
 }
 
-// Sets a session's status to "closed"
+// CloseSession sets a session's status to "closed"
 // Only the session owner may close it
 func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) (*pb.CloseSessionReply, error) {
 	// Validate required fields
