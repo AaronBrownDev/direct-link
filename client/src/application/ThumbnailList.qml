@@ -1,33 +1,42 @@
-import QtQuick 2.15
-import QtQuick.Window 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
+import QtQuick
+import QtQuick.Window
+import QtQuick.Controls
+import QtQuick.Layouts
 
 Rectangle {
     id: dl_bg_camera_list
+
+    property real default_aspect_ratio: 16 / 9
+    property int minHeight: dl_repeater_thumbnail.count * (Layout.preferredWidth / default_aspect_ratio)
+
     color: "#1E293B"
-    Layout.preferredHeight: dl_layout_camera_list.implicitHeight + radius
-    Layout.preferredWidth: 300
     radius: 15
 
+    Layout.preferredWidth: 300
+    Layout.minimumHeight: minHeight
 
     ColumnLayout {
         id: dl_layout_camera_list
-        spacing: 0
-        anchors.fill: parent
 
         property int index: 0
 
-        Item { Layout.fillHeight: true }
+        spacing: 15
+        anchors.fill: parent
+        anchors.margins: 15
+
+        // Item { Layout.fillHeight: true }
 
         Repeater {
             id: dl_repeater_thumbnail
             model: max_camera_count
-            Camera {
+            Thumbnail {
                 id: dl_thumbnail
-                Layout.margins: 15
+
+                aspect_ratio: default_aspect_ratio
+
                 Layout.fillWidth: true
-                Layout.preferredHeight: width / main_aspect_ratio
+                Layout.preferredHeight: width / aspect_ratio
+
 
                 Text {
                     anchors.centerIn: parent
