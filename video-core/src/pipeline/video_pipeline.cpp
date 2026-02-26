@@ -24,6 +24,9 @@ namespace videoCore::pipeline {
     }
 
     Result VideoPipeline::start(std::function<void(std::unique_ptr<Packet>)> packetCallback) {
+        if (!captureDevice_ || !encoder_) {
+            return Result::ErrorInitFailed; // Not initialized
+        }
         if (encodeThread_.joinable()) {
             return Result::ErrorInitFailed; // Already running
         }

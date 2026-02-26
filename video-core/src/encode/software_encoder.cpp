@@ -20,8 +20,8 @@ SoftwareEncoder::~SoftwareEncoder() {
 
 Result SoftwareEncoder::initialize(const EncoderConfig& config, 
     std::function<void(std::unique_ptr<Packet>)> packetCallback) {
-    config_ = config;
-    encodedPacketCallback_ = std::move(packetCallback);
+    
+    Encoder::initialize(config, std::move(packetCallback));
 
     // Initialize x264 encoder context (codecCtx_)
     // Set up codec parameters based on config_

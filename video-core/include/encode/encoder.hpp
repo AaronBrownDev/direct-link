@@ -8,8 +8,8 @@ struct AVFrame;
 namespace videoCore::encode {
 class Encoder {
 public:
-    Encoder(const EncoderConfig& config);
-    virtual ~Encoder();
+    Encoder() = default;
+    virtual ~Encoder() = default;
 
     virtual Result initialize(const EncoderConfig& config, 
         std::function<void(std::unique_ptr<Packet>)> packetCallback);
