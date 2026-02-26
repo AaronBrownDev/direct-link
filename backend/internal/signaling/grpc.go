@@ -6,6 +6,7 @@ import (
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
+	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"github.com/livekit/protocol/auth"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -16,35 +17,31 @@ import (
 func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.JoinReply, error) {
 
 	// Validate required fields
-	if req.SessionId == "" {
-		return nil, status.Error(codes.InvalidArgument, "session_id is required")
-	}
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
 	if req.Role == "" {
 		return nil, status.Error(codes.InvalidArgument, "role is required")
 	}
+	if req.RoomCode == "" {
+		return nil, status.Error(codes.InvalidArgument, "room_code is required")
+	}
 
-	// Verify session exists and is active
-	if s.store != nil {
-		sess, err := s.store.GetSession(ctx, req.SessionId)
-		if err != nil {
-			s.logger.Error("session not found", "session_id", req.SessionId, "error", err)
-			return nil, status.Error(codes.NotFound, "session not found")
-		}
-		if sess.Status == "closed" {
-			return nil, status.Error(codes.FailedPrecondition, "session is closed")
-		}
-		// Check if user has access
-		hasAccess, err := s.store.HasAccess(ctx, req.SessionId, req.UserId)
-		if err != nil {
-			s.logger.Error("failed to check access", "error", err)
-			return nil, status.Error(codes.Internal, "failed to verify access")
-		}
-		if !hasAccess {
-			return nil, status.Error(codes.PermissionDenied, "access denied")
-		}
+	// Resolve room code to session and verify it is active
+	sess, err := s.store.GetSessionByRoomCode(ctx, req.RoomCode)
+	if err != nil {
+		s.logger.Error("room code lookup failed", "room_code", req.RoomCode, "error", err)
+		return nil, status.Error(codes.NotFound, "session not found")
+	}
+	if sess.Status == "closed" {
+		return nil, status.Error(codes.FailedPrecondition, "session is closed")
+	}
+
+	// Auto-grant access for valid room code join
+	if err := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); err != nil {
+		//TODO: handle orphaned session in redis
+		s.logger.Error("failed to grant access", "error", err)
+		return nil, status.Error(codes.Internal, "failed to grant access")
 	}
 
 	// Determine permissions based on role
@@ -53,8 +50,9 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	// Resolves final session ID when joining my req.RoomCode
 	s.logger.Info("generating LiveKit token",
-		"session_id", req.SessionId,
+		"session_id", sess.ID,
 		"user_id", req.UserId,
 		"role", req.Role,
 	)
@@ -64,7 +62,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 
 	grant := &auth.VideoGrant{
 		RoomJoin:     true,
-		Room:         req.SessionId,
+		Room:         sess.ID,
 		CanPublish:   &canPublish,
 		CanSubscribe: &canSubscribe,
 	}
@@ -80,7 +78,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 	}
 
 	s.logger.Info("peer joined session",
-		"session_id", req.SessionId,
+		"session_id", sess.ID,
 		"user_id", req.UserId,
 		"role", req.Role,
 	)
@@ -89,6 +87,124 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		Token:      token,
 		LivekitUrl: s.cfg.LiveKitHost,
 	}, nil
+}
+
+// CreateSession creates a new production session and returns a room code
+func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest) (*pb.CreateSessionReply, error) {
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+	if req.MaxCameras <= 0 {
+		//TODO: Add camera limit
+		return nil, status.Error(codes.InvalidArgument, "max_cameras must be greater than zero")
+	}
+
+	// Generate session ID and room code
+	sessionID := session.NewSessionID()
+	roomCode, err := session.NewRoomCode()
+	if err != nil {
+		s.logger.Error("failed to generate room code", "error", err)
+		return nil, status.Error(codes.Internal, "room_code was not generated")
+	}
+
+	// Build the session
+	newSession := &session.Session{
+		ID:         sessionID,
+		RoomCode:   roomCode,
+		CreatedBy:  req.UserId,
+		CreatedAt:  time.Now().UTC(),
+		MaxCameras: req.MaxCameras,
+		Status:     "active",
+	}
+
+	// Store the session
+	if err := s.store.CreateSession(ctx, newSession); err != nil {
+		s.logger.Error("failed to create session", "error", err)
+		return nil, status.Error(codes.Internal, "failed to create session")
+	}
+
+	// Grant the creator director access
+	if err := s.store.GrantAccess(ctx, sessionID, req.UserId, "director"); err != nil {
+		s.logger.Error("failed to grant creator access", "error", err)
+		return nil, status.Error(codes.Internal, "failed to grant access")
+	}
+
+	s.logger.Info(
+		"session created",
+		"session_id", sessionID,
+		"room_code", roomCode,
+		"created_by", req.UserId,
+	)
+
+	return &pb.CreateSessionReply{
+		RoomCode: roomCode,
+	}, nil
+}
+
+// CloseSession sets a session's status to "closed"
+// Only the session owner may close it
+func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) (*pb.CloseSessionReply, error) {
+	// Validate required fields
+	if req.RoomCode == "" {
+		return nil, status.Error(codes.InvalidArgument, "room_code is required")
+	}
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	// Retrieves session by room code
+	sess, err := s.store.GetSessionByRoomCode(ctx, req.RoomCode)
+	if err != nil {
+		s.logger.Error("session not found", "room_code", req.RoomCode, "error", err)
+		return nil, status.Error(codes.NotFound, "session not found")
+	}
+
+	// Verify ownership
+	if sess.CreatedBy != req.UserId {
+		return nil, status.Error(codes.PermissionDenied, "only the session owner can close it")
+	}
+
+	// Update session status to closed
+	if err := s.store.UpdateSessionStatus(ctx, sess.ID, "closed"); err != nil {
+		s.logger.Error("failed to close session", "error", err)
+		return nil, status.Error(codes.Internal, "failed to close session")
+	}
+
+	s.logger.Info(
+		"session closed",
+		"session_id", sess.ID,
+		"room_code", req.RoomCode,
+		"closed_by", req.UserId,
+	)
+	return &pb.CloseSessionReply{Success: true}, nil
+}
+
+// GetMySessions returns all sessions created by the requesting user
+func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest) (*pb.GetMySessionsReply, error) {
+	// Validate required fields
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	}
+
+	// Fetch all sessions for this user
+	sessions, err := s.store.GetUserSessions(ctx, req.UserId)
+	if err != nil {
+		s.logger.Error("failed to get user sessions", "user_id", req.UserId, "error", err)
+		return nil, status.Error(codes.Internal, "failed to retrieve sessions")
+	}
+
+	// Convert session slice to pb.SessionInfo slice
+	pbSessions := make([]*pb.SessionInfo, 0, len(sessions))
+	for _, sess := range sessions {
+		pbSessions = append(pbSessions, &pb.SessionInfo{
+			SessionId:  sess.ID,
+			RoomCode:   sess.RoomCode,
+			CreatedAt:  sess.CreatedAt.Unix(),
+			MaxCameras: sess.MaxCameras,
+			Status:     sess.Status,
+		})
+	}
+	return &pb.GetMySessionsReply{Sessions: pbSessions}, nil
 }
 
 // permissionsForRole maps a DirectLink role to LiveKit publish/subscribe permissions.

@@ -8,6 +8,6 @@ type Session struct {
 	RoomCode   string    `json:"room_code"`
 	CreatedBy  string    `json:"created_by"`
 	CreatedAt  time.Time `json:"created_at"`
-	MaxCameras int       `json:"max_cameras"`
+	MaxCameras int32     `json:"max_cameras"`
 	Status     string    `json:"status"` // "active" | "closed"
 }
