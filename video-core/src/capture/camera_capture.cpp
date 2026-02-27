@@ -84,11 +84,23 @@ Result CameraCapture::setupDevice() {
         return Result::ErrorInvalidParameter;
     }
 
+    AVDictionary* options = nullptr;
+    if (config_.width > 0 && config_.height > 0) {
+        std::string videoSize = std::to_string(config_.width) + "x" + 
+                                std::to_string(config_.height);
+        av_dict_set(&options, "video_size", videoSize.c_str(), 0);
+    }
+    if (config_.framerate > 0) {
+        av_dict_set(&options, "framerate", std::to_string(config_.framerate).c_str(), 0);
+    }
+
     formatCtx_ = avformat_alloc_context();
     if (avformat_open_input(&formatCtx_, config_.devicePath.c_str(), 
-                            inputFmt, nullptr) < 0) {
+                            inputFmt, &options) < 0) {
+        av_dict_free(&options);
         return Result::ErrorDeviceNotFound;
     }
+    av_dict_free(&options);
 
     if (avformat_find_stream_info(formatCtx_, nullptr) < 0) {
         return Result::ErrorInitFailed;

@@ -39,10 +39,10 @@ public:
     }
 
     [[nodiscard]] float getFPS() const {
-        if (!encodeThread_.joinable()) return 0;
-        auto elapsed = std::chrono::steady_clock::now() - startTime_;
-        double seconds = std::chrono::duration<double>(elapsed).count();
-        return seconds > 0.0 ? static_cast<float>(frameCount_ / seconds) : 0.0f;
+        if (frameCount_ == 0) return 0.0f;
+        auto elapsed = std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - startTime_).count();
+        return elapsed > 0.0 ? static_cast<float>(frameCount_ / elapsed) : 0.0f;
     }
 
     [[nodiscard]] float getLatency() const { return 0.0f;};

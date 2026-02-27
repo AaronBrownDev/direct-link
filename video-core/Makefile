@@ -96,6 +96,24 @@ $(UNIT_TEST_BIN): $(UNIT_TEST_SRC) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(GTEST_FLAGS)
 	@echo "Built unit tests -> $@"
 
+PIPELINE_TEST_SRC := tests/integration/test_video_pipeline.cpp \
+                     src/pipeline/video_pipeline.cpp \
+                     src/capture/camera_capture.cpp \
+					 src/encode/encoder.cpp \
+                     src/encode/software_encoder.cpp \
+                     src/encode/nvenc_encoder.cpp
+
+PIPELINE_TEST_BIN := $(BIN_DIR)/test_pipeline
+
+pipeline_test: $(PIPELINE_TEST_BIN)
+
+$(PIPELINE_TEST_BIN): $(PIPELINE_TEST_SRC) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+run_pipeline_test: $(PIPELINE_TEST_BIN)
+	@echo "Running pipeline integration test..."
+	@$(PIPELINE_TEST_BIN)
+
 # Help
 help:
 	@echo "DirectLink Video Core Build System"
