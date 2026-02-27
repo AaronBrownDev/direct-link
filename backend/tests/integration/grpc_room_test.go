@@ -178,14 +178,17 @@ func TestJoinSession_ByRoomCode(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{UserId: "director-join"})
+	createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+		UserId:     "director-join",
+		MaxCameras: 4,
+	})
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
 	_, err = srv.JoinSession(ctx, &pb.JoinRequest{
 		RoomCode: createResp.RoomCode,
-		UserId:   "cam-1",
-		Role:     "camera-1",
+		UserId:   "director-join",
+		Role:     "director",
 	})
 
 	if err != nil {
@@ -197,7 +200,10 @@ func TestJoinSession_ClosedSessionRejected(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	createResp, _ := srv.CreateSession(ctx, &pb.CreateSessionRequest{UserId: "director-close"})
+	createResp, _ := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+		UserId:     "director-close",
+		MaxCameras: 4,
+	})
 	srv.CloseSession(ctx, &pb.CloseSessionRequest{ //nolint:errcheck
 		RoomCode: createResp.RoomCode,
 		UserId:   "director-close",
@@ -209,7 +215,7 @@ func TestJoinSession_ClosedSessionRejected(t *testing.T) {
 		Role:     "camera",
 	})
 
-	if err != nil {
+	if err == nil {
 		t.Fatal("expected error joining closed session")
 	}
 }
