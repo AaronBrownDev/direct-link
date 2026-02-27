@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Window
 
 Rectangle {
     id: dl_bg_active_camera

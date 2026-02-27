@@ -8,7 +8,7 @@ QtObject {
 
     // Interactive
     readonly property color primary: "#4AEE80"
-    // readonly property color primaryPressed: ""
+    readonly property color primaryPressed: "#36E26D"
     readonly property color neutral: "#D9D9D9"
 
     readonly property color danger: "#EC221F"
