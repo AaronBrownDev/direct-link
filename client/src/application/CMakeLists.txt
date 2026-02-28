@@ -14,4 +14,5 @@ qt_add_qml_module(directlink_app
     RESOURCE_PREFIX /src
     QML_FILES
         Main.qml
+        SessionPage.qml
 )
