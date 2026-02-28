@@ -1,19 +1,6 @@
 <RCC>
     <qresource prefix="/">
-        <file>src/application/Main.qml</file>
         <file>resources/icons/settings.png</file>
         <file>resources/ui/placeholderSplash.png</file>
-        <file>src/application/qmldir</file>
-        <file>src/ui/controls/CameraFeed.qml</file>
-        <file>src/ui/controls/qmldir</file>
-        <file>src/ui/controls/SessionInfo.qml</file>
-        <file>src/ui/controls/SessionLog.qml</file>
-        <file>src/ui/controls/Thumbnail.qml</file>
-        <file>src/ui/controls/ThumbnailList.qml</file>
-        <file>src/ui/theme/qmldir</file>
-        <file>src/ui/theme/Theme.qml</file>
-        <file>src/ui/Footer.qml</file>
-        <file>src/ui/Header.qml</file>
-        <file>src/ui/qmldir</file>
     </qresource>
 </RCC>

@@ -1,6 +1,0 @@
-module ui.controls
-CameraFeed 1.0 CameraFeed.qml
-SessionInfo 1.0 SessionInfo.qml
-SessionLog 1.0 SessionLog.qml
-Thumbnail 1.0 Thumbnail.qml
-ThumbnailList 1.0 ThumbnailList.qml
