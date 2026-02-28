@@ -1,7 +1,7 @@
 # DirectLink Video Core Makefile
 
 CXX := g++
-CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic
+CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic
 LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale libavdevice)
 INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale libavdevice)
 
@@ -34,6 +34,14 @@ endif
 all: tests
 
 tests: encode_test nvenc_test
+
+LINT_DIRS := src include tests/unit tests/integration
+
+# Lint code with clang-tidy
+lint:
+	@echo "Running clang-tidy on source files..."
+	@find $(LINT_DIRS) -name "*.cpp" -o -name "*.hpp" | xargs clang-tidy -p $(BUILD_DIR) --extra-arg=-std=c++20
+	@echo "Lint complete!"
 
 # Create directories
 $(BIN_DIR) $(OBJ_DIR):
