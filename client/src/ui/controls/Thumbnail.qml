@@ -1,4 +1,5 @@
 import QtQuick
+import ui.theme
 
 Rectangle {
     id: dl_bg_active_camera
@@ -13,9 +14,8 @@ Rectangle {
             name: "inactive"
             PropertyChanges {
                 target: dl_bg_active_camera
-                border.color: "#404244"
+                border.color: Theme.inactive
             }
         }
-
     ]
 }

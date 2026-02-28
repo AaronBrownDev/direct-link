@@ -14,6 +14,8 @@ QtObject {
     readonly property color danger: "#EC221F"
     readonly property color dangerPressed: "#B02120"
 
+    readonly property color inactive: "#404244"
+
     // Text
     readonly property color textWhite: "#ffffff"
     readonly property color textBlack: "#000000"

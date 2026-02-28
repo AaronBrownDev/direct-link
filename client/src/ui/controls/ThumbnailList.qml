@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import ui.theme
 
 Rectangle {
     id: dl_bg_camera_list
@@ -7,7 +8,7 @@ Rectangle {
     property real default_aspect_ratio: 16 / 9
     property int minHeight: dl_repeater_thumbnail.count * (Layout.preferredWidth / default_aspect_ratio)
 
-    color: "#1E293B"
+    color: Theme.surface
     radius: 15
 
     Layout.preferredWidth: 300
@@ -21,8 +22,6 @@ Rectangle {
         spacing: 15
         anchors.fill: parent
         anchors.margins: 15
-
-        // Item { Layout.fillHeight: true }
 
         Repeater {
             id: dl_repeater_thumbnail
@@ -38,7 +37,7 @@ Rectangle {
 
                 Text {
                     anchors.centerIn: parent
-                    color: "white"
+                    color: Theme.textWhite
                     text: "Camera " + (index + 1)
                 }
             }

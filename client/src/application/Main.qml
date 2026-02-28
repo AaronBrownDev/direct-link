@@ -22,7 +22,7 @@ Window {
         minimumHeight: dl_session_page.implicitHeight
         width: minimumWidth
         height: minimumHeight
-        color: "#0F172A"
+        color: Theme.background
         title: "DirectLink"
 
         SessionPage {
