@@ -4,6 +4,7 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
+#include <libswscale/swscale.h>
 }
 
 namespace videoCore::encode {
@@ -20,8 +21,8 @@ NVENCEncoder::~NVENCEncoder() {
 
 Result NVENCEncoder::initialize(const EncoderConfig& config, 
     std::function<void(std::unique_ptr<Packet>)> packetCallback) {
-    config_ = config;
-    encodedPacketCallback_ = std::move(packetCallback);
+    
+    Encoder::initialize(config, std::move(packetCallback));
 
     // Initialize NVENC encoder context (codecCtx_)
     // Set up codec parameters based on config_
@@ -80,9 +81,43 @@ Result NVENCEncoder::encodeFrame(AVFrame* frame) {
         return Result::ErrorEncodeFailed; // Not initialized
     }
 
+    // Convert frame to YUV420P with proper stride if needed
+    AVFrame* inputFrame = frame;
+    AVFrame* convertedFrame = nullptr;
+
+    if (frame->format != AV_PIX_FMT_YUV420P || frame->linesize[0] == 0) {
+        convertedFrame = av_frame_alloc();
+        convertedFrame->width  = codecCtx_->width;
+        convertedFrame->height = codecCtx_->height;
+        convertedFrame->format = AV_PIX_FMT_YUV420P;
+        av_frame_get_buffer(convertedFrame, 32);
+
+        // Convert to YUV420P if needed
+        SwsContext* swsCtx = sws_getContext(
+            frame->width, frame->height, 
+            static_cast<AVPixelFormat>(frame->format),
+            codecCtx_->width, codecCtx_->height, 
+            AV_PIX_FMT_YUV420P,
+            SWS_BILINEAR, nullptr, nullptr, nullptr
+        );
+
+        // Perform conversion if swsCtx is valid
+        if (swsCtx) {
+            sws_scale(swsCtx, frame->data, frame->linesize, 0,
+                      frame->height, convertedFrame->data, convertedFrame->linesize);
+            sws_freeContext(swsCtx);
+            convertedFrame->pts = frame->pts;
+            inputFrame = convertedFrame;
+        }
+    }
+
     // Send frame to encoder
-    if (avcodec_send_frame(codecCtx_, frame) < 0) {
-        return Result::ErrorEncodeFailed; // Failed to send frame
+    int ret = avcodec_send_frame(codecCtx_, inputFrame);
+    if (convertedFrame) { 
+        av_frame_free(&convertedFrame);
+    }
+    if (ret < 0)  {
+        return Result::ErrorEncodeFailed;
     }
 
     // Receive packets from encoder

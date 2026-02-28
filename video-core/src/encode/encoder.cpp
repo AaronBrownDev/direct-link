@@ -5,14 +5,22 @@
 
 namespace videoCore::encode {
 
+Result Encoder::initialize(const EncoderConfig& config,
+    std::function<void(std::unique_ptr<Packet>)> packetCallback) {
+    config_ = config;
+    encodedPacketCallback_ = std::move(packetCallback);
+    return Result::Success;
+}
+
 std::unique_ptr<Encoder> createEncoder(const EncoderConfig& config) {
-    if (config.type == EncoderConfig::Type::Software) {
-        return std::make_unique<SoftwareEncoder>(config);
-    } 
-    else if (config.type == EncoderConfig::Type::Hardware) {
-        return std::make_unique<NVENCEncoder>(config);
+    switch (config.type) {
+        case EncoderConfig::Type::Software:
+            return std::make_unique<SoftwareEncoder>();
+        case EncoderConfig::Type::Hardware:
+            return std::make_unique<NVENCEncoder>();
+        default:
+            return nullptr;
     }
-    return nullptr;
 }
 
 }

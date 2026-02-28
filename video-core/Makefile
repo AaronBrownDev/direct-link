@@ -79,7 +79,12 @@ UNIT_TEST_SRC := tests/unit/capture/test_types.cpp \
 				tests/unit/capture/test_capture_config.cpp \
 				tests/unit/capture/test_camera_capture.cpp \
 				tests/unit/encode/test_encoder_config.cpp \
-				src/capture/camera_capture.cpp
+				tests/unit/pipeline/test_pipeline.cpp \
+				src/capture/camera_capture.cpp \
+				src/encode/encoder.cpp \
+				src/encode/software_encoder.cpp \
+                src/encode/nvenc_encoder.cpp \
+				src/pipeline/video_pipeline.cpp
 UNIT_TEST_BIN := $(BIN_DIR)/video_core_tests
 GTEST_FLAGS := -lgtest -lgtest_main -pthread
 
@@ -90,6 +95,42 @@ test: $(UNIT_TEST_BIN)
 $(UNIT_TEST_BIN): $(UNIT_TEST_SRC) | $(BIN_DIR)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(GTEST_FLAGS)
 	@echo "Built unit tests -> $@"
+
+PIPELINE_TEST_SRC := tests/integration/test_video_pipeline.cpp \
+                     src/pipeline/video_pipeline.cpp \
+                     src/capture/camera_capture.cpp \
+					 src/encode/encoder.cpp \
+                     src/encode/software_encoder.cpp \
+                     src/encode/nvenc_encoder.cpp
+
+PIPELINE_TEST_BIN := $(BIN_DIR)/test_pipeline
+
+pipeline_test: $(PIPELINE_TEST_BIN)
+
+$(PIPELINE_TEST_BIN): $(PIPELINE_TEST_SRC) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+run_pipeline_test: $(PIPELINE_TEST_BIN)
+	@echo "Running pipeline integration test..."
+	@$(PIPELINE_TEST_BIN)
+
+NVENC_PIPELINE_TEST_SRC := tests/integration/test_nvenc_video_pipeline.cpp \
+                     src/pipeline/video_pipeline.cpp \
+                     src/capture/camera_capture.cpp \
+					 src/encode/encoder.cpp \
+                     src/encode/software_encoder.cpp \
+                     src/encode/nvenc_encoder.cpp
+
+NVENC_PIPELINE_TEST_BIN := $(BIN_DIR)/test_nvenc_pipeline
+
+pipeline_test: $(NVENC_PIPELINE_TEST_BIN)
+
+$(NVENC_PIPELINE_TEST_BIN): $(NVENC_PIPELINE_TEST_SRC) | $(BIN_DIR)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+run_nvenc_pipeline_test: $(NVENC_PIPELINE_TEST_BIN)
+	@echo "Running NVENC pipeline integration test..."
+	@$(NVENC_PIPELINE_TEST_BIN)
 
 # Help
 help:
