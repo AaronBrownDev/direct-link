@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Window
 import QtMultimedia
 
 Thumbnail {

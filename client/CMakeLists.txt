@@ -29,6 +29,16 @@ qt_add_executable(direct-link
         src/framereader.hpp
     )
 
+set(QML_IMPORT_PATH
+    ${CMAKE_BINARY_DIR}/src
+    CACHE STRING "Qt Creator extra qml import paths" FORCE
+)
+
+add_subdirectory(src/application)
+add_subdirectory(src/ui)
+add_subdirectory(src/ui/controls)
+add_subdirectory(src/ui/theme)
+
 target_include_directories(direct-link PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${FFMPEG_INCLUDE_DIRS}
@@ -40,6 +50,10 @@ target_link_libraries(direct-link PRIVATE
     Qt6::QuickControls2
     Qt6::Multimedia
     ${FFMPEG_LIBRARIES}
+    directlink_appplugin
+    directlink_uiplugin
+    directlink_ui_controlsplugin
+    directlink_ui_themeplugin
 )
 
 if(Qt6_VERSION VERSION_LESS 6.1.0)
