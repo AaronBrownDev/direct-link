@@ -5,6 +5,16 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list
 
 # Install C++ build tools
 RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    && wget https://apt.llvm.org/llvm.sh \
+    && chmod +x llvm.sh \
+    && ./llvm.sh 18 \
+    && rm llvm.sh
+    
+RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     g++ \
@@ -12,12 +22,14 @@ RUN apt-get update && apt-get install -y \
     gdb \
     valgrind \
     linux-perf \
-    clang-format \
-    clang-tidy \
+    clang-format-18 \
+    clang-tidy-18 \
     pkg-config \
     libgtest-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN ln -sf /usr/bin/clang-tidy-18 /usr/bin/clang-tidy \
+    && ln -sf /usr/bin/clang-format-18 /usr/bin/clang-format
 
 # Install FFmpeg dev libraries
 RUN apt-get update && apt-get install -y \
