@@ -61,6 +61,35 @@ services:
       redis:
         condition: service_healthy
 
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../backend/configs/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - dev
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ../infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
 volumes:
   redis-data:
+    driver: local
+  grafana-data:
     driver: local
