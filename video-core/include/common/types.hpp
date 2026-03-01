@@ -41,7 +41,7 @@ struct Packet {
 };
 
 // Result type
-enum class Result {
+enum class Result : std::uint8_t {
     Success,
     ErrorInvalidParameter,
     ErrorDeviceNotFound,
