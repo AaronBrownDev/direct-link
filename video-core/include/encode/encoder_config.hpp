@@ -1,6 +1,6 @@
 #pragma once
-#include <string>
 #include <cstdint>
+#include <string>
 
 namespace videoCore::encode {
 struct EncoderConfig {
