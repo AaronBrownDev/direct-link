@@ -45,6 +45,20 @@ lint:
         --extra-arg=-std=c++20 {}
 	@echo "Lint complete!"
 
+# Format source code (fixes files in place - run locally)
+format:
+	@echo "Formatting source code..."
+	@find $(LINT_DIRS) -name "*.cpp" -o -name "*.hpp" | \
+        xargs clang-format -i
+	@echo "Formatting complete!"
+
+# Check formatting without modifying files (for CI)
+format-check:
+	@echo "Checking formatting..."
+	@find $(LINT_DIRS) -name "*.cpp" -o -name "*.hpp" | \
+        xargs clang-format --dry-run --Werror
+	@echo "Format check complete!"
+
 # Create directories
 $(BIN_DIR) $(OBJ_DIR):
 	@mkdir -p $@

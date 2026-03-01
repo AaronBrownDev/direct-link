@@ -21,4 +21,4 @@ struct EncoderConfig {
         Hardware, // Use GPU-based encoding (NVENC)
     } type = Type::Software;
 };
-}
+} // namespace videoCore::encode

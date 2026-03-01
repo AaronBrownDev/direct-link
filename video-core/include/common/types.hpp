@@ -1,23 +1,23 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
-#include <memory>
 
 extern "C" {
-#include <libavutil/pixfmt.h>
-#include <libavutil/frame.h>
 #include <libavcodec/packet.h>
+#include <libavutil/frame.h>
+#include <libavutil/pixfmt.h>
 }
 
 namespace videoCore {
 struct AVFrameDeleter {
-    void operator()(::AVFrame* f) { av_frame_free(&f); }
+    void operator()(::AVFrame *f) { av_frame_free(&f); }
 };
 
 struct AVPacketDeleter {
-    void operator()(::AVPacket* f) { av_packet_free(&f); }
+    void operator()(::AVPacket *f) { av_packet_free(&f); }
 };
 
 struct Frame {
@@ -53,23 +53,23 @@ enum class Result {
 
 inline std::string_view resultToString(Result result) {
     switch (result) {
-        case Result::Success: 
-            return "Success";
-        case Result::ErrorInvalidParameter: 
-            return "Invalid parameter";
-        case Result::ErrorDeviceNotFound: 
-            return "Device not found";
-        case Result::ErrorInitFailed: 
-            return "Initialization failed";
-        case Result::ErrorEncodeFailed: 
-            return "Encode failed";
-        case Result::ErrorCaptureFailed: 
-            return "Capture failed";
-        case Result::ErrorNoData: return   
-            "No data available";
-        default: 
-            return "Unknown error";
+    case Result::Success:
+        return "Success";
+    case Result::ErrorInvalidParameter:
+        return "Invalid parameter";
+    case Result::ErrorDeviceNotFound:
+        return "Device not found";
+    case Result::ErrorInitFailed:
+        return "Initialization failed";
+    case Result::ErrorEncodeFailed:
+        return "Encode failed";
+    case Result::ErrorCaptureFailed:
+        return "Capture failed";
+    case Result::ErrorNoData:
+        return "No data available";
+    default:
+        return "Unknown error";
     }
 }
 
-}
+} // namespace videoCore

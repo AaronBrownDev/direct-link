@@ -1,29 +1,29 @@
-#include <iostream>
-#include <fstream>
-#include <vector>
-#include <stdexcept>
 #include <cstring>
+#include <fstream>
+#include <iostream>
+#include <stdexcept>
+#include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <libavutil/opt.h>
 #include <libavutil/imgutils.h>
+#include <libavutil/opt.h>
 }
 
 int main() {
     const int width = 640;
     const int height = 480;
-    const char* filename = "output.h264";
+    const char *filename = "output.h264";
 
     // Find H.264 encoder
-    const AVCodec* codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+    const AVCodec *codec = avcodec_find_encoder(AV_CODEC_ID_H264);
     if (!codec) {
         std::cerr << "H.264 encoder not found\n";
         return 1;
     }
 
     // Allocate codec context
-    AVCodecContext* ctx = avcodec_alloc_context3(codec);
+    AVCodecContext *ctx = avcodec_alloc_context3(codec);
     if (!ctx) {
         std::cerr << "Could not allocate codec context\n";
         return 1;
@@ -54,12 +54,14 @@ int main() {
     std::cout << "\n======== Encoder Information ===========\n";
     std::cout << "Codec name: " << codec->name << "\n";
     std::cout << "Codec long name: " << codec->long_name << "\n";
-    std::cout << "Using hardware: " << (codec->capabilities & AV_CODEC_CAP_HARDWARE ? "YES" : "NO") << "\n";
+    std::cout << "Using hardware: "
+              << (codec->capabilities & AV_CODEC_CAP_HARDWARE ? "YES" : "NO")
+              << "\n";
     std::cout << "Pixel format: " << av_get_pix_fmt_name(ctx->pix_fmt) << "\n";
     std::cout << "==========================================\n\n";
 
     // Allocate frame
-    AVFrame* frame = av_frame_alloc();
+    AVFrame *frame = av_frame_alloc();
     if (!frame) {
         std::cerr << "Could not allocate frame\n";
         avcodec_free_context(&ctx);
@@ -89,8 +91,10 @@ int main() {
         std::memset(frame->data[0] + y * frame->linesize[0], 128, width); // Y
     }
     for (int y = 0; y < height / 2; y++) {
-        std::memset(frame->data[1] + y * frame->linesize[1], 64, width / 2);  // U
-        std::memset(frame->data[2] + y * frame->linesize[2], 192, width / 2); // V
+        std::memset(frame->data[1] + y * frame->linesize[1], 64,
+                    width / 2); // U
+        std::memset(frame->data[2] + y * frame->linesize[2], 192,
+                    width / 2); // V
     }
 
     // Prepare output file
@@ -103,7 +107,7 @@ int main() {
     }
 
     // Encode the frame
-    AVPacket* pkt = av_packet_alloc();
+    AVPacket *pkt = av_packet_alloc();
     if (!pkt) {
         std::cerr << "Could not allocate packet\n";
         outfile.close();
@@ -118,14 +122,14 @@ int main() {
     }
 
     while (avcodec_receive_packet(ctx, pkt) == 0) {
-        outfile.write(reinterpret_cast<char*>(pkt->data), pkt->size);
+        outfile.write(reinterpret_cast<char *>(pkt->data), pkt->size);
         av_packet_unref(pkt);
     }
 
     // Flush encoder
     avcodec_send_frame(ctx, nullptr);
     while (avcodec_receive_packet(ctx, pkt) == 0) {
-        outfile.write(reinterpret_cast<char*>(pkt->data), pkt->size);
+        outfile.write(reinterpret_cast<char *>(pkt->data), pkt->size);
         av_packet_unref(pkt);
     }
 
