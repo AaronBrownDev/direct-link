@@ -20,6 +20,9 @@ concurrency:
   group: video-core-ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
 
   # Job 1: Build and run unit tests
