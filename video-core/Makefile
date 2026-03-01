@@ -40,7 +40,9 @@ LINT_DIRS := src include tests/unit tests/integration
 # Lint code with clang-tidy
 lint:
 	@echo "Running clang-tidy on source files..."
-	@find $(LINT_DIRS) -name "*.cpp" -o -name "*.hpp" | xargs clang-tidy -p $(BUILD_DIR) --extra-arg=-std=c++20
+	@find $(LINT_DIRS) -name "*.cpp" | \
+        xargs -P$(shell nproc) -I{} clang-tidy -p $(BUILD_DIR) \
+        --extra-arg=-std=c++20 {}
 	@echo "Lint complete!"
 
 # Create directories
