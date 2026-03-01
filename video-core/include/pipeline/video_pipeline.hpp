@@ -47,7 +47,10 @@ public:
         return elapsed > 0.0 ? static_cast<float>(frameCount_ / elapsed) : 0.0f;
     }
 
-    [[nodiscard]] float getLatency() const { return 0.0f;};
+    // NOLINTBEGIN(readability-convert-member-functions-to-static)
+    [[nodiscard]] float getLatency() const { 
+        return 0.0f;
+    } // NOLINTEND(readability-convert-member-functions-to-static)
 
 private:
     encode::EncoderConfig encoderConfig_;
@@ -70,6 +73,6 @@ private:
     std::atomic<int> bitrate_ = 0;
     std::chrono::steady_clock::time_point startTime_;
 
-    void encodeLoop(std::stop_token stopToken);
+    void encodeLoop(const std::stop_token &stopToken);
 };
 }

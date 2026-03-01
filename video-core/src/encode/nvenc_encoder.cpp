@@ -10,10 +10,10 @@ extern "C" {
 namespace videoCore::encode {
 NVENCEncoder::~NVENCEncoder() {
     if (running_) {
-        stop();
+        NVENCEncoder::stop();
     }
 
-    if (codecCtx_) {
+    if (codecCtx_ != nullptr) {
         avcodec_free_context(&codecCtx_);
         codecCtx_ = nullptr;
     }
@@ -27,12 +27,12 @@ Result NVENCEncoder::initialize(const EncoderConfig& config,
     // Initialize NVENC encoder context (codecCtx_)
     // Set up codec parameters based on config_
     const AVCodec* encoder = avcodec_find_encoder_by_name("h264_nvenc");
-    if (!encoder) {
+    if (encoder == nullptr) {
         return Result::ErrorDeviceNotFound; // no GPU available or NVENC not supported
     }
 
     codecCtx_ = avcodec_alloc_context3(encoder);
-    if (!codecCtx_) {
+    if (codecCtx_ == nullptr) {
         return Result::ErrorInitFailed; // Failed to allocate context
     }
 
@@ -82,18 +82,18 @@ Result NVENCEncoder::encodeFrame(AVFrame* frame) {
     }
 
     // Convert frame to YUV420P with proper stride if needed
-    AVFrame* inputFrame = frame;
-    AVFrame* convertedFrame = nullptr;
+    AVFrame* input_frame = frame;
+    AVFrame* converted_frame = nullptr;
 
     if (frame->format != AV_PIX_FMT_YUV420P || frame->linesize[0] == 0) {
-        convertedFrame = av_frame_alloc();
-        convertedFrame->width  = codecCtx_->width;
-        convertedFrame->height = codecCtx_->height;
-        convertedFrame->format = AV_PIX_FMT_YUV420P;
-        av_frame_get_buffer(convertedFrame, 32);
+        converted_frame = av_frame_alloc();
+        converted_frame->width  = codecCtx_->width;
+        converted_frame->height = codecCtx_->height;
+        converted_frame->format = AV_PIX_FMT_YUV420P;
+        av_frame_get_buffer(converted_frame, 32);
 
         // Convert to YUV420P if needed
-        SwsContext* swsCtx = sws_getContext(
+        SwsContext* sws_ctx = sws_getContext(
             frame->width, frame->height, 
             static_cast<AVPixelFormat>(frame->format),
             codecCtx_->width, codecCtx_->height, 
@@ -102,19 +102,19 @@ Result NVENCEncoder::encodeFrame(AVFrame* frame) {
         );
 
         // Perform conversion if swsCtx is valid
-        if (swsCtx) {
-            sws_scale(swsCtx, frame->data, frame->linesize, 0,
-                      frame->height, convertedFrame->data, convertedFrame->linesize);
-            sws_freeContext(swsCtx);
-            convertedFrame->pts = frame->pts;
-            inputFrame = convertedFrame;
+        if (sws_ctx != nullptr) {
+            sws_scale(sws_ctx, frame->data, frame->linesize, 0,
+                      frame->height, converted_frame->data, converted_frame->linesize);
+            sws_freeContext(sws_ctx);
+            converted_frame->pts = frame->pts;
+            input_frame = converted_frame;
         }
     }
 
     // Send frame to encoder
-    int ret = avcodec_send_frame(codecCtx_, inputFrame);
-    if (convertedFrame) { 
-        av_frame_free(&convertedFrame);
+    int ret = avcodec_send_frame(codecCtx_, input_frame);
+    if (converted_frame != nullptr) { 
+        av_frame_free(&converted_frame);
     }
     if (ret < 0)  {
         return Result::ErrorEncodeFailed;
@@ -123,15 +123,15 @@ Result NVENCEncoder::encodeFrame(AVFrame* frame) {
     // Receive packets from encoder
     AVPacket* pkt = av_packet_alloc();
     while (avcodec_receive_packet(codecCtx_, pkt) == 0) {
-        auto wrappedPacket = std::make_unique<Packet>();
-        wrappedPacket->packet.reset(av_packet_clone(pkt));
-        wrappedPacket->pts = pkt->pts;
-        wrappedPacket->dts = pkt->dts;
-        wrappedPacket->size = pkt->size;
-        wrappedPacket->isKeyframe = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
+        auto wrapped_packet = std::make_unique<Packet>();
+        wrapped_packet->packet.reset(av_packet_clone(pkt));
+        wrapped_packet->pts = pkt->pts;
+        wrapped_packet->dts = pkt->dts;
+        wrapped_packet->size = pkt->size;
+        wrapped_packet->isKeyframe = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
 
         if (encodedPacketCallback_) {
-            encodedPacketCallback_(std::move(wrappedPacket));
+            encodedPacketCallback_(std::move(wrapped_packet));
         }
         av_packet_unref(pkt);
     }
@@ -140,28 +140,28 @@ Result NVENCEncoder::encodeFrame(AVFrame* frame) {
 }
 
 Result NVENCEncoder::stop() {
-    if (!codecCtx_) return Result::Success;
+    if (codecCtx_ == nullptr) { return Result::Success; }
 
     avcodec_send_frame(codecCtx_, nullptr); // Flush encoder
 
      // Clean up any remaining packets
     AVPacket* pkt = av_packet_alloc();
     while (avcodec_receive_packet(codecCtx_, pkt) == 0) {
-        auto wrappedPacket = std::make_unique<Packet>();
-        wrappedPacket->packet.reset(av_packet_clone(pkt));
-        wrappedPacket->pts       = pkt->pts;
-        wrappedPacket->dts       = pkt->dts;
-        wrappedPacket->size      = pkt->size;
-        wrappedPacket->isKeyframe = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
+        auto wrapped_packet = std::make_unique<Packet>();
+        wrapped_packet->packet.reset(av_packet_clone(pkt));
+        wrapped_packet->pts       = pkt->pts;
+        wrapped_packet->dts       = pkt->dts;
+        wrapped_packet->size      = pkt->size;
+        wrapped_packet->isKeyframe = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
         if (encodedPacketCallback_) {
-            encodedPacketCallback_(std::move(wrappedPacket));
+            encodedPacketCallback_(std::move(wrapped_packet));
         }
         av_packet_unref(pkt);
     
     }
     av_packet_free(&pkt);
 
-    if (codecCtx_) {
+    if (codecCtx_ != nullptr) {
         avcodec_free_context(&codecCtx_);
         codecCtx_ = nullptr;
     }

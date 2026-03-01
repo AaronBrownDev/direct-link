@@ -37,7 +37,7 @@ private:
 
     std::function<void(std::unique_ptr<Frame>)> frameCallback_;
 
-    void captureLoop(std::stop_token stopToken);
+    void captureLoop(const std::stop_token &stopToken);
     Result setupDevice();
     Result setupCodec();
 };

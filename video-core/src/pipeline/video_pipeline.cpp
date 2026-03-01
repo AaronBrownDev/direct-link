@@ -9,9 +9,9 @@ namespace videoCore::pipeline {
         
         // Initialize capture device
         captureDevice_ = std::make_unique<capture::CameraCapture>();
-        auto captureResult = captureDevice_->initialize(captureConfig);
-        if (captureResult != Result::Success) {
-            return captureResult; // Failed to initialize capture device
+        auto capture_result = captureDevice_->initialize(captureConfig);
+        if (capture_result != Result::Success) {
+            return capture_result; // Failed to initialize capture device
         }
 
         // Initialize encoder
@@ -33,18 +33,18 @@ namespace videoCore::pipeline {
         packetCallback_ = std::move(packetCallback);
 
         // Initialize encoder with callback
-        auto encoderResult = encoder_->initialize(encoderConfig_, [this](std::unique_ptr<Packet> pkt) {
+        auto encoder_result = encoder_->initialize(encoderConfig_, [this](std::unique_ptr<Packet> pkt) {
             bitrate_ += pkt->size;
             framesEncoded_++;
-            if (packetCallback_) packetCallback_(std::move(pkt));
+            if (packetCallback_) { packetCallback_(std::move(pkt)); }
         });
-        if (encoderResult != Result::Success) {
+        if (encoder_result != Result::Success) {
             return Result::ErrorInitFailed; // Failed to initialize encoder
         }
 
         startTime_ = std::chrono::steady_clock::now();
 
-        auto captureResult = captureDevice_->start([this](std::unique_ptr<Frame> frame) {
+        auto capture_result = captureDevice_->start([this](std::unique_ptr<Frame> frame) {
             {
                 std::lock_guard<std::mutex> lock(queueMutex_);
                 frameQueue_.push(std::move(frame));
@@ -52,11 +52,11 @@ namespace videoCore::pipeline {
             queueCondition_.notify_one();
             frameCount_++;
         });
-        if (captureResult != Result::Success) {
-            return captureResult; // Failed to start capture
+        if (capture_result != Result::Success) {
+            return capture_result; // Failed to start capture
         }
 
-        encodeThread_ = std::jthread([this](std::stop_token token) {
+        encodeThread_ = std::jthread([this](const std::stop_token &token) {
             encodeLoop(token);
         });
 
@@ -76,7 +76,7 @@ namespace videoCore::pipeline {
         return Result::Success;
     }
 
-    void VideoPipeline::encodeLoop(std::stop_token stopToken) {
+    void VideoPipeline::encodeLoop(const std::stop_token &stopToken) {
         while (!stopToken.stop_requested()) {
             std::unique_ptr<Frame> frame;
             {

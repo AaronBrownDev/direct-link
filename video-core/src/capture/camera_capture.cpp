@@ -14,11 +14,11 @@ namespace videoCore::capture {
 CameraCapture::~CameraCapture() {
     stop();
 
-    if (codecCtx_) {
+    if (codecCtx_ != nullptr) {
         avcodec_free_context(&codecCtx_);
         codecCtx_ = nullptr;
     }
-    if (formatCtx_) {
+    if (formatCtx_ != nullptr) {
         avformat_close_input(&formatCtx_);
         formatCtx_ = nullptr;
     }
@@ -50,7 +50,7 @@ Result CameraCapture::start(std::function<void(std::unique_ptr<Frame>)> frameCal
 
     frameCallback_ = std::move(frameCallback);
 
-    captureThread_ = std::jthread([this](std::stop_token token) {
+    captureThread_ = std::jthread([this](const std::stop_token &token) {
         captureLoop(token);
     });
     return Result::Success;
@@ -65,30 +65,30 @@ Result CameraCapture::stop() {
 }
 
 int CameraCapture::getWidth() const {
-    return codecCtx_ ? codecCtx_->width : 0;
+    return codecCtx_ != nullptr ? codecCtx_->width : 0;
 }
 
 int CameraCapture::getHeight() const {
-    return codecCtx_ ? codecCtx_->height : 0;
+    return codecCtx_ != nullptr ? codecCtx_->height : 0;
 }
 
 int CameraCapture::getFramerate() const {
-    return codecCtx_ ? codecCtx_->framerate.num : 0;
+    return codecCtx_ != nullptr ? codecCtx_->framerate.num : 0;
 }
 
 Result CameraCapture::setupDevice() {
     avdevice_register_all();
 
-    const AVInputFormat* inputFmt = av_find_input_format(config_.inputFormat.c_str());
-    if (!inputFmt) {
+    const AVInputFormat* input_fmt = av_find_input_format(config_.inputFormat.c_str());
+    if (input_fmt == nullptr) {
         return Result::ErrorInvalidParameter;
     }
 
     AVDictionary* options = nullptr;
     if (config_.width > 0 && config_.height > 0) {
-        std::string videoSize = std::to_string(config_.width) + "x" + 
+        std::string video_size = std::to_string(config_.width) + "x" + 
                                 std::to_string(config_.height);
-        av_dict_set(&options, "video_size", videoSize.c_str(), 0);
+        av_dict_set(&options, "video_size", video_size.c_str(), 0);
     }
     if (config_.framerate > 0) {
         av_dict_set(&options, "framerate", std::to_string(config_.framerate).c_str(), 0);
@@ -96,7 +96,7 @@ Result CameraCapture::setupDevice() {
 
     formatCtx_ = avformat_alloc_context();
     if (avformat_open_input(&formatCtx_, config_.devicePath.c_str(), 
-                            inputFmt, &options) < 0) {
+                            input_fmt, &options) < 0) {
         av_dict_free(&options);
         return Result::ErrorDeviceNotFound;
     }
@@ -109,7 +109,7 @@ Result CameraCapture::setupDevice() {
     // Find video stream
     for (unsigned i = 0; i < formatCtx_->nb_streams; i++) {
         if (formatCtx_->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-            videoStreamIdx_ = i;
+            videoStreamIdx_ = static_cast<int>(i);
             break;
         }
     }
@@ -129,12 +129,12 @@ Result CameraCapture::setupCodec() {
 
     auto* codecpar = formatCtx_->streams[videoStreamIdx_]->codecpar;
     const AVCodec* decoder = avcodec_find_decoder(codecpar->codec_id);
-    if (!decoder) {
+    if (decoder == nullptr) {
         return Result::ErrorInitFailed; // Decoder not found
     }
 
     codecCtx_ = avcodec_alloc_context3(decoder);
-    if (!codecCtx_) {
+    if (codecCtx_ == nullptr) {
         return Result::ErrorInitFailed; // Could not allocate codec context
     }
 
@@ -148,7 +148,7 @@ Result CameraCapture::setupCodec() {
     return Result::Success;
 }
 
-void CameraCapture::captureLoop(std::stop_token stopToken) {
+void CameraCapture::captureLoop(const std::stop_token &stopToken) {
     AVPacket* packet = av_packet_alloc();
     AVFrame* frame   = av_frame_alloc();
 
@@ -157,15 +157,15 @@ void CameraCapture::captureLoop(std::stop_token stopToken) {
             if (packet->stream_index == videoStreamIdx_) {
                 if (avcodec_send_packet(codecCtx_, packet) == 0) {
                     if (avcodec_receive_frame(codecCtx_, frame) == 0) {
-                        auto wrappedFrame = std::make_unique<Frame>();
-                        wrappedFrame->frame.reset(av_frame_clone(frame));
-                        wrappedFrame->pts    = frame->pts;
-                        wrappedFrame->width  = frame->width;
-                        wrappedFrame->height = frame->height;
-                        wrappedFrame->format = static_cast<AVPixelFormat>(frame->format);
+                        auto wrapped_frame = std::make_unique<Frame>();
+                        wrapped_frame->frame.reset(av_frame_clone(frame));
+                        wrapped_frame->pts    = frame->pts;
+                        wrapped_frame->width  = frame->width;
+                        wrapped_frame->height = frame->height;
+                        wrapped_frame->format = static_cast<AVPixelFormat>(frame->format);
 
                         if (frameCallback_) {
-                            frameCallback_(std::move(wrappedFrame));
+                            frameCallback_(std::move(wrapped_frame));
                         }
                         av_frame_unref(frame);
                     }
