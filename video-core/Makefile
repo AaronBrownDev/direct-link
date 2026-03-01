@@ -99,7 +99,7 @@ clean:
 	@echo "Cleaned build artifacts"
 
 # Unit Tests
-UNIT_TEST_SRC := tests/unit/capture/test_types.cpp \
+UNIT_TEST_SRC := tests/unit/common/test_types.cpp \
 				tests/unit/capture/test_capture_config.cpp \
 				tests/unit/capture/test_camera_capture.cpp \
 				tests/unit/encode/test_encoder_config.cpp \
