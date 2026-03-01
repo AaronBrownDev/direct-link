@@ -15,7 +15,7 @@ Checks: >
   -readability-uppercase-literal-suffix,
   -cppcoreguidelines-non-private-member-variables-in-classes
 
-WarningsAsErrors: ''
+WarningsAsErrors: '*'
 HeaderFilterRegex: '.*'
 FormatStyle: file
 CheckOptions:
