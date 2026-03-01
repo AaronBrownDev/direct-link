@@ -13,6 +13,8 @@ class CameraCapture {
 public:
     CameraCapture() = default;
     ~CameraCapture();
+    CameraCapture(CameraCapture&&) = delete;
+    CameraCapture& operator=(CameraCapture&&) = delete;
 
     CameraCapture(const CameraCapture&) = delete;
     CameraCapture& operator=(const CameraCapture&) = delete;

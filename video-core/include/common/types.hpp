@@ -53,14 +53,22 @@ enum class Result {
 
 inline std::string_view resultToString(Result result) {
     switch (result) {
-        case Result::Success: return "Success";
-        case Result::ErrorInvalidParameter: return "Invalid parameter";
-        case Result::ErrorDeviceNotFound: return "Device not found";
-        case Result::ErrorInitFailed: return "Initialization failed";
-        case Result::ErrorEncodeFailed: return "Encode failed";
-        case Result::ErrorCaptureFailed: return "Capture failed";
-        case Result::ErrorNoData: return "No data available";
-        default: return "Unknown error";
+        case Result::Success: 
+            return "Success";
+        case Result::ErrorInvalidParameter: 
+            return "Invalid parameter";
+        case Result::ErrorDeviceNotFound: 
+            return "Device not found";
+        case Result::ErrorInitFailed: 
+            return "Initialization failed";
+        case Result::ErrorEncodeFailed: 
+            return "Encode failed";
+        case Result::ErrorCaptureFailed: 
+            return "Capture failed";
+        case Result::ErrorNoData: return   
+            "No data available";
+        default: 
+            return "Unknown error";
     }
 }
 

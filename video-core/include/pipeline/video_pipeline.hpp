@@ -21,6 +21,8 @@ public:
 
     VideoPipeline(const VideoPipeline&)            = delete;
     VideoPipeline& operator=(const VideoPipeline&) = delete;
+    VideoPipeline(VideoPipeline&&)                 = delete;
+    VideoPipeline& operator=(VideoPipeline&&)      = delete;
 
     Result initialize(const capture::CaptureConfig& captureConfig, 
         const encode::EncoderConfig& encoderConfig);
@@ -32,14 +34,14 @@ public:
     [[nodiscard]] int getFrameCount() const noexcept { return frameCount_; }
     
     [[nodiscard]] int getBitrate() const {
-        if (!encodeThread_.joinable()) return 0;
+        if (!encodeThread_.joinable()) { return 0; }
         auto elapsed = std::chrono::duration<double>(
         std::chrono::steady_clock::now() - startTime_).count();
         return elapsed > 0.0 ? static_cast<int>((bitrate_ * 8) / elapsed) : 0;
     }
 
     [[nodiscard]] float getFPS() const {
-        if (frameCount_ == 0) return 0.0f;
+        if (frameCount_ == 0) { return 0.0f; }
         auto elapsed = std::chrono::duration<double>(
         std::chrono::steady_clock::now() - startTime_).count();
         return elapsed > 0.0 ? static_cast<float>(frameCount_ / elapsed) : 0.0f;
