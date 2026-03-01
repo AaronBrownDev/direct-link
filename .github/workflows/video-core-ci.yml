@@ -1,0 +1,97 @@
+name: Video Core CI
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'video-core/**'
+      - '.clang-format'
+      - '.clang-tidy'
+      - '.github/workflows/video-core-ci.yml'
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'video-core/**'
+      - '.clang-format'
+      - '.clang-tidy'
+      - '.github/workflows/video-core-ci.yml'
+
+concurrency:
+  group: video-core-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # Job 1: Build and run unit tests
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-core
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            build-essential \
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswscale-dev \
+            libavdevice-dev \
+            libgtest-dev
+
+      - name: Build and run unit tests
+        run: make test
+
+  # Job 2: clang-format check
+  format:
+    name: Format Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-core
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+
+      - name: Check formatting
+        run: make format-check
+
+  # Job 3: clang-tidy lint
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: video-core
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            build-essential \
+            cmake \
+            clang-tidy \
+            libavcodec-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswscale-dev \
+            libavdevice-dev
+
+      - name: Generate compile_commands.json
+        run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON .
+
+      - name: Run clang-tidy
+        run: make lint
