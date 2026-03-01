@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/AaronBrownDev/direct-link/pkg/metrics"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -24,6 +25,7 @@ const (
 type RedisStore struct {
 	client     *redis.Client
 	sessionTTL time.Duration
+	metrics    *metrics.Metrics
 }
 
 // NewRedisStore creates a new Redis-backed store
@@ -63,7 +65,13 @@ func NewRedisStore(addr string,
 }
 
 // CreateSession stores a new session in Redis
-func (r *RedisStore) CreateSession(ctx context.Context, session *Session) error {
+func (r *RedisStore) CreateSession(ctx context.Context, session *Session) (err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("create_session", err, start)
+	}()
+
 	// Use Redis Has to store session metadata
 	sessionKey := sessionPrefix + session.ID
 
@@ -106,18 +114,21 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) error 
 	})
 
 	// Execute all commands atomically
-	if _, err := pipe.Exec(ctx); err != nil {
-		return err
-	}
+	_, err = pipe.Exec(ctx)
 
-	return nil
+	return err
 
 }
 
 // GetSession retrieves a session by ID
-func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session, error) {
-	sessionKey := sessionPrefix + sessionID
+func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (session *Session, err error) {
 
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("get_session", err, start)
+	}()
+
+	sessionKey := sessionPrefix + sessionID
 	result, err := r.client.HGetAll(ctx, sessionKey).Result()
 
 	if err != nil {
@@ -150,12 +161,17 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (*Session
 	}, nil
 }
 
-func (r *RedisStore) GetSessionByRoomCode(ctx context.Context, code string) (*Session, error) {
+func (r *RedisStore) GetSessionByRoomCode(ctx context.Context, code string) (session *Session, err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("get_session_by_room_code", err, start)
+	}()
+
 	roomCodeKey := roomCodePrefix + code
 
 	// Get session ID from room code
 	sessionID, err := r.client.Get(ctx, roomCodeKey).Result()
-
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrInvalidRoomCode
 	}
@@ -164,9 +180,18 @@ func (r *RedisStore) GetSessionByRoomCode(ctx context.Context, code string) (*Se
 	}
 
 	// Get the actual session
-	return r.GetSession(ctx, sessionID)
+	session, err = r.GetSession(ctx, sessionID)
+
+	return session, err
 }
-func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, status string) error {
+
+func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, status string) (err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("update_session_status", err, start)
+	}()
+
 	sessionKey := sessionPrefix + sessionID
 
 	exists, err := r.client.Exists(ctx, sessionKey).Result()
@@ -185,11 +210,18 @@ func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, 
 	if status == "closed" {
 		r.client.ZRem(ctx, activeSessionsKey, sessionID)
 	}
+
 	return nil
 
 }
 
-func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) error {
+func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) (err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("delete_session", err, start)
+	}()
+
 	// Get session first to find room code
 	session, err := r.GetSession(ctx, sessionID)
 
@@ -212,12 +244,19 @@ func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) error 
 	}
 
 	_, err = pipe.Exec(ctx)
+
 	return err
 }
 
 // GetRole returns the role assigned to a user in a session, or an empty
 // string if the user has no entry
-func (r *RedisStore) GetRole(ctx context.Context, sessionID, userID string) (string, error) {
+func (r *RedisStore) GetRole(ctx context.Context, sessionID, userID string) (str string, err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("get_role", err, start)
+	}()
+
 	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
 
 	role, err := r.client.HGet(ctx, accessKey, userID).Result()
@@ -231,7 +270,13 @@ func (r *RedisStore) GetRole(ctx context.Context, sessionID, userID string) (str
 }
 
 // GrantAccess gives a user access to a session
-func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role string) error {
+func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role string) (err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("grant_access", err, start)
+	}()
+
 	sessionKey := sessionPrefix + sessionID
 	accessKey := sessionKey + sessionAccessSuffix
 
@@ -253,22 +298,43 @@ func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role st
 }
 
 // RevokeAccess removes a user's access entry atomically
-func (r *RedisStore) RevokeAccess(ctx context.Context, sessionID, userID string) error {
+func (r *RedisStore) RevokeAccess(ctx context.Context, sessionID, userID string) (err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("revoke_access", err, start)
+	}()
+
 	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
 
-	return r.client.HDel(ctx, accessKey, userID).Err()
+	err = r.client.HDel(ctx, accessKey, userID).Err()
 
+	return err
 }
 
 // HasAccess checks if a user has access to a session
-func (r *RedisStore) HasAccess(ctx context.Context, sessionID, userID string) (bool, error) {
+func (r *RedisStore) HasAccess(ctx context.Context, sessionID, userID string) (hasAccess bool, err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("has_access", err, start)
+	}()
+
 	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
 
-	return r.client.HExists(ctx, accessKey, userID).Result()
+	exists, err := r.client.HExists(ctx, accessKey, userID).Result()
+
+	return exists, err
 }
 
 // GetUserSessions retrieves all sessions created by a user
-func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Session, error) {
+func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) (sessions []Session, err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("get_user_sessions", err, start)
+	}()
+
 	userSessionsKey := userSessionsPrefix + userID + ":sessions"
 
 	sessionIDs, err := r.client.SMembers(ctx, userSessionsKey).Result()
@@ -276,7 +342,7 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Sess
 		return nil, err
 	}
 
-	sessions := make([]Session, 0, len(sessionIDs))
+	sessions = make([]Session, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
 		session, err := r.GetSession(ctx, sessionID)
 		if err != nil {
@@ -295,8 +361,14 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) ([]Sess
 }
 
 // Ping checks Redis availability
-func (r *RedisStore) Ping(ctx context.Context) error {
-	if err := r.client.Ping(ctx).Err(); err != nil {
+func (r *RedisStore) Ping(ctx context.Context) (err error) {
+
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("ping", err, start)
+	}()
+
+	if err = r.client.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("%w: %w", ErrRedisUnavailable, err)
 	}
 	return nil
@@ -305,4 +377,37 @@ func (r *RedisStore) Ping(ctx context.Context) error {
 // Close closes the redis connection
 func (r *RedisStore) Close() error {
 	return r.client.Close()
+}
+
+// SetMetrics enables Prometheus instrumentation for Redis operations.
+// If not called, redis operations work without metrics.
+// TODO: Refactor to a metrics-aware wrapper that implements the Store interface.
+func (r *RedisStore) SetMetrics(m *metrics.Metrics) {
+	r.metrics = m
+}
+
+// observeRedisOp records the duration and any error for a Redis operation.
+// This centralizes instrumentation so individual Store methods stay focused
+// on their Redis logic.
+func (r *RedisStore) observeRedisOp(operation string, err error, start time.Time) {
+
+	if r.metrics != nil {
+		// TODO: Consider adding a "status" label (success/error) to the histogram to separate latency distributions for successful vs failed operations.
+		duration := time.Since(start).Seconds()
+		r.metrics.RedisOperationDuration.WithLabelValues(operation).Observe(duration)
+		if isRedisErr(err) {
+			r.metrics.RedisErrorsTotal.WithLabelValues(operation).Inc()
+		}
+	}
+}
+
+// isRedisErr returns true if the error represents a Redis infrastructure
+// failure rather than an application-level condition like "not found".
+func isRedisErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return !errors.Is(err, ErrSessionNotFound) &&
+		!errors.Is(err, ErrInvalidRoomCode) &&
+		!errors.Is(err, ErrSessionClosed)
 }
