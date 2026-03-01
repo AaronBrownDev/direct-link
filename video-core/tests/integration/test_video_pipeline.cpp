@@ -1,46 +1,47 @@
+#include "../../include/pipeline/video_pipeline.hpp"
+#include <atomic>
+#include <chrono>
 #include <iostream>
 #include <thread>
-#include <chrono>
-#include <atomic>
-#include "../../include/pipeline/video_pipeline.hpp"
 
 int main() {
     videoCore::pipeline::VideoPipeline pipeline;
 
-    videoCore::capture::CaptureConfig captureConfig;
-    captureConfig.devicePath  = "/dev/video0";
-    captureConfig.width       = 640;
-    captureConfig.height      = 480;
-    captureConfig.framerate   = 30;
+    videoCore::capture::CaptureConfig capture_config;
+    capture_config.devicePath = "/dev/video0";
+    capture_config.width = 640;
+    capture_config.height = 480;
+    capture_config.framerate = 30;
 
-    videoCore::encode::EncoderConfig encoderConfig;
-    encoderConfig.width     = 640;
-    encoderConfig.height    = 480;
-    encoderConfig.framerate = 30;
-    encoderConfig.bitrate   = 2000000;
-    encoderConfig.preset    = videoCore::encode::EncoderConfig::Preset::UltraFast;
+    videoCore::encode::EncoderConfig encoder_config;
+    encoder_config.width = 640;
+    encoder_config.height = 480;
+    encoder_config.framerate = 30;
+    encoder_config.bitrate = 2000000;
+    encoder_config.preset = videoCore::encode::EncoderConfig::Preset::UltraFast;
 
     std::cout << "Initializing pipeline...\n";
-    auto result = pipeline.initialize(captureConfig, encoderConfig);
+    auto result = pipeline.initialize(capture_config, encoder_config);
     if (result != videoCore::Result::Success) {
-        std::cerr << "Failed to initialize: " 
+        std::cerr << "Failed to initialize: "
                   << videoCore::resultToString(result) << "\n";
         return 1;
     }
 
-    std::atomic<int> packetsReceived = 0;
+    std::atomic<int> packets_received = 0;
 
     std::cout << "Starting pipeline...\n";
-    result = pipeline.start([&packetsReceived](std::unique_ptr<videoCore::Packet> pkt) {
-        packetsReceived++;
-        if (packetsReceived % 30 == 0) {
-            std::cout << "Packets received: " << packetsReceived << "\n";
-        }
-    });
+    result = pipeline.start(
+        [&packets_received](std::unique_ptr<videoCore::Packet> pkt) {
+            packets_received++;
+            if (packets_received % 30 == 0) {
+                std::cout << "Packets received: " << packets_received << "\n";
+            }
+        });
 
     if (result != videoCore::Result::Success) {
-        std::cerr << "Failed to start: " 
-                  << videoCore::resultToString(result) << "\n";
+        std::cerr << "Failed to start: " << videoCore::resultToString(result)
+                  << "\n";
         return 1;
     }
 
@@ -50,10 +51,10 @@ int main() {
 
     // Print stats before stopping
     std::cout << "\n=== Pipeline Stats ===\n";
-    std::cout << "FPS:             " << pipeline.getFPS()              << "\n";
-    std::cout << "Bitrate:         " << pipeline.getBitrate()          << " bps\n";
-    std::cout << "Frames captured: " << pipeline.getFrameCount()       << "\n";
-    std::cout << "Packets encoded: " << packetsReceived.load()         << "\n";
+    std::cout << "FPS:             " << pipeline.getFPS() << "\n";
+    std::cout << "Bitrate:         " << pipeline.getBitrate() << " bps\n";
+    std::cout << "Frames captured: " << pipeline.getFrameCount() << "\n";
+    std::cout << "Packets encoded: " << packets_received.load() << "\n";
 
     float fps = pipeline.getFPS();
 
@@ -61,7 +62,7 @@ int main() {
     pipeline.stop();
 
     // Basic checks
-    if (packetsReceived == 0) {
+    if (packets_received == 0) {
         std::cerr << "FAIL: No packets received\n";
         return 1;
     }

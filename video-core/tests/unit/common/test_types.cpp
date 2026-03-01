@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
 #include "../../../include/common/types.hpp"
+#include "gtest/gtest.h"
 #include <type_traits>
 
 using namespace videoCore;
@@ -8,9 +8,11 @@ TEST(ResultToString, SuccessReturnsCorrectString) {
     EXPECT_EQ(resultToString(Result::Success), "Success");
 }
 
+// NOLINTBEGIN(clang-analyzer-optin.core.EnumCastOutOfRange)
 TEST(ResultToString, UnknownValueReturnsUnknownError) {
-    EXPECT_EQ(resultToString(static_cast<Result>(999)), "Unknown error");
+    EXPECT_EQ(resultToString(static_cast<Result>(7)), "Unknown error");
 }
+// NOLINTEND(clang-analyzer-optin.core.EnumCastOutOfRange)
 
 TEST(Frame, DefaultConstructsCorrectly) {
     videoCore::Frame f;
@@ -20,8 +22,8 @@ TEST(Frame, DefaultConstructsCorrectly) {
 }
 
 TEST(Frame, IsMoveOnly) {
-    EXPECT_FALSE(std::is_copy_constructible<videoCore::Frame>::value);
-    EXPECT_TRUE(std::is_move_constructible<videoCore::Frame>::value);
+    EXPECT_FALSE(std::is_copy_constructible_v<videoCore::Frame>);
+    EXPECT_TRUE(std::is_move_constructible_v<videoCore::Frame>);
 }
 
 TEST(Packet, DefaultConstructsCorrectly) {
@@ -34,6 +36,6 @@ TEST(Packet, DefaultConstructsCorrectly) {
 }
 
 TEST(Packet, IsMoveOnly) {
-    EXPECT_FALSE(std::is_copy_constructible<videoCore::Packet>::value);
-    EXPECT_TRUE(std::is_move_constructible<videoCore::Packet>::value);
+    EXPECT_FALSE(std::is_copy_constructible_v<videoCore::Packet>);
+    EXPECT_TRUE(std::is_move_constructible_v<videoCore::Packet>);
 }

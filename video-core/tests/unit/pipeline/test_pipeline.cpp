@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
 #include "../../../include/pipeline/video_pipeline.hpp"
+#include "gtest/gtest.h"
 
 using namespace videoCore::pipeline;
 

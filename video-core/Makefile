@@ -1,7 +1,7 @@
 # DirectLink Video Core Makefile
 
 CXX := g++
-CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic
+CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic
 LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale libavdevice)
 INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale libavdevice)
 
@@ -34,6 +34,30 @@ endif
 all: tests
 
 tests: encode_test nvenc_test
+
+LINT_DIRS := src include tests/unit tests/integration
+
+# Lint code with clang-tidy
+lint:
+	@echo "Running clang-tidy on source files..."
+	@find $(LINT_DIRS) -name "*.cpp" | \
+        xargs -P$(shell nproc) -I{} clang-tidy -p $(BUILD_DIR) \
+        --extra-arg=-std=c++20 {}
+	@echo "Lint complete!"
+
+# Format source code (fixes files in place - run locally)
+format:
+	@echo "Formatting source code..."
+	@find $(LINT_DIRS) -name "*.cpp" -o -name "*.hpp" | \
+        xargs clang-format -i
+	@echo "Formatting complete!"
+
+# Check formatting without modifying files (for CI)
+format-check:
+	@echo "Checking formatting..."
+	@find $(LINT_DIRS) -name "*.cpp" -o -name "*.hpp" | \
+        xargs clang-format --dry-run --Werror
+	@echo "Format check complete!"
 
 # Create directories
 $(BIN_DIR) $(OBJ_DIR):
@@ -75,7 +99,7 @@ clean:
 	@echo "Cleaned build artifacts"
 
 # Unit Tests
-UNIT_TEST_SRC := tests/unit/capture/test_types.cpp \
+UNIT_TEST_SRC := tests/unit/common/test_types.cpp \
 				tests/unit/capture/test_capture_config.cpp \
 				tests/unit/capture/test_camera_capture.cpp \
 				tests/unit/encode/test_encoder_config.cpp \

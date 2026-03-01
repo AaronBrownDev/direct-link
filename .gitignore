@@ -12,6 +12,9 @@ install_manifest.txt
 compile_commands.json
 .cache/
 
+# IDE specific files
+.vscode/
+
 # Prerequisites
 *.d
 
@@ -50,7 +53,6 @@ compile_commands.json
 *.exe
 *.out
 *.app
-adequatec
 
 # debug information files
 *.dwo

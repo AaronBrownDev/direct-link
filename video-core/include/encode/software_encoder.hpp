@@ -1,6 +1,6 @@
 #pragma once
-#include "encoder_config.hpp"
 #include "encoder.hpp"
+#include "encoder_config.hpp"
 
 struct AVCodecContext;
 
@@ -9,13 +9,18 @@ class SoftwareEncoder : public Encoder {
 public:
     SoftwareEncoder() = default;
     ~SoftwareEncoder() override;
+    SoftwareEncoder(const SoftwareEncoder &) = delete;
+    SoftwareEncoder &operator=(const SoftwareEncoder &) = delete;
+    SoftwareEncoder(const SoftwareEncoder &&) = delete;
+    SoftwareEncoder &operator=(const SoftwareEncoder &&) = delete;
 
-    Result initialize(const EncoderConfig& config, 
+    Result initialize(
+        const EncoderConfig &config,
         std::function<void(std::unique_ptr<Packet>)> packetCallback) override;
-    Result encodeFrame(AVFrame* frame) override;
+    Result encodeFrame(AVFrame *frame) override;
     Result stop() override;
 
 private:
-    AVCodecContext* codecCtx_ = nullptr;
+    AVCodecContext *codecCtx_ = nullptr;
 };
-}
+} // namespace videoCore::encode

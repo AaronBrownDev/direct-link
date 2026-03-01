@@ -1,5 +1,5 @@
-#include "gtest/gtest.h"
 #include "../../../include/encode/encoder_config.hpp"
+#include "gtest/gtest.h"
 
 using namespace videoCore::encode;
 
