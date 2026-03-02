@@ -1,7 +1,7 @@
 # DirectLink Video Core Makefile
 
 CXX := g++
-CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic
+CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic -g -fno-omit-frame-pointer
 LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale libavdevice)
 INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale libavdevice)
 

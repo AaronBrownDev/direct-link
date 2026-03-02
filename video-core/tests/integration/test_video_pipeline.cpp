@@ -54,6 +54,7 @@ int main() {
     std::cout << "FPS:             " << pipeline.getFPS() << "\n";
     std::cout << "Bitrate:         " << pipeline.getBitrate() << " bps\n";
     std::cout << "Frames captured: " << pipeline.getFrameCount() << "\n";
+    std::cout << "Frames dropped:  " << pipeline.getDroppedFrames() << "\n";
     std::cout << "Packets encoded: " << packets_received.load() << "\n";
 
     float fps = pipeline.getFPS();
