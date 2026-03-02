@@ -96,7 +96,9 @@ func (s *Server) initMetrics() {
 	s.metrics.Registry.MustRegister(s.srvMetrics)
 
 	// Enable Redis instrumentation
-	// TODO: s.store.SetMetrics(s.metrics)
+	if rs, ok := s.store.(*session.RedisStore); ok {
+		rs.SetMetrics(s.metrics)
+	}
 
 }
 
