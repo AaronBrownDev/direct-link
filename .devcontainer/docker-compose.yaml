@@ -66,11 +66,9 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ../backend/configs/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../backend/configs/prometheus.yaml:/etc/prometheus/prometheus.yaml
     depends_on:
       - dev
-    profiles:
-      - monitoring
 
   grafana:
     image: grafana/grafana:latest
@@ -85,8 +83,6 @@ services:
       - ../infrastructure/monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
       - prometheus
-    profiles:
-      - monitoring
 
 volumes:
   redis-data:
