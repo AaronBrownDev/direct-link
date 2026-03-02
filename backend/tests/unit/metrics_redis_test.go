@@ -91,7 +91,7 @@ func TestRedisMetrics_NilSafety(t *testing.T) {
 		{
 			name: "CreateSession without metrics",
 			action: func() error {
-				return store.CreateSession(ctx, newMetricsSession("nil-1", "NIL-001", "d-1"))
+				return store.CreateSession(ctx, newMetricsSession("nil-1", "NIL-001", "d-nil"))
 			},
 		},
 		{
@@ -132,7 +132,7 @@ func TestRedisMetrics_OperationDuration(t *testing.T) {
 			operation: "create_session",
 			setup:     func(_ *testing.T, _ *session.RedisStore, _ context.Context) {},
 			action: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
-				if err := store.CreateSession(ctx, newMetricsSession("dur-1", "DUR-001", "d-1")); err != nil {
+				if err := store.CreateSession(ctx, newMetricsSession("dur-1", "DUR-001", "d-create")); err != nil {
 					t.Fatalf("CreateSession: %v", err)
 				}
 			},
@@ -142,7 +142,7 @@ func TestRedisMetrics_OperationDuration(t *testing.T) {
 			name:      "GetSession records duration",
 			operation: "get_session",
 			setup: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
-				if err := store.CreateSession(ctx, newMetricsSession("dur-2", "DUR-002", "d-1")); err != nil {
+				if err := store.CreateSession(ctx, newMetricsSession("dur-2", "DUR-002", "d-get")); err != nil {
 					t.Fatalf("setup CreateSession: %v", err)
 				}
 			},
@@ -213,7 +213,7 @@ func TestRedisMetrics_OperationDuration(t *testing.T) {
 			name:      "GrantAccess records duration",
 			operation: "grant_access",
 			setup: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
-				if err := store.CreateSession(ctx, newMetricsSession("dur-6", "DUR-006", "d-1")); err != nil {
+				if err := store.CreateSession(ctx, newMetricsSession("dur-6", "DUR-006", "d-grant")); err != nil {
 					t.Fatalf("setup CreateSession: %v", err)
 				}
 			},
@@ -228,7 +228,7 @@ func TestRedisMetrics_OperationDuration(t *testing.T) {
 			name:      "HasAccess records duration",
 			operation: "has_access",
 			setup: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
-				if err := store.CreateSession(ctx, newMetricsSession("dur-7", "DUR-007", "d-1")); err != nil {
+				if err := store.CreateSession(ctx, newMetricsSession("dur-7", "DUR-007", "d-access")); err != nil {
 					t.Fatalf("setup CreateSession: %v", err)
 				}
 				if err := store.GrantAccess(ctx, "dur-7", "cam-1", "camera"); err != nil {
@@ -246,7 +246,7 @@ func TestRedisMetrics_OperationDuration(t *testing.T) {
 			name:      "GetRole records duration",
 			operation: "get_role",
 			setup: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
-				if err := store.CreateSession(ctx, newMetricsSession("dur-8", "DUR-008", "d-1")); err != nil {
+				if err := store.CreateSession(ctx, newMetricsSession("dur-8", "DUR-008", "d-role")); err != nil {
 					t.Fatalf("setup CreateSession: %v", err)
 				}
 				if err := store.GrantAccess(ctx, "dur-8", "cam-1", "camera"); err != nil {
@@ -264,7 +264,7 @@ func TestRedisMetrics_OperationDuration(t *testing.T) {
 			name:      "RevokeAccess records duration",
 			operation: "revoke_access",
 			setup: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
-				if err := store.CreateSession(ctx, newMetricsSession("dur-9", "DUR-009", "d-1")); err != nil {
+				if err := store.CreateSession(ctx, newMetricsSession("dur-9", "DUR-009", "d-revoke")); err != nil {
 					t.Fatalf("setup CreateSession: %v", err)
 				}
 				if err := store.GrantAccess(ctx, "dur-9", "cam-1", "camera"); err != nil {
@@ -282,12 +282,12 @@ func TestRedisMetrics_OperationDuration(t *testing.T) {
 			name:      "GetUserSessions records duration",
 			operation: "get_user_sessions",
 			setup: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
-				if err := store.CreateSession(ctx, newMetricsSession("dur-10", "DUR-010", "d-1")); err != nil {
+				if err := store.CreateSession(ctx, newMetricsSession("dur-10", "DUR-010", "d-sessions")); err != nil {
 					t.Fatalf("setup CreateSession: %v", err)
 				}
 			},
 			action: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
-				if _, err := store.GetUserSessions(ctx, "d-1"); err != nil {
+				if _, err := store.GetUserSessions(ctx, "d-sessions"); err != nil {
 					t.Fatalf("GetUserSessions: %v", err)
 				}
 			},
@@ -426,7 +426,7 @@ func TestRedisMetrics_MultipleOperations(t *testing.T) {
 		sess := newMetricsSession(
 			"multi-"+string(rune('a'+i)),
 			"MULTI-"+string(rune('A'+i)),
-			"d-1",
+			"d-multi-"+string(rune('a'+i)),
 		)
 		if err := store.CreateSession(ctx, sess); err != nil {
 			t.Fatalf("CreateSession iteration %d: %v", i, err)
