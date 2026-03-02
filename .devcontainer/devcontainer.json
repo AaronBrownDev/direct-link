@@ -1,6 +1,6 @@
 {
 	"name": "DirectLink Development",
-	"dockerComposeFile": "docker-compose.yml",
+	"dockerComposeFile": "docker-compose.yaml",
 	"service": "dev",
 	"workspaceFolder": "/workspace",
 	"features": {

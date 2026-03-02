@@ -77,6 +77,9 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.Internal, "failed to generate access token")
 	}
 
+	// Track token generation by role
+	s.metrics.TokenGenerationsTotal.WithLabelValues(req.Role).Inc()
+
 	s.logger.Info("peer joined session",
 		"session_id", sess.ID,
 		"user_id", req.UserId,
@@ -91,6 +94,8 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 
 // CreateSession creates a new production session and returns a room code
 func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest) (*pb.CreateSessionReply, error) {
+
+	// Validate required fields
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id is required")
 	}
@@ -123,6 +128,10 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 		return nil, status.Error(codes.Internal, "failed to create session")
 	}
 
+	// Increment business metrics after successful creation
+	s.metrics.SessionsCreatedTotal.Inc()
+	s.metrics.SessionsActive.Inc()
+
 	// Grant the creator director access
 	if err := s.store.GrantAccess(ctx, sessionID, req.UserId, "director"); err != nil {
 		s.logger.Error("failed to grant creator access", "error", err)
@@ -144,6 +153,7 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 // CloseSession sets a session's status to "closed"
 // Only the session owner may close it
 func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) (*pb.CloseSessionReply, error) {
+
 	// Validate required fields
 	if req.RoomCode == "" {
 		return nil, status.Error(codes.InvalidArgument, "room_code is required")
@@ -170,12 +180,16 @@ func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) 
 		return nil, status.Error(codes.Internal, "failed to close session")
 	}
 
+	// Decrement active sessions
+	s.metrics.SessionsActive.Dec()
+
 	s.logger.Info(
 		"session closed",
 		"session_id", sess.ID,
 		"room_code", req.RoomCode,
 		"closed_by", req.UserId,
 	)
+
 	return &pb.CloseSessionReply{Success: true}, nil
 }
 

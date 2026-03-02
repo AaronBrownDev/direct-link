@@ -10,12 +10,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
+	"github.com/AaronBrownDev/direct-link/pkg/metrics"
 	"github.com/AaronBrownDev/direct-link/pkg/session"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	lksdk "github.com/livekit/server-sdk-go/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-
-	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
-	lksdk "github.com/livekit/server-sdk-go/v2"
 )
 
 type Server struct {
@@ -26,69 +27,138 @@ type Server struct {
 	ready      atomic.Bool
 	lkClient   *lksdk.RoomServiceClient
 	store      session.Store
+	metrics    *metrics.Metrics
+	srvMetrics *grpcprom.ServerMetrics
 	pb.UnimplementedSignalingServiceServer
 }
 
 // NewServer is a constructor for the signaling Server struct
 func NewServer(cfg Config, logger *slog.Logger) *Server {
+
+	s := &Server{
+		cfg:    cfg,
+		logger: logger,
+	}
+
 	// Create Redis store
+	s.initStore()
+
+	// Create and set metrics
+	s.initMetrics()
+
+	// Create new HTTP server and register
+	s.initHTTP()
+
+	// Create new gRPC server and register
+	s.initGRPC()
+
+	// Initialize LiveKit room service client
+	s.initLiveKit()
+
+	return s
+}
+
+func (s *Server) initStore() {
+
 	store, err := session.NewRedisStore(
-		cfg.RedisAddr,
-		cfg.RedisPassword,
-		cfg.RedisDB,
-		cfg.RedisPoolSize,
-		cfg.RedisMinIdle,
-		cfg.RedisDialTimeout,
-		cfg.RedisReadTimeout,
-		cfg.RedisWriteTimeout,
-		cfg.SessionTTL,
+		s.cfg.RedisAddr,
+		s.cfg.RedisPassword,
+		s.cfg.RedisDB,
+		s.cfg.RedisPoolSize,
+		s.cfg.RedisMinIdle,
+		s.cfg.RedisDialTimeout,
+		s.cfg.RedisReadTimeout,
+		s.cfg.RedisWriteTimeout,
+		s.cfg.SessionTTL,
 	)
 	if err != nil {
-		logger.Error("failed to create Redis store", "error", err)
+		s.logger.Error("failed to create Redis store", "error", err)
 		os.Exit(1) // TODO: look into if this exit is safe
 	}
 
-	server := &Server{
-		cfg:    cfg,
-		logger: logger,
-		store:  store,
+	s.store = store
+
+}
+
+func (s *Server) initMetrics() {
+
+	// Create metrics
+	s.metrics = metrics.New()
+
+	// Create gRPC server metrics with latency histograms
+	s.srvMetrics = grpcprom.NewServerMetrics(
+		grpcprom.WithServerHandlingTimeHistogram(
+			grpcprom.WithHistogramBuckets(
+				[]float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0},
+			),
+		),
+	)
+	s.metrics.Registry.MustRegister(s.srvMetrics)
+
+	// Enable Redis instrumentation
+	if rs, ok := s.store.(*session.RedisStore); ok {
+		rs.SetMetrics(s.metrics)
 	}
 
-	// Create new HTTP server and register
-	mux := http.NewServeMux()
-	server.registerRoutes(mux)
+}
 
-	server.httpServer = &http.Server{
-		Addr:              fmt.Sprintf(":%d", cfg.HTTPPort),
+func (s *Server) initHTTP() {
+
+	mux := http.NewServeMux()
+	s.registerRoutes(mux)
+
+	s.httpServer = &http.Server{
+		Addr:              fmt.Sprintf(":%d", s.cfg.HTTPPort),
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second, // TODO: should eventually put into config
 	}
 
-	// Create new gRPC server and register
-	server.grpcServer = grpc.NewServer()
-	pb.RegisterSignalingServiceServer(server.grpcServer, server)
+}
 
-	// Needed for grpcurl testing
-	reflection.Register(server.grpcServer)
+func (s *Server) initGRPC() {
 
-	// Initialize LiveKit room service client
-	server.lkClient = lksdk.NewRoomServiceClient(
-		cfg.LiveKitHost,
-		cfg.LiveKitAPIKey,
-		cfg.LiveKitAPISecret,
+	s.grpcServer = grpc.NewServer(
+		grpc.ChainUnaryInterceptor(
+			s.srvMetrics.UnaryServerInterceptor(),
+		),
+		grpc.ChainStreamInterceptor(
+			s.srvMetrics.StreamServerInterceptor(),
+		),
 	)
 
-	return server
+	pb.RegisterSignalingServiceServer(s.grpcServer, s)
+
+	// Needed for grpcurl testing
+	reflection.Register(s.grpcServer)
+
+	// Pre-populate metric labels for all registered RPCs
+	s.srvMetrics.InitializeMetrics(s.grpcServer)
+
+}
+
+func (s *Server) initLiveKit() {
+
+	s.lkClient = lksdk.NewRoomServiceClient(
+		s.cfg.LiveKitHost,
+		s.cfg.LiveKitAPIKey,
+		s.cfg.LiveKitAPISecret,
+	)
+
 }
 
 func (s *Server) registerRoutes(mux *http.ServeMux) {
-	// Kubernetes
+
+	// Kubernetes probes
 	mux.HandleFunc("GET /healthz", s.handleHealth)
 	mux.HandleFunc("GET /readyz", s.handleReadiness)
 	mux.HandleFunc("GET /livez", s.handleLiveness)
 
 	// LiveKit
 	mux.HandleFunc("POST /webhooks/livekit", s.handleLiveKitWebhook)
+
+	// Prometheus metrics
+	mux.Handle("GET /metrics", s.metrics.Handler())
+
 }
 
 // ListenAndServe starts the signaling server through http and gRPC
