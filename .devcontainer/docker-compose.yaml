@@ -67,6 +67,8 @@ services:
       - "9090:9090"
     volumes:
       - ../backend/configs/prometheus.yaml:/etc/prometheus/prometheus.yaml
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
     depends_on:
       - dev
 
