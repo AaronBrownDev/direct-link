@@ -381,7 +381,7 @@ func TestRedisMetrics_InfrastructureError(t *testing.T) {
 		{
 			name:      "Ping failure increments error counter",
 			operation: "ping",
-			action: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
+			action: func(_ *testing.T, store *session.RedisStore, ctx context.Context) {
 				_ = store.Ping(ctx)
 			},
 			wantError: 1,
@@ -389,7 +389,7 @@ func TestRedisMetrics_InfrastructureError(t *testing.T) {
 		{
 			name:      "GetSession failure increments error counter",
 			operation: "get_session",
-			action: func(t *testing.T, store *session.RedisStore, ctx context.Context) {
+			action: func(_ *testing.T, store *session.RedisStore, ctx context.Context) {
 				_, _ = store.GetSession(ctx, "any-id")
 			},
 			wantError: 1,
