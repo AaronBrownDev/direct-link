@@ -60,6 +60,10 @@ public:
         return 0.0f;
     } // NOLINTEND(readability-convert-member-functions-to-static)
 
+    [[nodiscard]] int getDroppedFrames() const noexcept {
+        return framesDropped_.load();
+    }
+
 private:
     encode::EncoderConfig encoderConfig_;
     std::unique_ptr<capture::CameraCapture> captureDevice_;
@@ -68,6 +72,8 @@ private:
 
     // Frame queue  between capture and encode threads
     std::queue<std::unique_ptr<Frame>> frameQueue_;
+    static constexpr int QUEUE_CAPACITY = 3;
+    std::atomic<int> framesDropped_ = 0;
     std::mutex queueMutex_;
     std::condition_variable queueCondition_;
 

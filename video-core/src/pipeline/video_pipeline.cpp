@@ -52,10 +52,14 @@ Result VideoPipeline::start(
         captureDevice_->start([this](std::unique_ptr<Frame> frame) {
             {
                 std::lock_guard<std::mutex> lock(queueMutex_);
+                if (frameQueue_.size() >= QUEUE_CAPACITY) {
+                    frameQueue_.pop(); // Drop oldest frame
+                    framesDropped_++;
+                }
                 frameQueue_.push(std::move(frame));
             }
             queueCondition_.notify_one();
-            frameCount_++;
+            frameCount_++; // Counts all frames captured, including dropped ones
         });
     if (capture_result != Result::Success) {
         return capture_result; // Failed to start capture
