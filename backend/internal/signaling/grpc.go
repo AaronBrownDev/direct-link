@@ -213,7 +213,7 @@ func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest
 		pbSessions = append(pbSessions, &pb.SessionInfo{
 			SessionId:  sess.ID,
 			RoomCode:   sess.RoomCode,
-			CreatedAt:  sess.CreatedAt.Unix(),
+			CreatedAt:  sess.CreatedAt.Format(time.RFC3339),
 			MaxCameras: sess.MaxCameras,
 			Status:     sess.Status,
 		})

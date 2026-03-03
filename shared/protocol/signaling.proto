@@ -67,8 +67,7 @@ message GetMySessionsReply{
 message SessionInfo{
     string session_id = 1; // Internal UUID, informational only
     string room_code = 2; // Primary identifier
-    int64 created_at = 3; // RFC3339 formatted timestamp
+    string status = 3; // "active" or "closed"
     int32 max_cameras = 4;
-    string status = 5; // "active" or "closed"
-
+    string created_at = 5; // RFC3339 formatted timestamp
 }
