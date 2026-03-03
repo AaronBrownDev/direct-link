@@ -1,12 +1,15 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import ui.theme
 
 Rectangle {
     id: dl_bg_footer
-    color: "#1E293B"
+
     Layout.fillWidth: true
     Layout.preferredHeight: 100
+
+    color: Theme.surface
 
     RowLayout {
         id: dl_layout_footer
@@ -22,7 +25,7 @@ Rectangle {
         Text {
             id: dl_label_field_room_id
             text: "Room ID"
-            color: "white"
+            color: Theme.textWhite
             font.pointSize: 18
         }
 
@@ -30,7 +33,7 @@ Rectangle {
             id: dl_bg_field_room_id
             width: 400
             height: 50
-            color: "#0F172A"
+            color: Theme.background
             radius: 5
 
             Layout.rightMargin: 20
@@ -41,7 +44,7 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.leftMargin: 15
                 width: parent.width
-                color: "white"
+                color: Theme.textWhite
                 maximumLength: 12
                 font.pointSize: 18
             }
@@ -53,11 +56,11 @@ Rectangle {
             Layout.preferredHeight: 50
             background: Rectangle {
                 radius: 25
-                color: dl_control_connect.down ? "#6AE276" : "#77FF85"
+                color: dl_control_connect.down ? Theme.primaryPressed : Theme.primary
                 Text {
                     text: "Connect"
                     font.pointSize: 15
-                    color: "black"
+                    color: Theme.textBlack
                     anchors.centerIn: parent
                 }
             }
@@ -71,11 +74,11 @@ Rectangle {
             Layout.preferredHeight: 50
             background: Rectangle {
                 radius: 25
-                color: dl_control_app_exit.down ? "#B02120" : "#EC221F"
+                color: dl_control_app_exit.down ? Theme.dangerPressed : Theme.danger
                 Text {
                     text: "Leave"
                     font.pointSize: 15
-                    color: "white"
+                    color: Theme.textWhite
                     anchors.centerIn: parent
                 }
             }

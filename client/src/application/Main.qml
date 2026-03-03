@@ -14,7 +14,7 @@ import ui.theme
 Window {
         id: root
 
-        property string user_type: "Director"
+        property string user_type: "Operator"
         property real max_camera_count: 4
 
         visible: true
@@ -27,7 +27,7 @@ Window {
 
         SessionPage {
             id: dl_session_page
-            user_type: user_type
+            user_type: root.user_type
             max_camera_count: max_camera_count
         }
 }

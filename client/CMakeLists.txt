@@ -27,14 +27,14 @@ qt_add_executable(direct-link
         resources.qrc
     )
 
-set(QML_IMPORT_PATH
-    ${CMAKE_BINARY_DIR}/qt/qml
-    CACHE STRING "Qt Creator extra qml import paths" FORCE
-)
-
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
+
+set(QML_IMPORT_PATH
+    ${CMAKE_BINARY_DIR}/src
+    CACHE STRING "Qt Creator extra qml import paths" FORCE
+)
 
 add_subdirectory(src/application)
 add_subdirectory(src/ui)

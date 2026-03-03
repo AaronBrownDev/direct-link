@@ -5,14 +5,15 @@ import ui.theme
 Rectangle {
     id: dl_bg_camera_list
 
+    property int max_camera_count: 4
     property real default_aspect_ratio: 16 / 9
     property int minHeight: dl_repeater_thumbnail.count * (Layout.preferredWidth / default_aspect_ratio)
 
-    color: Theme.surface
-    radius: 15
-
     Layout.preferredWidth: 300
     Layout.minimumHeight: minHeight
+
+    color: Theme.surface
+    radius: 15
 
     ColumnLayout {
         id: dl_layout_camera_list

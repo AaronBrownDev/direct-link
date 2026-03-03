@@ -3,11 +3,11 @@ import ui.theme
 
 Rectangle {
     id: dl_bg_active_camera
-    state: "inactive"
 
     property real aspect_ratio: 16 / 9
 
     color: "black"
+    state: "inactive"
 
     states: [
         State {

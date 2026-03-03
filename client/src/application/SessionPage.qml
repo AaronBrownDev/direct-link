@@ -14,7 +14,10 @@ ColumnLayout {
     spacing: 15
     anchors.fill: parent
 
-    Header { id: dl_session_header }
+    Header {
+        id: dl_session_header
+        user_type: dl_root_layout.user_type
+    }
 
     SessionInfo { id: dl_session_details }
 
@@ -42,7 +45,7 @@ ColumnLayout {
         ThumbnailList {
             id: dl_camera_list
             Layout.fillHeight: true
-
+            max_camera_count: dl_root_layout.max_camera_count
         }
     }
 

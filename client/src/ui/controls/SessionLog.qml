@@ -4,9 +4,10 @@ import ui.theme
 
 Rectangle {
     id: dl_bg_log
-    color: Theme.surface
     Layout.fillHeight: true
     Layout.preferredWidth: 500
+
+    color: Theme.surface
     radius: 15
 
     ColumnLayout {
