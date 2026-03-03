@@ -10,7 +10,6 @@ target_link_libraries(directlink_ui PRIVATE
 qt_add_qml_module(directlink_ui
     URI ui
     VERSION 1.0
-    RESOURCE_PREFIX /src
     QML_FILES
         Header.qml
         Footer.qml

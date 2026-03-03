@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QQmlEngine>
 #include <QImage>
 #include <QSize>
 #include <QVideoSink>
@@ -14,9 +15,16 @@ class FrameReader : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)
+    QML_ELEMENT
+    QML_SINGLETON
 
 public:
     FrameReader(QObject *parent = nullptr);
+
+    static FrameReader *create(QQmlEngine *, QJSEngine *) {
+        static FrameReader instance;
+        return &instance;
+    }
 
     [[nodiscard]] QVideoSink *videoSink() const;
 
@@ -27,5 +35,5 @@ signals:
     void videoSinkChanged();
 
 private:
-    QVideoSink *m_videoSink;
+    QVideoSink *m_videoSink {nullptr};
 };

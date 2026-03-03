@@ -11,7 +11,6 @@ target_link_libraries(directlink_ui_controls  PRIVATE
 qt_add_qml_module(directlink_ui_controls
     URI ui.controls
     VERSION 1.0
-    RESOURCE_PREFIX /src
     QML_FILES
         CameraFeed.qml
         SessionInfo.qml

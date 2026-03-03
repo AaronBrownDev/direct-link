@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.16)
 
 project(direct-link VERSION 0.1 LANGUAGES CXX)
 
@@ -6,7 +6,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia)
@@ -25,14 +25,16 @@ qt_add_executable(direct-link
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
         resources.qrc
-        src/framereader.cpp
-        src/framereader.hpp
     )
 
 set(QML_IMPORT_PATH
-    ${CMAKE_BINARY_DIR}/src
+    ${CMAKE_BINARY_DIR}/qt/qml
     CACHE STRING "Qt Creator extra qml import paths" FORCE
 )
+
+# QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
+# to "qt/qml/". Removes the need to call addImportPath manually.
+qt_policy(SET QTP0001 NEW)
 
 add_subdirectory(src/application)
 add_subdirectory(src/ui)
@@ -41,7 +43,6 @@ add_subdirectory(src/ui/theme)
 
 target_include_directories(direct-link PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${FFMPEG_INCLUDE_DIRS}
 )
 
 target_link_libraries(direct-link PRIVATE
@@ -49,7 +50,6 @@ target_link_libraries(direct-link PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
-    ${FFMPEG_LIBRARIES}
     directlink_appplugin
     directlink_uiplugin
     directlink_ui_controlsplugin
