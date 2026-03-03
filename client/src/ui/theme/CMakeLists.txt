@@ -12,7 +12,6 @@ set_source_files_properties(Theme.qml PROPERTIES
 qt_add_qml_module(directlink_ui_theme
     URI ui.theme
     VERSION 1.0
-    RESOURCE_PREFIX /src
     QML_FILES
         Theme.qml
 )

@@ -11,7 +11,7 @@
 
 
 
-FrameReader::FrameReader(QObject *parent) : QObject(parent), m_videoSink(nullptr) {
+FrameReader::FrameReader(QObject *parent) : QObject(parent) {
 
 }
 
