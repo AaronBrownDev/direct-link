@@ -200,16 +200,22 @@ func TestJoinSession_ClosedSessionRejected(t *testing.T) {
 	srv := newTestServer(t)
 	ctx := context.Background()
 
-	createResp, _ := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+	createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
 		UserId:     "director-close",
 		MaxCameras: 4,
 	})
-	srv.CloseSession(ctx, &pb.CloseSessionRequest{ //nolint:errcheck
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	_, err = srv.CloseSession(ctx, &pb.CloseSessionRequest{
 		RoomCode: createResp.RoomCode,
 		UserId:   "director-close",
 	})
+	if err != nil {
+		t.Fatalf("CloseSession: %v", err)
+	}
 
-	_, err := srv.JoinSession(ctx, &pb.JoinRequest{
+	_, err = srv.JoinSession(ctx, &pb.JoinRequest{
 		RoomCode: createResp.RoomCode,
 		UserId:   "cam-late",
 		Role:     "camera",
