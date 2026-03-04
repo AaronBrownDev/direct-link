@@ -46,7 +46,7 @@ func TestNewSessionID(t *testing.T) {
 
 // Tests RoomCode
 func TestRoomCode(t *testing.T) {
-	t.Run("is valid roomcode format", func(t *testing.T) {
+	t.Run("is valid room code format", func(t *testing.T) {
 		code, err := session.NewRoomCode()
 		if err != nil {
 			t.Fatalf("NewRoomCode returned error: %v", err)
