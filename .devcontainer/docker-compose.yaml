@@ -11,6 +11,8 @@ services:
         condition: service_healthy
       livekit:
         condition: service_started
+      ingress:
+        condition: service_started
     devices:
       - /dev/video0:/dev/video0
     group_add:
@@ -60,6 +62,22 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+
+  ingress:
+    image: livekit/ingress:latest
+    network_mode: host
+    environment:
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+      - LIVEKIT_WS_URL=ws://localhost:7880
+      - INGRESS_CONFIG_FILE=/etc/ingress.yaml
+    volumes:
+      - ../backend/configs/ingress.yaml:/etc/ingress.yaml
+    depends_on:
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
 
   prometheus:
     image: prom/prometheus:latest

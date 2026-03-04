@@ -1,0 +1,14 @@
+log_level: debug
+
+# Blank strings will be overridden by env vars
+api_key: ""
+api_secret: ""
+ws_url: ""
+
+redis:
+  address: localhost:6379
+
+whip_port: 8080
+rtmp_port: 1935
+
+health_port: 8090
