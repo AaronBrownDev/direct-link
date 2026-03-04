@@ -8,7 +8,7 @@ import (
 )
 
 // Tests SessionID
-func TestNewSessionID(t *testing.T) {
+func TestRedis_NewSessionID(t *testing.T) {
 	t.Run("is non-empty", func(t *testing.T) {
 		id := session.NewSessionID()
 		if id == "" {
@@ -45,7 +45,7 @@ func TestNewSessionID(t *testing.T) {
 }
 
 // Tests RoomCode
-func TestRoomCode(t *testing.T) {
+func TestRedis_NewRoomCode(t *testing.T) {
 	t.Run("is valid room code format", func(t *testing.T) {
 		code, err := session.NewRoomCode()
 		if err != nil {
