@@ -10,3 +10,5 @@ webhook:
   api_key: devkey
   urls:
     - http://dev:8081/webhooks/livekit
+ingress:
+  whip_base_url: http://localhost:8080/whip
