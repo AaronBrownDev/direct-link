@@ -1,4 +1,4 @@
-package session_test
+package metrics_test
 
 import (
 	"context"
