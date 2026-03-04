@@ -13,7 +13,6 @@ import (
 	"github.com/AaronBrownDev/direct-link/internal/signaling"
 )
 
-// TODO: make a helper file
 func redisAddr() string {
 	if addr := os.Getenv("REDIS_ADDR"); addr != "" {
 		return addr
