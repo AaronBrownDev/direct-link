@@ -1,4 +1,4 @@
-package unit
+package session_test
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func newSessionTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
 	return store, mr
 }
 
-func TestCreateAndGetSession(t *testing.T) {
+func TestRedisStore_CreateAndGetSession(t *testing.T) {
 	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
@@ -65,7 +65,7 @@ func TestCreateAndGetSession(t *testing.T) {
 	}
 }
 
-func TestGetSessionByRoomCode(t *testing.T) {
+func TestRedisStore_GetSessionByRoomCode(t *testing.T) {
 	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
@@ -100,7 +100,7 @@ func TestGetSessionByRoomCode(t *testing.T) {
 
 }
 
-func TestGrantAndCheckAccess(t *testing.T) {
+func TestRedisStore_GrantAndCheckAccess(t *testing.T) {
 	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
@@ -149,7 +149,7 @@ func TestGrantAndCheckAccess(t *testing.T) {
 	}
 }
 
-func TestUpdateSessionStatus(t *testing.T) {
+func TestRedisStore_UpdateSessionStatus(t *testing.T) {
 	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
@@ -186,7 +186,7 @@ func TestUpdateSessionStatus(t *testing.T) {
 	}
 
 }
-func TestDeleteSession(t *testing.T) {
+func TestRedisStore_DeleteSession(t *testing.T) {
 	store, _ := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {
@@ -222,7 +222,7 @@ func TestDeleteSession(t *testing.T) {
 	}
 }
 
-func TestPing(t *testing.T) {
+func TestRedisStore_Ping(t *testing.T) {
 	store, mr := newSessionTestStore(t)
 	defer func() {
 		if err := store.Close(); err != nil {

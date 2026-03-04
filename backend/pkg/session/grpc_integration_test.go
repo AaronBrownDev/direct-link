@@ -1,4 +1,6 @@
-package integration
+//go:build integration
+
+package session_test
 
 import (
 	"context"
