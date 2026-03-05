@@ -5,6 +5,9 @@ import ui.theme
 
 RowLayout {
     id: dl_layout_session_info
+
+    property string room_code: "XXXX-XXXX"
+
     Layout.alignment: Qt.AlignHCenter
 
     spacing: 50
@@ -24,8 +27,8 @@ RowLayout {
     }
 
     Text {
-        id: dl_label_room_id
-        text: "0000-0000-0000"
+        id: dl_label_room_code
+        text: room_code
         color: Theme.textWhite
         font.pointSize: 18
     }

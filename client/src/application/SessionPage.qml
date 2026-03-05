@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import ui
@@ -10,16 +9,17 @@ ColumnLayout {
 
     property string user_type: "Director"
     property real max_camera_count: 4
+    property string room_code: "XXXX-XXXX"
 
     spacing: 15
-    anchors.fill: parent
 
-    Header {
-        id: dl_session_header
-        user_type: dl_root_layout.user_type
+    SessionInfo {
+        id: dl_session_details
+
+        Layout.topMargin: 10
+
+        room_code: dl_root_layout.room_code
     }
-
-    SessionInfo { id: dl_session_details }
 
     RowLayout {
         id: dl_layout_cameras
@@ -49,5 +49,10 @@ ColumnLayout {
         }
     }
 
-    Footer { id: dl_session_footer }
+    Footer {
+        id: dl_session_footer
+        onLeavePage: () => {
+                         dl_root_layout.StackView.view.pop()
+                     }
+    }
 }
