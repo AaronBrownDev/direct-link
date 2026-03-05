@@ -29,29 +29,52 @@ ColumnLayout {
             font.bold: true
         }
 
-        DashboardDirectorView {
-            id: dl_dash_director_view
-
+        Loader {
+            id: dl_dash_view_laoder
             Layout.fillWidth: true
+            sourceComponent: dl_root_layout.user_type === "Director" ? dl_dash_director_view : dl_dash_operator_view
+        }
 
-            onJoinClicked: (roomCode) => {
-               dl_root_layout.StackView.view.push(dl_session_page_component, {
-                  user_type: dl_root_layout.user_type,
-                  room_code: roomCode
-                })
+        Component {
+            id: dl_dash_director_view
+            DashboardDirectorView {
+                onJoinClicked: (roomCode) => {
+                   dl_root_layout.StackView.view.push(dl_session_page_component, {
+                      user_type: dl_root_layout.user_type,
+                      room_code: roomCode
+                    })
+                }
+
+                onQuickJoinClicked: () => {
+                    dl_root_layout.StackView.view.push(dl_session_page_component, {
+                       user_type: dl_root_layout.user_type
+                    })
+                }
+
+                onCreateClicked: (projectName, sessionDesc, qualitySettings, cameraCount) => {
+                    dl_root_layout.StackView.view.push(dl_session_page_component, {
+                        user_type: dl_root_layout.user_type,
+                        max_camera_count: cameraCount
+                    })
+                }
             }
+        }
 
-            onQuickJoinClicked: () => {
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                   user_type: dl_root_layout.user_type
-                })
-            }
+        Component {
+            id: dl_dash_operator_view
+            DashboardOperatorView {
+                onJoinClicked: (roomCode, cameraName) => {
+                   dl_root_layout.StackView.view.push(dl_session_page_component, {
+                      user_type: dl_root_layout.user_type,
+                      room_code: roomCode
+                    })
+                }
 
-            onCreateClicked: (projectName, sessionDesc, qualitySettings, cameraCount) => {
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                    user_type: dl_root_layout.user_type,
-                    max_camera_count: cameraCount
-                })
+                onQuickJoinClicked: () => {
+                    dl_root_layout.StackView.view.push(dl_session_page_component, {
+                       user_type: dl_root_layout.user_type
+                    })
+                }
             }
         }
 

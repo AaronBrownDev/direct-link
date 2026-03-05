@@ -21,4 +21,5 @@ qt_add_qml_module(directlink_ui_controls
         DLTextField.qml
         DLButton.qml
         DLCounter.qml
+        DLConsole.qml
 )

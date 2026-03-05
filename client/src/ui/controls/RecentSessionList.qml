@@ -39,6 +39,7 @@ ColumnLayout {
             clip: true
             spacing: 10
 
+            // Placeholder
             model: ListModel {
                 id: dl_session_model
                 ListElement { roomCode: "ROOM-1234"; roomStatus: "Open"; timestamp: "12:37 PM"; maxCameras: 4 }

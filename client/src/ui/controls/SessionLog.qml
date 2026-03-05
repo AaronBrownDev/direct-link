@@ -10,36 +10,17 @@ Rectangle {
     color: Theme.surface
     radius: 15
 
-    ColumnLayout {
-        id: dl_layout_log
-        spacing: 25
+    DLConsole {
+        id: dl_session_console
+
         anchors.fill: parent
-        anchors.margins: parent.radius + 5
-
-        Text {
-            id: dl_label_log
-            text: "Session Log"
-            color: Theme.textWhite
-            font.pointSize: 16
-            font.bold: true
+        anchors {
+            leftMargin: 25
+            rightMargin: 25
+            bottomMargin: 25
+            topMargin: 50
         }
 
-        Rectangle {
-            id: dl_bg_log_contents
-            Layout.fillHeight: true
-            Layout.fillWidth: true
-            radius: 15
-            color: Theme.background
-
-            Text {
-                id: dl_log_contents
-                text: ""
-                anchors.fill: parent
-                anchors.margins: 15
-                font.pointSize: 12
-                color: Theme.textWhite
-                wrapMode: Text.Wrap
-            }
-        }
+        label: "Session Log"
     }
 }

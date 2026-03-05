@@ -54,14 +54,10 @@ Rectangle {
         id: dl_button_label
 
         anchors.centerIn: parent
+        font.pointSize: 14
+        font.bold: true
         text: buttonText
-        color: switch (buttonType) {
-               case DLButton.ButtonType.Neutral: return Theme.textMuted
-               default: return Theme.textWhite
-        }
-
-        font.pointSize: 15
-        font.weight: Font.DemiBold
+        color: Theme.textWhite
     }
 
     MouseArea {
