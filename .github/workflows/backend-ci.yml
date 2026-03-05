@@ -78,7 +78,7 @@ jobs:
       - name: Run tests with race detection
         env:
           REDIS_ADDR: localhost:6379
-        run: go test -race -count=1 -timeout=5m ./...
+        run: go test -race -count=1 -tags=integration -timeout=5m ./...
 
   # Job 2
   lint:

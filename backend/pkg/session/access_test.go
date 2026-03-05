@@ -1,4 +1,4 @@
-package unit
+package session_test
 
 import (
 	"context"

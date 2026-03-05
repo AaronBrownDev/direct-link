@@ -1,4 +1,4 @@
-package unit
+package metrics_test
 
 import (
 	"context"
