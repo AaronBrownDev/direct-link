@@ -1,3 +1,13 @@
+/*
+ * File: SessionPage.qml
+ * Author: Justin Williams
+ * Date: 2/12/26
+ * File Description: The qml file that contains the session page. There is a bar with
+ * session details, an area for the active camera, a console for receiving backend
+ * messages, and a side bar for previewing the available cameras. The 'Leave' button
+ * will return the user to the previous page they were on.
+ */
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -51,6 +61,10 @@ ColumnLayout {
 
     Footer {
         id: dl_session_footer
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 100
+
         onLeavePage: () => {
                          dl_root_layout.StackView.view.pop()
                      }

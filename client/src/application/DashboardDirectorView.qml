@@ -1,8 +1,28 @@
+/*
+ * File: DashboardDirectorView.qml
+ * Author: Justin Williams
+ * Date: 3/5/26
+ * File Description: The qml file that contains the session controls for the director.
+ * A director can join and create sessions.
+ */
+
 import QtQuick
 import QtQuick.Layouts
 import ui.controls
 import ui.theme
 
+/*
+    SIGNALS
+
+    joinClicked(string roomCode) - Fires when the director has input a room code
+        and clicked on the 'Join Session' button. Passes the entered room code.
+    quickJoinClicked () - Fires when the director has clicked on the 'Quick Join
+        Last Session' button.
+    createClicked(string projectName, string sessionDesc, string qualitySettings,
+        int cameraCount) - Fires when the director has clicked on the 'Create Session'
+        button. Passes the entered project name, session description, quality settings,
+        and camera count
+ */
 RowLayout {
     id: dl_dash_view_layout
 

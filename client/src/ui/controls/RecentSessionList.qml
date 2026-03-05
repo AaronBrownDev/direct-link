@@ -1,8 +1,23 @@
+/*
+ * File: RecentSessionList.qml
+ * Author: Justin Williams
+ * Date: 2/10/26
+ * File Description: A qml file containing a component that lists sessions. List items
+ * display the room code, room status, creation timestamp, and max cameras of that
+ * session.
+ */
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import ui.theme
 
+/*
+    SIGNALS
+
+    sessionSelected (string roomCode, int maxCameras) - fires when the user clicks on
+        a session in the list. Passes the room code and max cameras of the session.
+ */
 ColumnLayout {
     id: dl_session_list_layout
 
@@ -82,10 +97,10 @@ ColumnLayout {
 
         Text {
             anchors.centerIn: parent
+            font.pointSize: 16
             visible: dl_session_model.count === 0
             text: "No sessions found"
             color: Theme.textMuted
-            font.pointSize: 15
         }
 
     }

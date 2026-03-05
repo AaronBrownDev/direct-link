@@ -1,3 +1,13 @@
+/*
+ * File: DashboardPage.qml
+ * Author: Justin Williams
+ * Date: 3/3/26
+ * File Description: The qml file that contains the application dashboard. There are two
+ * different views: the director view and the operator view. The director view allows
+ * the user to see session join and session create controls. The operator
+ * view allows the user to see session join and equipment configuration controls.
+ */
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -30,53 +40,12 @@ ColumnLayout {
         }
 
         Loader {
-            id: dl_dash_view_laoder
+            id: dl_dash_view_loader
             Layout.fillWidth: true
             sourceComponent: dl_root_layout.user_type === "Director" ? dl_dash_director_view : dl_dash_operator_view
         }
 
-        Component {
-            id: dl_dash_director_view
-            DashboardDirectorView {
-                onJoinClicked: (roomCode) => {
-                   dl_root_layout.StackView.view.push(dl_session_page_component, {
-                      user_type: dl_root_layout.user_type,
-                      room_code: roomCode
-                    })
-                }
 
-                onQuickJoinClicked: () => {
-                    dl_root_layout.StackView.view.push(dl_session_page_component, {
-                       user_type: dl_root_layout.user_type
-                    })
-                }
-
-                onCreateClicked: (projectName, sessionDesc, qualitySettings, cameraCount) => {
-                    dl_root_layout.StackView.view.push(dl_session_page_component, {
-                        user_type: dl_root_layout.user_type,
-                        max_camera_count: cameraCount
-                    })
-                }
-            }
-        }
-
-        Component {
-            id: dl_dash_operator_view
-            DashboardOperatorView {
-                onJoinClicked: (roomCode, cameraName) => {
-                   dl_root_layout.StackView.view.push(dl_session_page_component, {
-                      user_type: dl_root_layout.user_type,
-                      room_code: roomCode
-                    })
-                }
-
-                onQuickJoinClicked: () => {
-                    dl_root_layout.StackView.view.push(dl_session_page_component, {
-                       user_type: dl_root_layout.user_type
-                    })
-                }
-            }
-        }
 
         RecentSessionList {
             id: dl_dash_recent_sessions
@@ -90,6 +59,49 @@ ColumnLayout {
                     room_code: roomCode
                })
            }
+        }
+    }
+
+    Component {
+        id: dl_dash_director_view
+        DashboardDirectorView {
+            onJoinClicked: (roomCode) => {
+               dl_root_layout.StackView.view.push(dl_session_page_component, {
+                  user_type: dl_root_layout.user_type,
+                  room_code: roomCode
+                })
+            }
+
+            onQuickJoinClicked: () => {
+                dl_root_layout.StackView.view.push(dl_session_page_component, {
+                   user_type: dl_root_layout.user_type
+                })
+            }
+
+            onCreateClicked: (projectName, sessionDesc, qualitySettings, cameraCount) => {
+                dl_root_layout.StackView.view.push(dl_session_page_component, {
+                    user_type: dl_root_layout.user_type,
+                    max_camera_count: cameraCount
+                })
+            }
+        }
+    }
+
+    Component {
+        id: dl_dash_operator_view
+        DashboardOperatorView {
+            onJoinClicked: (roomCode, cameraName) => {
+               dl_root_layout.StackView.view.push(dl_session_page_component, {
+                  user_type: dl_root_layout.user_type,
+                  room_code: roomCode
+                })
+            }
+
+            onQuickJoinClicked: () => {
+                dl_root_layout.StackView.view.push(dl_session_page_component, {
+                   user_type: dl_root_layout.user_type
+                })
+            }
         }
     }
 
