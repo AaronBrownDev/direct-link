@@ -1,5 +1,14 @@
+/*
+ * File: SessionPage.qml
+ * Author: Justin Williams
+ * Date: 2/12/26
+ * File Description: The qml file that contains the session page. There is a bar with
+ * session details, an area for the active camera, a console for receiving backend
+ * messages, and a side bar for previewing the available cameras. The 'Leave' button
+ * will return the user to the previous page they were on.
+ */
+
 import QtQuick
-import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import ui
@@ -10,13 +19,17 @@ ColumnLayout {
 
     property string user_type: "Director"
     property real max_camera_count: 4
+    property string room_code: "XXXX-XXXX"
 
     spacing: 15
-    anchors.fill: parent
 
-    Header { id: dl_session_header }
+    SessionInfo {
+        id: dl_session_details
 
-    SessionInfo { id: dl_session_details }
+        Layout.topMargin: 10
+
+        room_code: dl_root_layout.room_code
+    }
 
     RowLayout {
         id: dl_layout_cameras
@@ -42,9 +55,18 @@ ColumnLayout {
         ThumbnailList {
             id: dl_camera_list
             Layout.fillHeight: true
-
+            max_camera_count: dl_root_layout.max_camera_count
         }
     }
 
-    Footer { id: dl_session_footer }
+    Footer {
+        id: dl_session_footer
+
+        Layout.fillWidth: true
+        Layout.preferredHeight: 100
+
+        onLeavePage: () => {
+                         dl_root_layout.StackView.view.pop()
+                     }
+    }
 }

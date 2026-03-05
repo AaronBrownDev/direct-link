@@ -5,8 +5,12 @@ import ui.theme
 
 RowLayout {
     id: dl_layout_session_info
-    spacing: 50
+
+    property string room_code: "XXXX-XXXX"
+
     Layout.alignment: Qt.AlignHCenter
+
+    spacing: 50
 
     Text {
         id: dl_label_live
@@ -23,8 +27,8 @@ RowLayout {
     }
 
     Text {
-        id: dl_label_room_id
-        text: "0000-0000-0000"
+        id: dl_label_room_code
+        text: room_code
         color: Theme.textWhite
         font.pointSize: 18
     }
@@ -47,7 +51,7 @@ RowLayout {
 
     Rectangle {
         id: dl_bg_label_quality
-        color: "#D9D9D9"
+        color: Theme.neutral
         Layout.preferredHeight: 70
         Layout.preferredWidth: 200
         radius: Layout.preferredHeight / 2

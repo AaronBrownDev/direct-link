@@ -1,13 +1,17 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import ui.theme
 
 Rectangle {
     id: dl_header
 
-    color: "#1E293B"
+    property string user_type: "Director"
+
     Layout.fillWidth: true
     Layout.preferredHeight: 75
+
+    color: Theme.surface
 
     Text {
         id: dl_header_logo
@@ -18,7 +22,7 @@ Rectangle {
             verticalCenter: parent.verticalCenter
         }
         anchors.leftMargin: 20
-        color: "white"
+        color: Theme.textWhite
         font.bold: true
         font.pointSize: 24
     }
@@ -26,12 +30,12 @@ Rectangle {
     Text {
         id: dl_header_type
 
-        text: " | " + root.user_type
+        text: " | " + user_type
         anchors {
             left: dl_header_logo.right
             verticalCenter: dl_header_logo.verticalCenter
         }
-        color: "#94A3B8"
+        color: Theme.textMuted
         font.bold: true
         font.pointSize: 20
     }
