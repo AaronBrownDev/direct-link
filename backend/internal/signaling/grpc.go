@@ -190,6 +190,21 @@ func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) 
 		return nil, status.Error(codes.PermissionDenied, "only the session owner can close it")
 	}
 
+	// Cleanup ingress
+	ingressIDs, err := s.store.GetIngressIDs(ctx, sess.ID)
+	if err != nil {
+		s.logger.Warn("failed to fetch ingress IDs for cleanup", "session_id", sess.ID, "error", err)
+	} else {
+		for _, id := range ingressIDs {
+			_, delErr := s.lkIngressClient.DeleteIngress(ctx, &livekit.DeleteIngressRequest{IngressId: id})
+			if delErr != nil {
+				s.logger.Warn("failed to delete ingress", "ingress_id", id, "error", delErr)
+			} else {
+				s.logger.Info("deleted ingress", "ingress_id", id, "session_id", sess.ID)
+			}
+		}
+	}
+
 	// Update session status to closed
 	if err := s.store.UpdateSessionStatus(ctx, sess.ID, "closed"); err != nil {
 		s.logger.Error("failed to close session", "error", err)
