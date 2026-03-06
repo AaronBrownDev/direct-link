@@ -2,12 +2,12 @@ package signaling
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
 	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"github.com/livekit/protocol/auth"
+	"github.com/livekit/protocol/livekit"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -44,47 +44,63 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.Internal, "failed to grant access")
 	}
 
-	// Determine permissions based on role
-	canPublish, canSubscribe, err := permissionsForRole(req.Role)
+	switch req.Role {
+	case "camera":
+		return s.joinAsCamera(ctx, req, sess)
+	case "director":
+		return s.joinAsDirector(ctx, req, sess)
+	default:
+		return nil, status.Error(codes.InvalidArgument, "role must be 'camera' or 'director'")
+	}
+}
+
+func (s *Server) joinAsCamera(ctx context.Context, req *pb.JoinRequest, sess *session.Session) (*pb.JoinReply, error) {
+
+	info, err := s.lkIngressClient.CreateIngress(ctx, &livekit.CreateIngressRequest{
+		InputType:           livekit.IngressInput_WHIP_INPUT,
+		RoomName:            sess.ID,
+		ParticipantIdentity: req.UserId,
+		ParticipantName:     req.UserId,
+		EnableTranscoding:   func(b bool) *bool { return &b }(false),
+	})
 	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		s.logger.Error("failed to create ingress", "session_id", sess.ID, "user_id", req.UserId, "error", err)
+		return nil, status.Error(codes.Internal, "failed to create ingress")
 	}
 
-	// Resolves final session ID when joining my req.RoomCode
-	s.logger.Info("generating LiveKit token",
-		"session_id", sess.ID,
-		"user_id", req.UserId,
-		"role", req.Role,
-	)
+	if err := s.store.AddIngressID(ctx, sess.ID, info.IngressId); err != nil {
+		s.logger.Warn("failed to store ingress ID", "ingress_id", info.IngressId, "error", err)
+	}
 
-	// Build LiveKit access token with role-based permissions
+	s.metrics.TokenGenerationsTotal.WithLabelValues("camera").Inc()
+	s.logger.Info("camera joined via WHIP ingress", "session_id", sess.ID, "user_id", req.UserId, "ingress_id", info.IngressId)
+
+	return &pb.JoinReply{
+		WhipUrl:   info.Url,
+		StreamKey: info.StreamKey,
+	}, nil
+}
+
+func (s *Server) joinAsDirector(ctx context.Context, req *pb.JoinRequest, sess *session.Session) (*pb.JoinReply, error) {
+	canPublish, canSubscribe := false, true
+
 	at := auth.NewAccessToken(s.cfg.LiveKitAPIKey, s.cfg.LiveKitAPISecret)
-
 	grant := &auth.VideoGrant{
 		RoomJoin:     true,
 		Room:         sess.ID,
 		CanPublish:   &canPublish,
 		CanSubscribe: &canSubscribe,
 	}
-
-	at.SetVideoGrant(grant).
-		SetIdentity(req.UserId).
-		SetValidFor(time.Hour)
+	at.SetVideoGrant(grant).SetIdentity(req.UserId).SetValidFor(time.Hour)
 
 	token, err := at.ToJWT()
 	if err != nil {
 		s.logger.Error("failed to generate token", "error", err)
-		return nil, status.Error(codes.Internal, "failed to generate access token")
+		return nil, status.Error(codes.Internal, "failed to generate token")
 	}
 
-	// Track token generation by role
-	s.metrics.TokenGenerationsTotal.WithLabelValues(req.Role).Inc()
-
-	s.logger.Info("peer joined session",
-		"session_id", sess.ID,
-		"user_id", req.UserId,
-		"role", req.Role,
-	)
+	s.metrics.TokenGenerationsTotal.WithLabelValues("director").Inc()
+	s.logger.Info("director joined session", "session_id", sess.ID, "user_id", req.UserId)
 
 	return &pb.JoinReply{
 		Token:      token,
@@ -219,16 +235,4 @@ func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest
 		})
 	}
 	return &pb.GetMySessionsReply{Sessions: pbSessions}, nil
-}
-
-// permissionsForRole maps a DirectLink role to LiveKit publish/subscribe permissions.
-func permissionsForRole(role string) (canPublish bool, canSubscribe bool, err error) {
-	switch role {
-	case "camera":
-		return true, false, nil
-	case "director":
-		return false, true, nil
-	default:
-		return false, false, fmt.Errorf("unknown role %q: must be \"camera\" or \"director\"", role)
-	}
 }
