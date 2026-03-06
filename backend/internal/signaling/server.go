@@ -25,8 +25,8 @@ type Server struct {
 	grpcServer      *grpc.Server
 	logger          *slog.Logger
 	ready           atomic.Bool
-	lkClient        *lksdk.RoomServiceClient
-	lkIngressClient *lksdk.IngressClient
+	lkClient        *lksdk.RoomServiceClient // TODO: implement delete room logic
+	lkIngressClient ingressClient
 	store           session.Store
 	metrics         *metrics.Metrics
 	srvMetrics      *grpcprom.ServerMetrics
