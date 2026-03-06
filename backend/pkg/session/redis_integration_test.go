@@ -102,8 +102,8 @@ func TestRedisStoreIntegration(t *testing.T) {
 		go func(i int) {
 			ts := time.Now().UnixNano()
 			sess := &session.Session{
-				ID:         fmt.Sprintf("integration-test-%d-%d", i, ts),
-				RoomCode:   fmt.Sprintf("INT-TEST-%d-%d", i, ts),
+				ID:         fmt.Sprintf("concurrent-test-%d-%d", i, ts),
+				RoomCode:   fmt.Sprintf("CON-TEST-%d-%d", i, ts),
 				CreatedBy:  "test-director",
 				CreatedAt:  time.Now(),
 				MaxCameras: 10,
