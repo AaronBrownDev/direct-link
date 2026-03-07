@@ -254,6 +254,7 @@ func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest
 	return &pb.GetMySessionsReply{Sessions: pbSessions}, nil
 }
 
+// generateUniqueRoomCodes attempts to create a unique room code by checking against existing sessions in the store.
 func generateUniqueRoomCodes(ctx context.Context, store session.Store, maxAttempts int) (string, error) {
 	for range maxAttempts {
 		code, err := session.NewRoomCode()
