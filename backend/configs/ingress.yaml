@@ -12,3 +12,4 @@ whip_port: 8080
 rtmp_port: 1935
 
 health_port: 8090
+prometheus_port: 9091
