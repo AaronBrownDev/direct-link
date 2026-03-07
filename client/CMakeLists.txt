@@ -9,7 +9,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia Protobuf Grpc)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED
     libavcodec
@@ -36,6 +36,20 @@ set(QML_IMPORT_PATH
     CACHE STRING "Qt Creator extra qml import paths" FORCE
 )
 
+
+# Protobuf and gRPC code generation from signaling.proto
+set(SIGNALING_PROTO "${CMAKE_CURRENT_SOURCE_DIR}/../shared/protocol/signaling.proto")
+
+qt_add_protobuf(signaling_proto
+  PROTO_FILES ${SIGNALING_PROTO}
+)
+
+qt_add_grpc(signaling_grpc CLIENT
+  PROTO_FILES ${SIGNALING_PROTO}
+)
+
+target_link_libraries(signaling_grpc PRIVATE signaling_proto)
+
 add_subdirectory(src/application)
 add_subdirectory(src/ui)
 add_subdirectory(src/ui/controls)
@@ -50,6 +64,10 @@ target_link_libraries(direct-link PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
     directlink_appplugin
     directlink_uiplugin
     directlink_ui_controlsplugin
