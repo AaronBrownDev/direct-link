@@ -122,8 +122,14 @@ func TestRedisStoreIntegration(t *testing.T) {
 		}
 		sessions = append(sessions, r.session)
 	}
-
+	seen := make(map[string]struct{}, len(sessions))
 	for _, sess := range sessions {
+		if _, exists := seen[sess.RoomCode]; exists {
+			t.Errorf("duplicate room code detected: %s", sess.RoomCode)
+		}
+		seen[sess.RoomCode] = struct{}{}
+	}
+	for idx, sess := range sessions {
 
 		retrieved, err := store.GetSession(ctx, sess.ID)
 		if err != nil {
@@ -146,6 +152,17 @@ func TestRedisStoreIntegration(t *testing.T) {
 		// Test 4: Access control
 		if err := store.GrantAccess(ctx, sess.ID, "camera-test", "camera"); err != nil {
 			t.Fatalf("GrantAccess failed: %v", err)
+		}
+
+		if len(sessions) > 1 {
+			otherSess := sessions[(idx+1)%len(sessions)]
+			crossAccess, err := store.HasAccess(ctx, otherSess.ID, "camera-test")
+			if err != nil {
+				t.Fatalf("HasAccess cross-session check failed: %v", err)
+			}
+			if crossAccess {
+				t.Errorf("access leaked from %s into %s", sess.ID, otherSess.ID)
+			}
 		}
 
 		hasAccess, err := store.HasAccess(ctx, sess.ID, "camera-test")
