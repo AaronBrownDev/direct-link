@@ -104,7 +104,7 @@ func (s *Server) joinAsDirector(req *pb.JoinRequest, sess *session.Session) (*pb
 
 	return &pb.JoinReply{
 		Token:      token,
-		LivekitUrl: s.cfg.LiveKitHost,
+		LivekitUrl: s.cfg.LiveKitExternalURL,
 	}, nil
 }
 

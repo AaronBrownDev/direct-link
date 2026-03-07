@@ -22,9 +22,10 @@ type Config struct {
 	SessionTTL        time.Duration
 
 	// LiveKit connection
-	LiveKitHost      string
-	LiveKitAPIKey    string
-	LiveKitAPISecret string
+	LiveKitHost        string
+	LiveKitExternalURL string
+	LiveKitAPIKey      string
+	LiveKitAPISecret   string
 }
 
 func DefaultConfig() Config {
@@ -44,9 +45,10 @@ func DefaultConfig() Config {
 		RedisWriteTimeout: 3 * time.Second,
 		SessionTTL:        24 * time.Hour,
 
-		LiveKitHost:      "http://livekit:7880",
-		LiveKitAPIKey:    "devkey", // dev default
-		LiveKitAPISecret: "secret", // dev default
+		LiveKitHost:        "http://livekit:7880",
+		LiveKitExternalURL: "ws://localhost:7880",
+		LiveKitAPIKey:      "devkey", // dev default
+		LiveKitAPISecret:   "secret", // dev default
 	}
 }
 
@@ -63,6 +65,10 @@ func LoadConfig() Config {
 
 	if host := os.Getenv("LIVEKIT_HOST"); host != "" {
 		cfg.LiveKitHost = host
+	}
+
+	if url := os.Getenv("LIVEKIT_EXTERNAL_URL"); url != "" {
+		cfg.LiveKitExternalURL = url
 	}
 
 	if key := os.Getenv("LIVEKIT_API_KEY"); key != "" {
