@@ -48,7 +48,7 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 	case "camera":
 		return s.joinAsCamera(ctx, req, sess)
 	case "director":
-		return s.joinAsDirector(ctx, req, sess)
+		return s.joinAsDirector(req, sess)
 	default:
 		return nil, status.Error(codes.InvalidArgument, "role must be 'camera' or 'director'")
 	}
@@ -81,7 +81,7 @@ func (s *Server) joinAsCamera(ctx context.Context, req *pb.JoinRequest, sess *se
 	}, nil
 }
 
-func (s *Server) joinAsDirector(ctx context.Context, req *pb.JoinRequest, sess *session.Session) (*pb.JoinReply, error) {
+func (s *Server) joinAsDirector(req *pb.JoinRequest, sess *session.Session) (*pb.JoinReply, error) {
 	canPublish, canSubscribe := false, true
 
 	at := auth.NewAccessToken(s.cfg.LiveKitAPIKey, s.cfg.LiveKitAPISecret)

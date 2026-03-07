@@ -92,22 +92,22 @@ func TestJoinSession(t *testing.T) {
 		role           string
 		ingressErr     error
 		wantErr        bool
-		wantWhipUrl    bool
+		wantWhipURL    bool
 		wantStreamKey  bool
 		wantToken      bool
-		wantLivekitUrl bool
+		wantLivekitURL bool
 	}{
 		{
 			name:          "camera role returns WHIP credentials",
 			role:          "camera",
-			wantWhipUrl:   true,
+			wantWhipURL:   true,
 			wantStreamKey: true,
 		},
 		{
 			name:           "director role returns JWT token",
 			role:           "director",
 			wantToken:      true,
-			wantLivekitUrl: true,
+			wantLivekitURL: true,
 		},
 		{
 			name:       "camera role with ingress failure returns error",
@@ -147,7 +147,7 @@ func TestJoinSession(t *testing.T) {
 				return
 			}
 
-			if tt.wantWhipUrl && reply.WhipUrl == "" {
+			if tt.wantWhipURL && reply.WhipUrl == "" {
 				t.Error("expected non-empty whip_url")
 			}
 			if tt.wantStreamKey && reply.StreamKey == "" {
@@ -156,10 +156,10 @@ func TestJoinSession(t *testing.T) {
 			if tt.wantToken && reply.Token == "" {
 				t.Error("expected non-empty token")
 			}
-			if tt.wantLivekitUrl && reply.LivekitUrl == "" {
+			if tt.wantLivekitURL && reply.LivekitUrl == "" {
 				t.Error("expected non-empty livekit_url")
 			}
-			if !tt.wantWhipUrl && reply.WhipUrl != "" {
+			if !tt.wantWhipURL && reply.WhipUrl != "" {
 				t.Error("unexpected whip_url in reply")
 			}
 			if !tt.wantToken && reply.Token != "" {
