@@ -2,6 +2,8 @@ package signaling
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
@@ -122,7 +124,7 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 
 	// Generate session ID and room code
 	sessionID := session.NewSessionID()
-	roomCode, err := session.NewRoomCode()
+	roomCode, err := generateUniqueRoomCodes(ctx, s.store, 5)
 	if err != nil {
 		s.logger.Error("failed to generate room code", "error", err)
 		return nil, status.Error(codes.Internal, "room_code was not generated")
@@ -250,4 +252,23 @@ func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest
 		})
 	}
 	return &pb.GetMySessionsReply{Sessions: pbSessions}, nil
+}
+
+func generateUniqueRoomCodes(ctx context.Context, store session.Store, maxAttempts int) (string, error) {
+	for range maxAttempts {
+		code, err := session.NewRoomCode()
+		if err != nil {
+			return "", err
+		}
+		// Check if the generated room code is unique
+		_, err = store.GetSessionByRoomCode(ctx, code)
+		if errors.Is(err, session.ErrInvalidRoomCode) {
+			return code, nil
+		}
+		if err != nil {
+			return "", err
+		}
+
+	}
+	return "", fmt.Errorf("failed to generate unique room code after %d attempts", maxAttempts)
 }
