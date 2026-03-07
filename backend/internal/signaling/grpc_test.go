@@ -52,7 +52,7 @@ func newUnitTestServer(t *testing.T, mock *mockIngressClient) *Server {
 	}
 
 	return &Server{
-		cfg:             Config{LiveKitHost: "http://localhost:7880", LiveKitAPIKey: "devkey", LiveKitAPISecret: "secret"},
+		cfg:             Config{LiveKitHost: "http://localhost:7880", LiveKitExternalURL: "ws://localhost:7880", LiveKitAPIKey: "devkey", LiveKitAPISecret: "secret"},
 		store:           store,
 		logger:          slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 		lkIngressClient: mock,
