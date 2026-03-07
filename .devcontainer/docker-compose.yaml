@@ -49,10 +49,11 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
+    dns: 127.0.0.11
     ports:
       - "7880:7880" # HTTP + WebSocket signaling
       - "7881:7881" # RTC (WebRTC) TCP fallback
-      - "50000-50100:50000-50100/udp" # WebRTC UDP media
+      - "50200-50300:50200-50300/udp" # WebRTC UDP media
     volumes:
       - ../backend/configs/livekit.yaml:/etc/livekit.yaml
     command: >
