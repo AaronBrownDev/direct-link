@@ -9,7 +9,6 @@ option go_package = "github.com/AaronBrownDev/direct-link/shared/protocol/signal
 service SignalingService {
     // JoinSession authenticates a user and returns a LiveKit token for direct media connection
     rpc JoinSession(JoinRequest) returns (JoinReply);
-<<<<<<< Updated upstream
     // CreateSession creates a new production session and returns a room code
     rpc CreateSession(CreateSessionRequest) returns (CreateSessionReply);
     // CloseSession closes a active session, only the owner can do this
@@ -17,24 +16,17 @@ service SignalingService {
     // GetMySessions returns all sessions creates by the requesting user
     rpc GetMySessions(GetMySessionsRequest) returns (GetMySessionsReply);
 
-=======
->>>>>>> Stashed changes
 }
 
 // JoinRequest initiates joining a session
 message JoinRequest {
-<<<<<<< Updated upstream
     string room_code =1; // Room/session to join
-=======
-    string session_id = 1; // Room/session to join
->>>>>>> Stashed changes
     string user_id = 2; // Unique identifier for who is requesting
     string role = 3; // "camera" or "director"
 }
 
 // JoinReply provides credentials for connecting to LiveKit
 message JoinReply {
-<<<<<<< Updated upstream
     string token = 1; // LiveKit JWT access token (directors only)
     string livekit_url = 2; // LiveKit server URL for media connection (directors only)
     string whip_url = 3; // WHIP endpoint (cameras only)
@@ -80,8 +72,4 @@ message SessionInfo{
     string status = 3; // "active" or "closed"
     int32 max_cameras = 4;
     string created_at = 5; // RFC3339 formatted timestamp
-=======
-    string token = 1; // LiveKit JWT access token
-    string livekit_url = 2; // LiveKit server URL for media connection
->>>>>>> Stashed changes
 }
