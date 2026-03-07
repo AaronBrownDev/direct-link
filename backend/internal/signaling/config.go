@@ -44,7 +44,7 @@ func DefaultConfig() Config {
 		RedisWriteTimeout: 3 * time.Second,
 		SessionTTL:        24 * time.Hour,
 
-		LiveKitHost:      "http://localhost:7880",
+		LiveKitHost:      "http://livekit:7880",
 		LiveKitAPIKey:    "devkey", // dev default
 		LiveKitAPISecret: "secret", // dev default
 	}

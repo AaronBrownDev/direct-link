@@ -13,12 +13,13 @@ import (
 
 // Key prefixes following the technical design
 const (
-	sessionPrefix       = "session:"
-	sessionAccessSuffix = ":access"
-	roomCodePrefix      = "roomcode:"
-	userSessionsPrefix  = "user:"
-	activeSessionsKey   = "sessions:active"
-	defaultSessionTTL   = 24 * time.Hour
+	sessionPrefix        = "session:"
+	sessionAccessSuffix  = ":access"
+	sessionIngressSuffix = ":ingress_ids"
+	roomCodePrefix       = "roomcode:"
+	userSessionsPrefix   = "user:"
+	activeSessionsKey    = "sessions:active"
+	defaultSessionTTL    = 24 * time.Hour
 )
 
 // RedisStore implements the Store interface using redis
@@ -358,6 +359,33 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) (sessio
 		sessions = append(sessions, *session)
 	}
 	return sessions, nil
+}
+
+// AddIngressID stores an ingress ID against a session for later cleanup.
+func (r *RedisStore) AddIngressID(ctx context.Context, sessionID, ingressID string) (err error) {
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("add_ingress_id", err, start)
+	}()
+
+	key := sessionPrefix + sessionID + sessionIngressSuffix
+	pipe := r.client.Pipeline()
+	pipe.SAdd(ctx, key, ingressID)
+	pipe.Expire(ctx, key, r.sessionTTL)
+	_, err = pipe.Exec(ctx)
+	return err
+}
+
+// GetIngressIDs returns all ingress IDs associated with a given session.
+func (r *RedisStore) GetIngressIDs(ctx context.Context, sessionID string) (ids []string, err error) {
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("get_ingress_ids", err, start)
+	}()
+
+	key := sessionPrefix + sessionID + sessionIngressSuffix
+	ids, err = r.client.SMembers(ctx, key).Result()
+	return ids, err
 }
 
 // Ping checks Redis availability

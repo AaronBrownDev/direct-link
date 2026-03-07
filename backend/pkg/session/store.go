@@ -20,6 +20,10 @@ type Store interface {
 	// User Sessions
 	GetUserSessions(ctx context.Context, userID string) ([]Session, error)
 
+	// Ingress tracking (cleanup on session close)
+	AddIngressID(ctx context.Context, sessionID, ingressID string) error
+	GetIngressIDs(ctx context.Context, sessionID string) ([]string, error)
+
 	// Health check
 	Ping(ctx context.Context) error
 

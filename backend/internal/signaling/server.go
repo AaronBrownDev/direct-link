@@ -20,15 +20,16 @@ import (
 )
 
 type Server struct {
-	cfg        Config
-	httpServer *http.Server
-	grpcServer *grpc.Server
-	logger     *slog.Logger
-	ready      atomic.Bool
-	lkClient   *lksdk.RoomServiceClient
-	store      session.Store
-	metrics    *metrics.Metrics
-	srvMetrics *grpcprom.ServerMetrics
+	cfg             Config
+	httpServer      *http.Server
+	grpcServer      *grpc.Server
+	logger          *slog.Logger
+	ready           atomic.Bool
+	lkClient        *lksdk.RoomServiceClient // TODO: implement delete room logic
+	lkIngressClient ingressClient
+	store           session.Store
+	metrics         *metrics.Metrics
+	srvMetrics      *grpcprom.ServerMetrics
 	pb.UnimplementedSignalingServiceServer
 }
 
@@ -52,7 +53,7 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	// Create new gRPC server and register
 	s.initGRPC()
 
-	// Initialize LiveKit room service client
+	// Initialize LiveKit room service and ingress client
 	s.initLiveKit()
 
 	return s
@@ -139,6 +140,12 @@ func (s *Server) initGRPC() {
 func (s *Server) initLiveKit() {
 
 	s.lkClient = lksdk.NewRoomServiceClient(
+		s.cfg.LiveKitHost,
+		s.cfg.LiveKitAPIKey,
+		s.cfg.LiveKitAPISecret,
+	)
+
+	s.lkIngressClient = lksdk.NewIngressClient(
 		s.cfg.LiveKitHost,
 		s.cfg.LiveKitAPIKey,
 		s.cfg.LiveKitAPISecret,
