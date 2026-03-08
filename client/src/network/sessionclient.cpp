@@ -97,14 +97,14 @@ void SessionClient::closeSession(const QString &roomCode, const QString &userId)
     QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             qWarning() << "CloseSession failed:" << status.message();
-            emit error(status.message());
+            emit sessionClosed(false);
             return;
         }
 
         auto resp = reply->read<CloseSessionReply>();
         if (resp && resp->success()) {
-            qDebug() << "Session closed";
-            emit sessionClosed();
+            qDebug() << "Session closed.";
+            emit sessionClosed(true);
         }
     });
 }

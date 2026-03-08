@@ -66,6 +66,7 @@ target_include_directories(direct-link PRIVATE
 
 target_include_directories(test_signaling_client PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
     ${CMAKE_BINARY_DIR}
 )
 
@@ -87,6 +88,7 @@ target_link_libraries(direct-link PRIVATE
 
 target_link_libraries(test_signaling_client PRIVATE
     Qt6::Core
+    Qt6::Quick
     Qt6::Protobuf
     Qt6::Grpc
     signaling_proto

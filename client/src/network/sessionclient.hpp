@@ -28,7 +28,7 @@ signals:
     void directorJoined(const QString &token, const QString &livekitUrl);
     void cameraJoined(const QString &whipUrl, const QString &streamKey);
 
-    void sessionClosed();
+    void sessionClosed(bool success);
 
     void sessionsReceived(const QStringList &roomCodes);
 
