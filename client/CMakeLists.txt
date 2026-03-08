@@ -27,6 +27,10 @@ qt_add_executable(direct-link
         resources.qrc
     )
 
+qt_add_executable(test_signaling_client
+    tests/test_signaling_client.cpp
+)
+
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
@@ -54,9 +58,15 @@ add_subdirectory(src/application)
 add_subdirectory(src/ui)
 add_subdirectory(src/ui/controls)
 add_subdirectory(src/ui/theme)
+add_subdirectory(src/network)
 
 target_include_directories(direct-link PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_include_directories(test_signaling_client PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_BINARY_DIR}
 )
 
 target_link_libraries(direct-link PRIVATE
@@ -72,6 +82,16 @@ target_link_libraries(direct-link PRIVATE
     directlink_uiplugin
     directlink_ui_controlsplugin
     directlink_ui_themeplugin
+    directlink_networkplugin
+)
+
+target_link_libraries(test_signaling_client PRIVATE
+    Qt6::Core
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
+    directlink_networkplugin
 )
 
 if(Qt6_VERSION VERSION_LESS 6.1.0)
