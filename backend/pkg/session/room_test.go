@@ -61,8 +61,8 @@ func TestRedis_NewRoomCode(t *testing.T) {
 		}
 
 		suffix := strings.TrimPrefix(code, "ROOM-")
-		if len(suffix) != 4 {
-			t.Errorf("expected 4-digit suffix, got %q (len=%d)", suffix, len(suffix))
+		if len(suffix) != 6 {
+			t.Errorf("expected 6-digit suffix, got %q (len=%d)", suffix, len(suffix))
 		}
 
 		for _, ch := range suffix {
