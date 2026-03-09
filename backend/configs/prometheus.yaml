@@ -13,3 +13,21 @@ scrape_configs:
           environment: "dev"
     metrics_path: "/metrics"
     scrape_interval: 5s  # Scrape more frequently for development
+
+  - job_name: "livekit-server"
+    static_configs:
+      - targets: ["livekit:9091"]
+        labels:
+          service: "livekit"
+          environment: "dev"
+    metrics_path: "/metrics"
+    scrape_interval: 5s
+
+  - job_name: "ingress-server"
+    static_configs:
+      - targets: ["host.docker.internal:9092"]
+        labels:
+          service: "ingress"
+          environment: "dev"
+    metrics_path: "/metrics"
+    scrape_interval: 5s
