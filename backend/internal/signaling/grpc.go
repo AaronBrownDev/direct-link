@@ -122,7 +122,7 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 
 	// Generate session ID and room code
 	sessionID := session.NewSessionID()
-	roomCode, err := session.NewRoomCode()
+	roomCode, err := session.NewRoomCode(ctx, s.store)
 	if err != nil {
 		s.logger.Error("failed to generate room code", "error", err)
 		return nil, status.Error(codes.Internal, "room_code was not generated")

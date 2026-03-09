@@ -1,6 +1,7 @@
 package session_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -46,8 +47,11 @@ func TestRedis_NewSessionID(t *testing.T) {
 
 // Tests RoomCode
 func TestRedis_NewRoomCode(t *testing.T) {
+	testStore, _ := newSessionTestStore(t)
+	defer testStore.Close()
+	ctx := context.Background()
 	t.Run("is valid room code format", func(t *testing.T) {
-		code, err := session.NewRoomCode()
+		code, err := session.NewRoomCode(ctx, testStore)
 		if err != nil {
 			t.Fatalf("NewRoomCode returned error: %v", err)
 		}
@@ -57,8 +61,8 @@ func TestRedis_NewRoomCode(t *testing.T) {
 		}
 
 		suffix := strings.TrimPrefix(code, "ROOM-")
-		if len(suffix) != 4 {
-			t.Errorf("expected 4-digit suffix, got %q (len=%d)", suffix, len(suffix))
+		if len(suffix) != 6 {
+			t.Errorf("expected 6-digit suffix, got %q (len=%d)", suffix, len(suffix))
 		}
 
 		for _, ch := range suffix {
@@ -69,10 +73,11 @@ func TestRedis_NewRoomCode(t *testing.T) {
 	})
 
 	t.Run("is unique across all calls", func(t *testing.T) {
+
 		seen := make(map[string]struct{}, 200)
 		collisions := 0
 		for range 200 {
-			code, err := session.NewRoomCode()
+			code, err := session.NewRoomCode(ctx, testStore)
 			if err != nil {
 				t.Errorf("NewRoomCode returned an error: %v", err)
 			}

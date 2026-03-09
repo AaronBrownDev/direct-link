@@ -90,82 +90,115 @@ func TestRedisStoreIntegration(t *testing.T) {
 	}
 
 	// Test 2: Create and retrieve session
-	sessionID := fmt.Sprintf("integration-test-%d", time.Now().UnixNano())
-
-	sess := &session.Session{
-		ID:         sessionID,
-		RoomCode:   "INT-TEST",
-		CreatedBy:  "test-director",
-		CreatedAt:  time.Now(),
-		MaxCameras: 10,
-		Status:     "active",
+	type result struct {
+		session *session.Session
+		err     error
 	}
+	const n = 20
 
-	if err := store.CreateSession(ctx, sess); err != nil {
-		t.Fatalf("Create Session failed: %v", err)
+	results := make(chan result, n)
+
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			ts := time.Now().UnixNano()
+			sess := &session.Session{
+				ID:         fmt.Sprintf("concurrent-test-%d-%d", i, ts),
+				RoomCode:   fmt.Sprintf("CON-TEST-%d-%d", i, ts),
+				CreatedBy:  "test-director",
+				CreatedAt:  time.Now(),
+				MaxCameras: 10,
+				Status:     "active",
+			}
+			err := store.CreateSession(ctx, sess)
+			results <- result{sess, err}
+		}(i)
 	}
-	defer func() {
-		if err := store.DeleteSession(ctx, sessionID); err != nil {
-			t.Logf("failed to delete session: %v", err)
+	var sessions []*session.Session
+	for i := 0; i < n; i++ {
+		r := <-results
+		if r.err != nil {
+			t.Errorf("CreateSession failed: %v", r.err)
+			continue
 		}
-	}()
-
-	retrieved, err := store.GetSession(ctx, sessionID)
-	if err != nil {
-		t.Fatalf("GetSession failed: %v", err)
+		sessions = append(sessions, r.session)
 	}
-	if retrieved.RoomCode != sess.RoomCode {
-		t.Errorf("expected RoomCode %s, got %s", sess.RoomCode, retrieved.RoomCode)
+	seen := make(map[string]struct{}, len(sessions))
+	for _, sess := range sessions {
+		if _, exists := seen[sess.RoomCode]; exists {
+			t.Errorf("duplicate room code detected: %s", sess.RoomCode)
+		}
+		seen[sess.RoomCode] = struct{}{}
 	}
+	for idx, sess := range sessions {
 
-	// Test 3 : Room code lookup
-	byCode, err := store.GetSessionByRoomCode(ctx, "INT-TEST")
-	if err != nil {
-		t.Fatalf("GetSessionByRoomCode failed %v", err)
+		retrieved, err := store.GetSession(ctx, sess.ID)
+		if err != nil {
+			t.Fatalf("GetSession failed: %v", err)
+		}
+		if retrieved.RoomCode != sess.RoomCode {
+			t.Errorf("expected RoomCode %s, got %s", sess.RoomCode, retrieved.RoomCode)
+		}
+
+		// Test 3 : Room code lookup
+		byCode, err := store.GetSessionByRoomCode(ctx, sess.RoomCode)
+		if err != nil {
+			t.Fatalf("GetSessionByRoomCode failed %v", err)
+		}
+
+		if byCode.ID != sess.ID {
+			t.Errorf("expected session ID %s, got %s", sess.ID, byCode.ID)
+		}
+
+		// Test 4: Access control
+		if err := store.GrantAccess(ctx, sess.ID, "camera-test", "camera"); err != nil {
+			t.Fatalf("GrantAccess failed: %v", err)
+		}
+
+		if len(sessions) > 1 {
+			otherSess := sessions[(idx+1)%len(sessions)]
+			crossAccess, err := store.HasAccess(ctx, otherSess.ID, "camera-test")
+			if err != nil {
+				t.Fatalf("HasAccess cross-session check failed: %v", err)
+			}
+			if crossAccess {
+				t.Errorf("access leaked from %s into %s", sess.ID, otherSess.ID)
+			}
+		}
+
+		hasAccess, err := store.HasAccess(ctx, sess.ID, "camera-test")
+		if err != nil {
+			t.Fatalf("HasAccess failed: %v", err)
+		}
+
+		if !hasAccess {
+			t.Error("expected camera-test to have access")
+		}
+
+		// Test 5: Update session status
+		if err := store.UpdateSessionStatus(ctx, sess.ID, "closed"); err != nil {
+			t.Fatalf("UpdateSessionStatus failed: %v", err)
+		}
+
+		updated, err := store.GetSession(ctx, sess.ID)
+		if err != nil {
+			t.Fatalf("GetSession failed after update: %v", err)
+		}
+
+		if updated.Status != "closed" {
+			t.Errorf("expected status 'closed', got '%s'", updated.Status)
+		}
+
+		// Test 6: Cleanup
+		if err := store.DeleteSession(ctx, sess.ID); err != nil {
+			t.Fatalf("DeleteSession failed: %v", err)
+		}
+
+		_, err = store.GetSession(ctx, sess.ID)
+		if !errors.Is(err, session.ErrSessionNotFound) {
+			t.Errorf("expected ErrSessionNotFound after deletion, got %v", err)
+		}
+
+		t.Log("\n All integration tests passed!")
+
 	}
-
-	if byCode.ID != sessionID {
-		t.Errorf("expected session ID %s, got %s", sessionID, byCode.ID)
-	}
-
-	// Test 4: Access control
-	if err := store.GrantAccess(ctx, sessionID, "camera-test", "camera"); err != nil {
-		t.Fatalf("GrantAccess failed: %v", err)
-	}
-
-	hasAccess, err := store.HasAccess(ctx, sessionID, "camera-test")
-	if err != nil {
-		t.Fatalf("HasAccess failed: %v", err)
-	}
-
-	if !hasAccess {
-		t.Error("expected camera-test to have access")
-	}
-
-	// Test 5: Update session status
-	if err := store.UpdateSessionStatus(ctx, sessionID, "closed"); err != nil {
-		t.Fatalf("UpdateSessionStatus failed: %v", err)
-	}
-
-	updated, err := store.GetSession(ctx, sessionID)
-	if err != nil {
-		t.Fatalf("GetSession failed after update: %v", err)
-	}
-
-	if updated.Status != "closed" {
-		t.Errorf("expected status 'closed', got '%s'", updated.Status)
-	}
-
-	// Test 6: Cleanup
-	if err := store.DeleteSession(ctx, sessionID); err != nil {
-		t.Fatalf("DeleteSession failed: %v", err)
-	}
-
-	_, err = store.GetSession(ctx, sessionID)
-	if !errors.Is(err, session.ErrSessionNotFound) {
-		t.Errorf("expected ErrSessionNotFound after deletion, got %v", err)
-	}
-
-	t.Log("\n All integration tests passed!")
-
 }
