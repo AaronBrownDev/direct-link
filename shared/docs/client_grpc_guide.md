@@ -10,13 +10,13 @@
 
 ## *Overview*
 
-The signaling server is the **control plane** for DirectLink. It manages production sessions and issues LiveKit access tokens so clients can stream media. The server does not route video or audio — that is handled entirely by LiveKit after the client receives a token.
+The signaling server is the **control plane** for DirectLink. It manages production sessions and issues LiveKit access tokens for directors and WHIP credentials for camera operators, so clients can stream media. The server does not route video or audio — that is handled entirely by LiveKit after the client receives a token.
 
 **What the signaling server does:**
 
 - Creates and tracks production sessions in Redis.
-- Maps human-readable room codes (e.g. `ROOM-0472`) to internal session IDs.
-- Generates LiveKit JWT tokens with role-based permissions.
+- Maps human-readable room codes (e.g. `ROOM-000472`) to internal session IDs.
+- Generates tokens using role-based permissions.
 - Enforces ownership rules (only the session creator can close it).
 - Exposes Prometheus metrics and Kubernetes health probes.
 
@@ -51,7 +51,7 @@ This  section documents the endpoints that will be used by the client to `Create
             "user_id": "director-123"
             "max_cameras": 4
         - Response
-            "room_code":"ROOM-1234"
+            "room_code":"ROOM-123456"
     ```
         
 
@@ -59,12 +59,16 @@ This  section documents the endpoints that will be used by the client to `Create
     1. **Purpose**: The endpoint allows directors and other users to join the session
     2. **Who calls it**: Users that have access
     3. **Request fields**: 
-        - **Room Code (string)**: The ROOM-XXXX code received from the session creator
+        - **Room Code (string)**: The ROOM-XXXXXX code received from the session creator
         - **UserId(string)**: Identifier for the participating joining
         - **Role(string)**: Must be exactly `"camera"` or `"director"`
     4. **Response fields**: 
-        - **Live kit access Token (string)**: LiveKit JWT access token. Valid for 1 hour
-        - **Live kit server url (string)**: LiveKit server URL for the client to connect to (e.g `https://localhost:7880`)
+        - Directors
+            1.  **Live kit access Token (string)**: LiveKit JWT access token. 
+            2. **Live kit server url (string)**: LiveKit server URL for the client to connect to (e.g `https://localhost:7880`)
+        - Camera Operators 
+            1.  **Whip URL (string)**: The whip url endpoint (cameras only)
+            2.  **Stream Key (string)**: The stream key for camera operators.
     5. **All possible errors**:
         - `Invalid Argument`: User Id is required
         - `Invalid Argument`: Role is required
@@ -76,12 +80,16 @@ This  section documents the endpoints that will be used by the client to `Create
     6. **An example**:
     ```
         - Request:
-            "room_code": "ROOM-1234"
+            "room_code": "ROOM-123456"
             "user_id": "director-123"
-            "role": "camera"
+            "role": "camera" (or "director")
         - Response:
-            "token": " really long string"
-            "livekitUrl": "livekit URL"
+            1. Director
+                "token": "really long string"
+                "livekitUrl": "livekit URL"
+            2. Camera Operator
+                "whip_url:"whip_url"
+                "stream_key": key
         
     ```
 - **Close Session**
@@ -98,7 +106,7 @@ This  section documents the endpoints that will be used by the client to `Create
     6. **An example**:
     ```
         - Request :
-            "room_code": "ROOM-XXXX"
+            "room_code": "ROOM-XXXXXX"
             "user_id": "director-1"
 
          - Reply :
@@ -176,7 +184,7 @@ This model holds the information in the GetMySessions will return.
 | `camera` | Yes | No | Sends video/audio to the room. Cannot view other streams. |
 | `director` | No | Yes | Receives all streams in the room. Cannot publish. |
 
-These permissions are baked into the LiveKit JWT token returned by `JoinSession`. The LiveKit server enforces them — the signaling server only generates the token.
+These permissions are baked into the LiveKit JWT token, for the director, and WHIP url, for the camera, returned by `JoinSession`. The LiveKit server enforces them — the signaling server only generates the token.
 
 **Room code as access control:** Knowing a valid, active room code is sufficient to join a session. The signaling server auto-grants access on `JoinSession`.
 
@@ -219,7 +227,7 @@ Expected response:
 
 ```json
 {
-  "roomCode": "ROOM-0472"
+  "roomCode": "ROOM-000472"
 }
 ```
 
@@ -227,17 +235,24 @@ Expected response:
 
 ```bash
 grpcurl -plaintext \
-  -d '{"room_code": "ROOM-0472", "user_id": "camera-test", "role": "camera"}' \
+  -d '{"room_code": "ROOM-000472", "user_id": "camera-test", "role": "camera/director"}' \
   dev:50051 \
   directlink.signaling.SignalingService/JoinSession
 ```
 
 Expected response:
-
+- Director
+```json
+    {
+  "token": "eyJhbGciOiJIUzI1...",
+  "livekitUrl": "ws://localhost:7880"
+}
+```
+- Camera
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "livekitUrl": "http://localhost:7880"
+  "whipUrl": "http://localhost:8080/whip",
+  "streamKey": "9JNMrfddGxQN"
 }
 ```
 
@@ -274,7 +289,7 @@ Expected response:
   "sessions": [
     {
       "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "roomCode": "ROOM-0472",
+      "roomCode": "ROOM-000472",
       "createdAt": "1740825600",
       "maxCameras": 4,
       "status": "closed"
@@ -297,12 +312,12 @@ Two flows, written as numbered pseudocode steps:
 2. Camera flow
     - User enters the room_code they received (e.g. typed in a dialog)
     - Call JoinSession with role: "camera" and that room_code
-    - Receive token and livekit_url
-    - Connect to LiveKit using the LiveKit SDK with those values
+    - Receive stream key and whip_url
+    - Connect to LiveKit Ingress Service via WHIP with these values 
 
 3. Closing flow:
     - Director calls CloseSession with their user_id and room_code
-    - On success, disconnect from LiveKit and return to the home screen
+    - On success, disconnect from LiveKit and return to the home screen. For camera operators, stops the WHIP stream 
 
 ## *Error handling guide*
 
