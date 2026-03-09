@@ -1,3 +1,13 @@
+/*
+ * File: sessionclient.cpp
+ * Author: Justin Williams
+ * Date: 3/8/26
+ * File Description: A class implementing a SessionClient wrapper. The
+ * SessionClient exposes gRPC stub methods to Qt, allowing QML
+ * files to invoke the methods. A session can be created, joined, and
+ * closed. A list of a user's active sessions can also be retreived.
+ */
+
 #include <QDebug>
 #include "sessionclient.hpp"
 
@@ -17,9 +27,8 @@ void SessionClient::createSession(const QString &userId, int maxCameras) {
     req.setMaxCameras(maxCameras);
 
     auto reply = m_client.CreateSession(req);
-    auto *reply_ptr = reply.get();
 
-    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
+    QObject::connect(reply.get(), &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             qWarning() << "CreateSession failed:" << status.message();
             emit error(status.message());
@@ -32,10 +41,10 @@ void SessionClient::createSession(const QString &userId, int maxCameras) {
             return;
         }
 
-        QString roomCode = resp->roomCode();
-        qDebug() << "Room code:" << roomCode;
+        QString room_code = resp->roomCode();
+        qDebug() << "Room code:" << room_code;
 
-        emit sessionCreated(resp->roomCode());
+        emit sessionCreated(room_code);
     });
 }
 
@@ -46,9 +55,8 @@ void SessionClient::joinSession(const QString &roomCode, const QString &userId, 
     req.setRole(role);
 
     auto reply = m_client.JoinSession(req);
-    auto *reply_ptr = reply.get();
 
-    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
+    QObject::connect(reply.get(), &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             qWarning() << "JoinSession failed:" << status.message();
             emit error(status.message());
@@ -64,20 +72,20 @@ void SessionClient::joinSession(const QString &roomCode, const QString &userId, 
         if (!resp->token().isEmpty()) {
             // Director
             QString token = resp->token();
-            QString livekitUrl = resp->livekitUrl();
+            QString livekit_url = resp->livekitUrl();
 
             qDebug() << "Token:" << token.left(40) << "...";
-            qDebug() << "LiveKit URL:" << livekitUrl;
-            emit directorJoined(token, livekitUrl);
+            qDebug() << "LiveKit URL:" << livekit_url;
+            emit directorJoined(token, livekit_url);
         }
         else if (!resp->whipUrl().isEmpty()) {
             // Camera
-            QString whipUrl = resp->whipUrl();
-            QString streamKey = resp->streamKey();
+            QString whip_url = resp->whipUrl();
+            QString stream_key = resp->streamKey();
 
-            qDebug() << "WHIP URL:" << whipUrl;
-            qDebug() << "Stream key:" << streamKey;
-            emit cameraJoined(whipUrl, streamKey);
+            qDebug() << "WHIP URL:" << whip_url;
+            qDebug() << "Stream key:" << stream_key;
+            emit cameraJoined(whip_url, stream_key);
         }
         else {
             qWarning() << "JoinReply had no credentials for either role";
@@ -92,9 +100,8 @@ void SessionClient::closeSession(const QString &roomCode, const QString &userId)
     req.setUserId(userId);
 
     auto reply = m_client.CloseSession(req);
-    auto *reply_ptr = reply.get();
 
-    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
+    QObject::connect(reply.get(), &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             qWarning() << "CloseSession failed:" << status.message();
             emit sessionClosed(false);
@@ -114,9 +121,8 @@ void SessionClient::getMySessions(const QString &userId) {
     req.setUserId(userId);
 
     auto reply = m_client.GetMySessions(req);
-    auto *reply_ptr = reply.get();
 
-    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
+    QObject::connect(reply.get(), &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             emit error(status.message());
             return;
@@ -128,15 +134,15 @@ void SessionClient::getMySessions(const QString &userId) {
             return;
         }
 
-        QStringList roomCodes;
+        QStringList room_codes;
 
         for (const auto &session : resp->sessions()) {
             qDebug() << session.roomCode()
                      << session.status()
                      << session.maxCameras();
-            roomCodes << session.roomCode();
+            room_codes << session.roomCode();
         }
 
-        emit sessionsReceived(roomCodes);
+        emit sessionsReceived(room_codes);
     });
 }

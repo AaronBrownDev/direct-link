@@ -1,5 +1,4 @@
 #pragma once
-
 #include <QObject>
 #include <QQmlEngine>
 #include <QtGrpc/QGrpcHttp2Channel>
