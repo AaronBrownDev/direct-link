@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y \
     clang-tidy-18 \
     pkg-config \
     libgtest-dev \
+    python3-pip \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 RUN ln -sf /usr/bin/clang-tidy-18 /usr/bin/clang-tidy \
@@ -46,6 +48,24 @@ ENV CXX=g++
 ENV CC=gcc
 
 # Install Qt
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-dev \
+    libglib2.0-0 \
+    libdbus-1-3 \
+    libfontconfig1 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV QT_VERSION=6.10.2
+ENV QT_INSTALL_DIR=/opt/Qt
+
+RUN pip install aqtinstall --break-system-packages \
+    && python3 -m aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
+    --outputdir ${QT_INSTALL_DIR} \
+    -m qtmultimedia qtshadertools qtgrpc
+
+ENV PATH=${QT_INSTALL_DIR}/${QT_VERSION}/gcc_64/bin:${PATH}
+ENV CMAKE_PREFIX_PATH=${QT_INSTALL_DIR}/${QT_VERSION}/gcc_64
+ENV LD_LIBRARY_PATH=${QT_INSTALL_DIR}/${QT_VERSION}/gcc_64/lib:${LD_LIBRARY_PATH}
 
 # Runs the following commands as vscode so /go/pkg/mod/ is not owned by root
 USER vscode

@@ -9,7 +9,7 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia Protobuf Grpc)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED
     libavcodec
@@ -27,6 +27,10 @@ qt_add_executable(direct-link
         resources.qrc
     )
 
+qt_add_executable(test_signaling_client
+    tests/test_signaling_client.cpp
+)
+
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
@@ -36,13 +40,34 @@ set(QML_IMPORT_PATH
     CACHE STRING "Qt Creator extra qml import paths" FORCE
 )
 
+
+# Protobuf and gRPC code generation from signaling.proto
+set(SIGNALING_PROTO "${CMAKE_CURRENT_SOURCE_DIR}/../shared/protocol/signaling.proto")
+
+qt_add_protobuf(signaling_proto
+  PROTO_FILES ${SIGNALING_PROTO}
+)
+
+qt_add_grpc(signaling_grpc CLIENT
+  PROTO_FILES ${SIGNALING_PROTO}
+)
+
+target_link_libraries(signaling_grpc PRIVATE signaling_proto)
+
 add_subdirectory(src/application)
 add_subdirectory(src/ui)
 add_subdirectory(src/ui/controls)
 add_subdirectory(src/ui/theme)
+add_subdirectory(src/network)
 
 target_include_directories(direct-link PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_include_directories(test_signaling_client PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
+    ${CMAKE_BINARY_DIR}
 )
 
 target_link_libraries(direct-link PRIVATE
@@ -50,10 +75,25 @@ target_link_libraries(direct-link PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
     directlink_appplugin
     directlink_uiplugin
     directlink_ui_controlsplugin
     directlink_ui_themeplugin
+    directlink_networkplugin
+)
+
+target_link_libraries(test_signaling_client PRIVATE
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
+    directlink_networkplugin
 )
 
 if(Qt6_VERSION VERSION_LESS 6.1.0)
