@@ -89,6 +89,12 @@ Thumbs.db
 /.qmake.cache
 /.qmake.stash
 
+# Qt protobuf/gRPC
+*.qpb.h
+*.qpb.cpp
+*.grpc.qpb.h
+*.grpc.qpb.cpp
+
 # Qt Creator
 *.pro.user*
 CMakeLists.txt.user*
