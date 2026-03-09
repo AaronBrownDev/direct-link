@@ -1,0 +1,53 @@
+# --- Version control ---
+**/.git
+**/.gitkeep
+**/.gitignore
+**/.gitattributes
+
+# --- IDE / editor ---
+**/.vscode
+**/.idea
+**/*.swp
+**/*.swo
+**/Thumbs.db
+**/.DS_Store
+
+# --- Build artifacts ---
+**/build/
+**/bin/
+**/cmake-build-*/
+**/*.test
+**/coverage.*
+**/*.coverprofile
+**/*.out
+
+# --- Environment / secrets ---
+**/.env
+
+# --- Directories not needed for signaling server ---
+.devcontainer/
+.github/
+docs/
+client/
+video-core/
+networking/
+infrastructure/
+scripts/
+tests/
+
+# --- Config files irrelevant to the Docker build ---
+.editorconfig
+.clang-format
+.clang-tidy
+
+# --- Docs (not source) ---
+*.md
+!backend/README.md
+LICENSE
+
+# --- Binary / media assets ---
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.svg
+**/*.mp4

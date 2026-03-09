@@ -1,0 +1,76 @@
+# Production-like stack for testing the signaling server container image.
+# Mirrors the deployment topology: signaling runs from its built image
+# (not source-mounted), talking to Redis, LiveKit, and Ingress.
+#
+# Usage:
+#   docker build -f backend/Dockerfile -t directlink/signaling:dev .
+#   docker compose -f docker-compose.prod.yaml up
+#   docker compose -f docker-compose.prod.yaml down
+
+services:
+  signaling:
+    image: directlink/signaling:dev
+    ports:
+      - "8081:8081"   # HTTP: health, metrics, webhooks
+      - "50051:50051" # gRPC
+    environment:
+      - REDIS_ADDR=redis:6379
+      - LIVEKIT_HOST=http://livekit:7880
+      - LIVEKIT_EXTERNAL_URL=ws://localhost:7880
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+    depends_on:
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+      start_period: 10s
+
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50200-50300:50200-50300/udp"
+    volumes:
+      - ./backend/configs/livekit.yaml:/etc/livekit.yaml
+    command: >
+      --config /etc/livekit.yaml
+      --bind 0.0.0.0
+      --node-ip 0.0.0.0
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  ingress:
+    image: livekit/ingress:latest
+    network_mode: host
+    environment:
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+      - LIVEKIT_WS_URL=ws://localhost:7880
+      - INGRESS_CONFIG_FILE=/etc/ingress.yaml
+    volumes:
+      - ./backend/configs/ingress.yaml:/etc/ingress.yaml
+    depends_on:
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+
+volumes:
+  redis-data:
+    driver: local
