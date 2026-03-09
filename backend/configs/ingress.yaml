@@ -12,4 +12,5 @@ whip_port: 8080
 rtmp_port: 1935
 
 health_port: 8090
-prometheus_port: 9091
+http_relay_port: 17932 # defaults to 9090 which conflicts with prometheus due to ingress requiring `network_mode: host` in docker. So set to obscure port to avoid conflicts.
+prometheus_port: 9092
