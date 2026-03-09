@@ -47,6 +47,22 @@ RUN apt-get update && apt-get install -y \
 ENV CXX=g++
 ENV CC=gcc
 
+# Install GStreamer dev libraries
+RUN apt-get update && apt-get install -y \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install WebRTC plugin for GStreamer
+COPY --from=livekit/gstreamer:1.22.8-prod-rs \
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstwebrtchttp.so \
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/
+
 # Install Qt
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-dev \
