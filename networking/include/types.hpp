@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <string_view>
 
-
 namespace networking {
 enum class Result : std::uint8_t {
     Success,

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "types.hpp"
 #include "../../video-core/include/common/types.hpp"
+#include "types.hpp"
 #include <functional>
 #include <memory>
 #include <string>
@@ -23,6 +23,15 @@ public:
     Result stop();
 
     void pushPacket(std::unique_ptr<videoCore::Frame> packet);
-    bool isRunning() const;
+    [[nodiscard]] bool isRunning() const noexcept { return running_; }
+
+private:
+    std::string whipUrl_;
+    std::string streamKey_;
+    std::function<void(std::string)> onErrorCallback_;
+    bool running_ = false;
+    GstElement *pipeline_ = nullptr;
+    GstElement *appsrc_ = nullptr;
+    std::uint64_t frameCount_ = 0;
 };
 } // namespace networking
