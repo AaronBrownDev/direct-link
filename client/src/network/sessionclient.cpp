@@ -27,8 +27,9 @@ void SessionClient::createSession(const QString &userId, int maxCameras) {
     req.setMaxCameras(maxCameras);
 
     auto reply = m_client.CreateSession(req);
+    auto *reply_ptr = reply.get();
 
-    QObject::connect(reply.get(), &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
+    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             qWarning() << "CreateSession failed:" << status.message();
             emit error(status.message());
@@ -55,8 +56,9 @@ void SessionClient::joinSession(const QString &roomCode, const QString &userId, 
     req.setRole(role);
 
     auto reply = m_client.JoinSession(req);
+    auto *reply_ptr = reply.get();
 
-    QObject::connect(reply.get(), &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
+    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             qWarning() << "JoinSession failed:" << status.message();
             emit error(status.message());
@@ -100,8 +102,9 @@ void SessionClient::closeSession(const QString &roomCode, const QString &userId)
     req.setUserId(userId);
 
     auto reply = m_client.CloseSession(req);
+    auto *reply_ptr = reply.get();
 
-    QObject::connect(reply.get(), &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
+    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             qWarning() << "CloseSession failed:" << status.message();
             emit sessionClosed(false);
@@ -121,8 +124,9 @@ void SessionClient::getMySessions(const QString &userId) {
     req.setUserId(userId);
 
     auto reply = m_client.GetMySessions(req);
+    auto *reply_ptr = reply.get();
 
-    QObject::connect(reply.get(), &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
+    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
             emit error(status.message());
             return;

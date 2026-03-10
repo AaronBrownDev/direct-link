@@ -10,8 +10,14 @@
 class SessionClient : public QObject {
     Q_OBJECT
     QML_ELEMENT
+    QML_SINGLETON
 public:
     explicit SessionClient(QObject *parent = nullptr);
+
+    static SessionClient *create(QQmlEngine *, QJSEngine *) {
+        static SessionClient instance;
+        return &instance;
+    }
 
     void connectToServer(const QUrl &url);
 
