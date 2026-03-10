@@ -28,11 +28,11 @@ The signaling server is the **control plane** for DirectLink. It manages product
 
 ## *API Endpoints*
 
-This  section documents the endpoints that will be used by the client to `Create Session`, `Join Session`, `Close Session`, `Get My Sessions`
+This section documents the endpoints that will be used by the client to `Create Session`, `Join Session`, `Close Session`, `Get My Sessions`.
 
 - **Create Session**
     1. **Purpose**: This endpoint creates a session
-    2. **Who calls it**: The director is the only user that create a session.
+    2. **Who calls it**: The director is the only user that can create a session.
     3. **Request fields**: 
         - **User_id (string)**: Identifier for the director creating the session. Becomes the session owner.
         - **Max_Cameras (int 32)**: Maximum number of camera operators allowed. Must be greater than 0. 
@@ -60,15 +60,15 @@ This  section documents the endpoints that will be used by the client to `Create
     2. **Who calls it**: Users that have access
     3. **Request fields**: 
         - **Room Code (string)**: The ROOM-XXXXXX code received from the session creator
-        - **UserId(string)**: Identifier for the participating joining
-        - **Role(string)**: Must be exactly `"camera"` or `"director"`
+        - **UserId (string)**: Identifier for the participant joining
+        - **Role (string)**: Must be exactly `"camera"` or `"director"`
     4. **Response fields**: 
         - Directors
-            1.  **Live kit access Token (string)**: LiveKit JWT access token. 
-            2. **Live kit server url (string)**: LiveKit server URL for the client to connect to (e.g `https://localhost:7880`)
-        - Camera Operators 
-            1.  **Whip URL (string)**: The whip url endpoint (cameras only)
-            2.  **Stream Key (string)**: The stream key for camera operators.
+            1. **LiveKit Access Token (string)**: LiveKit JWT access token.
+            2. **LiveKit Server URL (string)**: LiveKit server URL for the client to connect to (e.g. `ws://localhost:7880`)
+        - Camera Operators
+            1. **WHIP URL (string)**: The WHIP URL endpoint (cameras only)
+            2. **Stream Key (string)**: The stream key for camera operators.
     5. **All possible errors**:
         - `Invalid Argument`: User Id is required
         - `Invalid Argument`: Role is required
@@ -88,14 +88,17 @@ This  section documents the endpoints that will be used by the client to `Create
             "token": "really long string"
             "livekitUrl": "livekit URL"
         2. Camera Operator
-            "whip_url:"whip_url"
-            "stream_key": key        
+            "whip_url": "whip_url"
+            "stream_key": "key"
     ```
 - **Close Session**
     1. **Purpose**: This endpoint closes sessions
     2. **Who calls it**: Directors who create the session
-    3. **Request fields**: Room Code(string), UserId(string)
-    4. **Response fields**: A success message (bool)
+    3. **Request fields**:
+        - **Room Code (string)**: The ROOM-XXXXXX code for the session to close
+        - **UserId (string)**: Must match the session owner
+    4. **Response fields**:
+        - **Success (bool)**: Whether the session was closed successfully
     5. **All possible errors**:
         - `Invalid Argument`: Room code is required
         - `Invalid Argument`: User Id is required
@@ -104,11 +107,10 @@ This  section documents the endpoints that will be used by the client to `Create
         - `Internal`: Failed to close session
     6. **An example**:
     ```
-    - Request :
+    - Request:
         "room_code": "ROOM-XXXXXX"
         "user_id": "director-1"
-
-        - Reply :
+    - Reply:
         "success": true
     ```
 
@@ -118,8 +120,8 @@ This  section documents the endpoints that will be used by the client to `Create
     3. **Request fields**: UserId (string)
     4. **Response fields**: A list of sessions ( each with `session_id` (string), `room_code`(string), `created_at`(string), `max_cameras`(int 32), `status`(string))
     5. **All possible errors**:
-        - User Id is required
-        - Failed to retrieve sessions
+        - `Invalid Argument`: User Id is required
+        - `Internal`: Failed to retrieve sessions
     6. **An example**:
     ```
     - Request :
@@ -144,7 +146,7 @@ This  section documents the endpoints that will be used by the client to `Create
 
 ## *Data Models*
 
-There are two data models that relate to the data needed for sessions. When one is created, or when the data is called by the user
+There are two data models that relate to the data needed for sessions. When one is created, or when the data is called by the user.
 
 **Session**
 
@@ -162,7 +164,8 @@ The model holds the information the CreateSession call will send to the redis an
 
 **Session Info**
 
-This model holds the information in the GetMySessions will return.
+This model holds the information the GetMySessions call will return.
+
 | Key Pattern | Type | TTL | Description |
 |---|---|---|---|
 | `session:{session_id}` | Hash | 24h | Session metadata |
@@ -241,7 +244,7 @@ grpcurl -plaintext \
 Expected response:
 - Director
 ```json
-    {
+{
   "token": "eyJhbGciOiJIUzI1...",
   "livekitUrl": "ws://localhost:7880"
 }
@@ -317,7 +320,7 @@ Two flows, written as numbered pseudocode steps:
     - Director calls CloseSession with their user_id and room_code
     - On success, disconnect from LiveKit and return to the home screen. For camera operators, stops the WHIP stream 
 
-## *Error handling guide*
+## *Error Handling Guide*
 
 This section defines how to handle error types.
 
