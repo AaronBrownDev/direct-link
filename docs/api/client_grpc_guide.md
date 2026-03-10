@@ -89,8 +89,7 @@ This  section documents the endpoints that will be used by the client to `Create
                 "livekitUrl": "livekit URL"
             2. Camera Operator
                 "whip_url:"whip_url"
-                "stream_key": key
-        
+                "stream_key": key        
     ```
 - **Close Session**
     1. **Purpose**: This endpoint closes sessions
@@ -135,8 +134,7 @@ This  section documents the endpoints that will be used by the client to `Create
                 "maxCameras": 4,
                 "status": "closed"
             }
-    ]  
-    
+    ]      
     ```
     **Important Notes for Client Team**: 
 
