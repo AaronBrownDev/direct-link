@@ -187,18 +187,18 @@ func TestServer_GetMySessions(t *testing.T) {
 
 // TestJoinSession_ByRoomCode tests if the user is able to join with just a room code
 func TestServer_JoinSession(t *testing.T) {
-	t.Run("join session successful", func(t *testing.T) {
-		srv := newTestServer(t)
-		ctx := context.Background()
+	srv := newTestServer(t)
+	ctx := context.Background()
+	createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+		UserId:     "director-join",
+		MaxCameras: 4,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	t.Run("director join session successful", func(t *testing.T) {
 
-		createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
-			UserId:     "director-join",
-			MaxCameras: 4,
-		})
-		if err != nil {
-			t.Fatalf("CreateSession: %v", err)
-		}
-		_, err = srv.JoinSession(ctx, &pb.JoinRequest{
+		dirResp, err := srv.JoinSession(ctx, &pb.JoinRequest{
 			RoomCode: createResp.RoomCode,
 			UserId:   "director-join",
 			Role:     "director",
@@ -207,13 +207,35 @@ func TestServer_JoinSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("JoinSession: %v", err)
 		}
+
+		if dirResp.Token == "" {
+			t.Error("expected token for director role")
+		}
+		if dirResp.LivekitUrl == "" {
+			t.Error("expected livekit url for director role")
+		}
+	})
+
+	t.Run("camera join session successful", func(t *testing.T) {
+		camResp, err := srv.JoinSession(ctx, &pb.JoinRequest{
+			RoomCode: createResp.RoomCode,
+			UserId:   "camera-join",
+			Role:     "camera",
+		})
+		if err != nil {
+			t.Fatalf("JoinSession: %v", err)
+		}
+
+		if camResp.WhipUrl == "" {
+			t.Error("expected whip url for camera role")
+		}
+		if camResp.StreamKey != "" {
+			t.Error("expected empty stream key for camera role")
+		}
 	})
 
 	t.Run("user not allowed to close session", func(t *testing.T) {
-		srv := newTestServer(t)
-		ctx := context.Background()
-
-		createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+		createResp, err = srv.CreateSession(ctx, &pb.CreateSessionRequest{
 			UserId:     "director-close",
 			MaxCameras: 4,
 		})
@@ -224,6 +246,7 @@ func TestServer_JoinSession(t *testing.T) {
 			RoomCode: createResp.RoomCode,
 			UserId:   "director-close",
 		})
+
 		if err != nil {
 			t.Fatalf("CloseSession: %v", err)
 		}
