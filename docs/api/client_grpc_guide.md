@@ -47,11 +47,11 @@ This  section documents the endpoints that will be used by the client to `Create
 
     6. **An example**:
     ```
-        - Request:
-            "user_id": "director-123"
-            "max_cameras": 4
-        - Response
-            "room_code":"ROOM-123456"
+    - Request:
+        "user_id": "director-123"
+        "max_cameras": 4
+    - Response
+        "room_code":"ROOM-123456"
     ```
         
 
@@ -79,17 +79,17 @@ This  section documents the endpoints that will be used by the client to `Create
         - `Internal`: Failed to generate access token
     6. **An example**:
     ```
-        - Request:
-            "room_code": "ROOM-123456"
-            "user_id": "director-123"
-            "role": "camera" (or "director")
-        - Response:
-            1. Director
-                "token": "really long string"
-                "livekitUrl": "livekit URL"
-            2. Camera Operator
-                "whip_url:"whip_url"
-                "stream_key": key        
+    - Request:
+        "room_code": "ROOM-123456"
+        "user_id": "director-123"
+        "role": "camera" (or "director")
+    - Response:
+        1. Director
+            "token": "really long string"
+            "livekitUrl": "livekit URL"
+        2. Camera Operator
+            "whip_url:"whip_url"
+            "stream_key": key        
     ```
 - **Close Session**
     1. **Purpose**: This endpoint closes sessions
@@ -104,12 +104,12 @@ This  section documents the endpoints that will be used by the client to `Create
         - `Internal`: Failed to close session
     6. **An example**:
     ```
-        - Request :
-            "room_code": "ROOM-XXXXXX"
-            "user_id": "director-1"
+    - Request :
+        "room_code": "ROOM-XXXXXX"
+        "user_id": "director-1"
 
-         - Reply :
-            "success": true
+        - Reply :
+        "success": true
     ```
 
 - **Get My Sessions**
@@ -122,18 +122,18 @@ This  section documents the endpoints that will be used by the client to `Create
         - Failed to retrieve sessions
     6. **An example**:
     ```
-        - Request :
-            "user_id": "director-1"
-        
-        - Reply :
-            "sessions": [
-            {
-                "sessionId": "4796a4de-909e-41bf-9391-582da619c6ed",
-                "roomCode": "ROOM-9281",
-                "createdAt": "1772413469",
-                "maxCameras": 4,
-                "status": "closed"
-            }
+    - Request :
+        "user_id": "director-1"
+    
+    - Reply :
+        "sessions": [
+        {
+            "sessionId": "4796a4de-909e-41bf-9391-582da619c6ed",
+            "roomCode": "ROOM-9281",
+            "createdAt": "1772413469",
+            "maxCameras": 4,
+            "status": "closed"
+        }
     ]      
     ```
     **Important Notes for Client Team**: 
