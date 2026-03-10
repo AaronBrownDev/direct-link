@@ -6,7 +6,7 @@
 - [Integration Guide](#integration-guide)
 - [Example Flows](#example-flows)
 - [Error Handling Guide](#error-handling-guide)
-- [HTTP Health EndPoints](#http-health-endpoints)
+- [HTTP Health Endpoints](#http-health-endpoints)
 
 ## *Overview*
 
@@ -31,15 +31,15 @@ The signaling server is the **control plane** for DirectLink. It manages product
 This section documents the endpoints that will be used by the client to `Create Session`, `Join Session`, `Close Session`, `Get My Sessions`.
 
 - **Create Session**
-    1. **Purpose**: This endpoint creates a session
+    1. **Purpose**: This endpoint creates a session.
     2. **Who calls it**: The director is the only user that can create a session.
-    3. **Request fields**: 
+    3. **Request fields**:
         - **User_id (string)**: Identifier for the director creating the session. Becomes the session owner.
-        - **Max_Cameras (int 32)**: Maximum number of camera operators allowed. Must be greater than 0. 
-    4. **Response fields**: 
+        - **Max_Cameras (int32)**: Maximum number of camera operators allowed. Must be greater than 0.
+    4. **Response fields**:
         - **Room Code (string)**: Human readable code (format: ROOM-XXXX) to share with participants.
     5. **All possible errors**:
-        - `Invalid Argument`: User Id required 
+        - `Invalid Argument`: User Id required
         - `Invalid Argument`: Max Cameras required
         - `Internal`: Show a generic error for these, ask the user to retry
             1. Failed to grant access
@@ -50,19 +50,18 @@ This section documents the endpoints that will be used by the client to `Create 
     - Request:
         "user_id": "director-123"
         "max_cameras": 4
-    - Response
-        "room_code":"ROOM-123456"
+    - Response:
+        "room_code": "ROOM-123456"
     ```
-        
 
 - **Join Session**
-    1. **Purpose**: The endpoint allows directors and other users to join the session
-    2. **Who calls it**: Users that have access
-    3. **Request fields**: 
+    1. **Purpose**: The endpoint allows directors and other users to join the session.
+    2. **Who calls it**: Users that have access.
+    3. **Request fields**:
         - **Room Code (string)**: The ROOM-XXXXXX code received from the session creator
         - **UserId (string)**: Identifier for the participant joining
         - **Role (string)**: Must be exactly `"camera"` or `"director"`
-    4. **Response fields**: 
+    4. **Response fields**:
         - Directors
             1. **LiveKit Access Token (string)**: LiveKit JWT access token.
             2. **LiveKit Server URL (string)**: LiveKit server URL for the client to connect to (e.g. `ws://localhost:7880`)
@@ -91,6 +90,7 @@ This section documents the endpoints that will be used by the client to `Create 
             "whip_url": "whip_url"
             "stream_key": "key"
     ```
+
 - **Close Session**
     1. **Purpose**: This endpoint closes sessions
     2. **Who calls it**: Directors who create the session
@@ -117,26 +117,26 @@ This section documents the endpoints that will be used by the client to `Create 
 - **Get My Sessions**
     1. **Purpose**: The endpoint allows users to get the sessions they have access to.
     2. **Who calls it**: Directors
-    3. **Request fields**: UserId (string)
-    4. **Response fields**: A list of sessions ( each with `session_id` (string), `room_code`(string), `created_at`(string), `max_cameras`(int 32), `status`(string))
+    3. **Request fields**:
+        - **UserId (string)**: The director whose sessions to fetch
+    4. **Response fields**: A list of sessions (each with `session_id` (string), `room_code` (string), `created_at` (string), `max_cameras` (int32), `status` (string))
     5. **All possible errors**:
         - `Invalid Argument`: User Id is required
         - `Internal`: Failed to retrieve sessions
     6. **An example**:
     ```
-    - Request :
+    - Request:
         "user_id": "director-1"
-    
-    - Reply :
+    - Reply:
         "sessions": [
-        {
-            "sessionId": "4796a4de-909e-41bf-9391-582da619c6ed",
-            "roomCode": "ROOM-9281",
-            "createdAt": "2026-03-10T15:30:45Z",
-            "maxCameras": 4,
-            "status": "closed"
-        }
-    ]      
+            {
+                "sessionId": "4796a4de-909e-41bf-9391-582da619c6ed",
+                "roomCode": "ROOM-9281",
+                "createdAt": "2026-03-10T15:30:45Z",
+                "maxCameras": 4,
+                "status": "closed"
+            }
+        ]
     ```
     **Important Notes for Client Team**:
 
@@ -153,7 +153,7 @@ There are two data models that relate to the data needed for sessions. When one 
 
 **Session**
 
-The model holds the information the CreateSession call will send to the redis and the grpc server.
+The model holds the information the CreateSession call will send to Redis and the gRPC server.
 
 | Field | Type | Description |
 |-------|------|---|
@@ -200,7 +200,7 @@ Internal storage details — not exposed directly to clients, but useful for deb
 | `camera` | Yes | No | Sends video/audio to the room. Cannot view other streams. |
 | `director` | No | Yes | Receives all streams in the room. Cannot publish. |
 
-These permissions are baked into the LiveKit JWT token, for the director, and WHIP url, for the camera, returned by `JoinSession`. The LiveKit server enforces them — the signaling server only generates the token.
+These permissions are baked into the LiveKit JWT token, for the director, and WHIP URL, for the camera, returned by `JoinSession`. The LiveKit server enforces them — the signaling server only generates the token.
 
 **Room code as access control:** Knowing a valid, active room code is sufficient to join a session. The signaling server auto-grants access on `JoinSession`.
 
@@ -287,7 +287,7 @@ Expected response:
 
 ```bash
 grpcurl -plaintext \
-  -d '{"room_code": "ROOM-0472", "user_id": "director-test"}' \
+  -d '{"room_code": "ROOM-000472", "user_id": "director-test"}' \
   dev:50051 \
   directlink.signaling.SignalingService/CloseSession
 ```
@@ -327,7 +327,7 @@ Expected response:
 
 ## *Example Flows*
 
-Two flows, written as numbered pseudocode steps:
+Three flows, written as numbered pseudocode steps:
 
 1. Director Flow
     - Call CreateSession with their user ID and camera limit
@@ -336,21 +336,21 @@ Two flows, written as numbered pseudocode steps:
     - Receive token and livekit_url
     - Connect to LiveKit using the LiveKit SDK with those values
 
-2. Camera flow
+2. Camera Flow
     - User enters the room_code they received (e.g. typed in a dialog)
     - Call JoinSession with role: "camera" and that room_code
     - Receive stream key and whip_url
-    - Connect to LiveKit Ingress Service via WHIP with these values 
+    - Connect to LiveKit Ingress Service via WHIP with these values
 
-3. Closing flow:
+3. Closing Flow
     - Director calls CloseSession with their user_id and room_code
-    - On success, disconnect from LiveKit and return to the home screen. For camera operators, stops the WHIP stream 
+    - On success, disconnect from LiveKit and return to the home screen. For camera operators, stops the WHIP stream
 
 ## *Error Handling Guide*
 
 This section defines how to handle error types.
 
-| grpc Status          | Plain meaning                      | General Meaning                             |
+| gRPC Status          | Plain meaning                      | General Meaning                             |
 |----------------------|------------------------------------|---------------------------------------------|
 | `InvalidArgument`    | You sent a bad or missing field    | Check request fields, show validation error |
 | `NotFound`           | Room Code does not exist           | Tell user the room code is invalid          |
