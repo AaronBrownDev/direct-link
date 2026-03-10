@@ -29,3 +29,8 @@ target_compile_options(directlink_networking
     PRIVATE
         ${GST_CFLAGS_OTHER}
 )
+
+target_sources(directlink_networking
+    PRIVATE
+        src/whip_publisher.cpp
+)
