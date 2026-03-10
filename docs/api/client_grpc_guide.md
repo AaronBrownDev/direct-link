@@ -132,16 +132,19 @@ This section documents the endpoints that will be used by the client to `Create 
         {
             "sessionId": "4796a4de-909e-41bf-9391-582da619c6ed",
             "roomCode": "ROOM-9281",
-            "createdAt": "1772413469",
+            "createdAt": "2026-03-10T15:30:45Z",
             "maxCameras": 4,
             "status": "closed"
         }
     ]      
     ```
-    **Important Notes for Client Team**: 
+    **Important Notes for Client Team**:
 
     - Closing a session does not disconnect LiveKit participants immediately. LiveKit may still have active connections until they time out or the LiveKit room is explicitly destroyed. The signaling server currently marks the session as closed in Redis, which prevents new joins.
     - A closed session cannot be reopened. The director must create a new session.
+    - **Calling JoinSession multiple times is safe.** Each call generates fresh credentials (a new JWT token for directors, a new WHIP ingress for cameras). The server does not track "connected" vs "disconnected" state — only whether the session is active or closed.
+    - **Camera operators can rejoin after disconnecting** by calling JoinSession again with the same room code. They do not need a new room code from the director.
+    - **Director tokens expire after 1 hour.** If the director's LiveKit connection drops due to token expiry, call JoinSession again to get a fresh token.
 
 
 ## *Data Models*
@@ -157,14 +160,26 @@ The model holds the information the CreateSession call will send to the redis an
 | `id` | `string` | UUID v4. Internal identifier and LiveKit room name. |
 | `room_code` | `string` | `ROOM-XXXX` format. Human-readable, shared with participants. |
 | `created_by` | `string` | User ID of the session creator/owner. |
-| `created_at` | `time.Time` | UTC timestamp of creation. |
+| `created_at` | `string` | RFC 3339 formatted UTC timestamp (e.g. `2026-03-10T15:30:45Z`). |
 | `max_cameras` | `int32` | Camera limit set at creation. |
 | `status` | `string` | `"active"` or `"closed"`. |
 
 
-**Session Info**
+**SessionInfo**
 
-This model holds the information the GetMySessions call will return.
+This model represents a single session returned by GetMySessions.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `session_id` | `string` | UUID v4. Internal identifier (informational only). |
+| `room_code` | `string` | `ROOM-XXXX` format. Primary identifier for the session. |
+| `status` | `string` | `"active"` or `"closed"`. |
+| `max_cameras` | `int32` | Camera limit set at creation. |
+| `created_at` | `string` | RFC 3339 formatted UTC timestamp (e.g. `2026-03-10T15:30:45Z`). |
+
+**Redis Key Schema**
+
+Internal storage details — not exposed directly to clients, but useful for debugging.
 
 | Key Pattern | Type | TTL | Description |
 |---|---|---|---|
@@ -232,24 +247,35 @@ Expected response:
 }
 ```
 
-### JoinSession
+### JoinSession (Director)
 
 ```bash
 grpcurl -plaintext \
-  -d '{"room_code": "ROOM-000472", "user_id": "camera-test", "role": "camera/director"}' \
+  -d '{"room_code": "ROOM-000472", "user_id": "director-test", "role": "director"}' \
   dev:50051 \
   directlink.signaling.SignalingService/JoinSession
 ```
 
 Expected response:
-- Director
+
 ```json
 {
   "token": "eyJhbGciOiJIUzI1...",
   "livekitUrl": "ws://localhost:7880"
 }
 ```
-- Camera
+
+### JoinSession (Camera)
+
+```bash
+grpcurl -plaintext \
+  -d '{"room_code": "ROOM-000472", "user_id": "camera-test", "role": "camera"}' \
+  dev:50051 \
+  directlink.signaling.SignalingService/JoinSession
+```
+
+Expected response:
+
 ```json
 {
   "whipUrl": "http://localhost:8080/whip",
@@ -291,7 +317,7 @@ Expected response:
     {
       "sessionId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "roomCode": "ROOM-000472",
-      "createdAt": "1740825600",
+      "createdAt": "2026-03-10T15:30:45Z",
       "maxCameras": 4,
       "status": "closed"
     }
