@@ -19,7 +19,7 @@ public:
         return &instance;
     }
 
-    void connectToServer(const QUrl &url);
+    Q_INVOKABLE void connectToServer(const QUrl &url);
 
     Q_INVOKABLE void createSession(const QString &userId, int maxCameras);
     Q_INVOKABLE void joinSession(const QString &roomCode, const QString &userId, const QString &role);

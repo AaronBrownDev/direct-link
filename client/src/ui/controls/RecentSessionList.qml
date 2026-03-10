@@ -10,6 +10,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import ui.controls
 import ui.theme
 
 /*
@@ -22,19 +23,49 @@ ColumnLayout {
     id: dl_session_list_layout
 
     signal sessionSelected(string roomCode, int maxCameras)
+    signal refreshClicked()
 
     spacing: 15
 
-    Text {
-        id: dl_session_list_label
+    RowLayout {
+        id: dl_session_list_header
 
-        Layout.alignment: Qt.AlignLeft
+        spacing: 20
 
-        text: "Recent Sessions"
-        color: Theme.textWhite
-        font.pointSize: 20
-        font.bold: true
+        Text {
+            id: dl_session_list_label
+
+            Layout.alignment: Qt.AlignLeft
+
+            text: "Recent Sessions"
+            color: Theme.textWhite
+            font.pointSize: 20
+            font.bold: true
+        }
+
+        DLButton {
+            id: dl_list_refresh
+
+            Layout.preferredHeight: 50
+            Layout.preferredWidth: 50
+
+            buttonType: DLButton.ButtonType.Neutral
+
+            onClicked: {
+                dl_session_list_layout.refreshClicked()
+            }
+
+            Image {
+                id: dl_list_refresh_icon
+
+                anchors.fill: parent
+                anchors.margins: 10
+                source: "qrc:/resources/icons/refreshIcon.png"
+            }
+        }
     }
+
+
 
     Rectangle {
         id: dl_session_list_bg

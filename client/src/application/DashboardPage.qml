@@ -11,6 +11,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import network
 import ui
 import ui.controls
 import ui.theme
@@ -18,6 +19,7 @@ import ui.theme
 ColumnLayout {
     id: dl_root_layout
 
+    property string user_id: ""
     property string user_type: "Director"
 
     ColumnLayout {
@@ -58,7 +60,11 @@ ColumnLayout {
                     max_camera_count: maxCameras,
                     room_code: roomCode
                })
-           }
+            }
+
+            onRefreshClicked: () => {
+                SessionClient.getMySessions(dl_root_layout.user_id)
+            }
         }
     }
 

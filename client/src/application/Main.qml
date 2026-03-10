@@ -11,14 +11,17 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
+import network
 import ui
 import ui.theme
 
 Window {
         id: root
 
+        property string user_id: "director-1"
         property string user_type: "Director"
         property real max_camera_count: 4
+        property url channel: "http://localhost:50051"
 
         visible: true
         minimumWidth: 1400
@@ -27,6 +30,10 @@ Window {
         height: minimumHeight
         color: Theme.background
         title: "DirectLink"
+
+        Component.onCompleted: {
+            SessionClient.connectToServer(channel)
+        }
 
         ColumnLayout {
             id: dl_main_layout
@@ -51,6 +58,7 @@ Window {
         Component {
             id: dl_dashboard_component
             DashboardPage {
+                user_id: root.user_id
                 user_type: root.user_type
             }
         }
