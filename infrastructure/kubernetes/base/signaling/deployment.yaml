@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signaling
+  labels:
+    app.kubernetes.io/name: signaling
+    app.kubernetes.io/component: signaling-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signaling
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signaling
+        app.kubernetes.io/component: signaling-server
+    spec:
+      containers:
+        - name: signaling
+          image: directlink/signaling:dev
+          ports:
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: REDIS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: directlink-config
+                  key: REDIS_ADDR
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: directlink-secret
+                  key: REDIS_PASSWORD
+            - name: LIVEKIT_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: directlink-config
+                  key: LIVEKIT_HOST
+            - name: LIVEKIT_EXTERNAL_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: directlink-config
+                  key: LIVEKIT_EXTERNAL_URL
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: directlink-secret
+                  key: LIVEKIT_API_KEY
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directlink-secret
+                  key: LIVEKIT_API_SECRET
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
