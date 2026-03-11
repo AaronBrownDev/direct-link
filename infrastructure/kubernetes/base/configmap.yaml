@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: directlink-config
+data:
+  REDIS_ADDR: "redis:6379"
+  LIVEKIT_HOST: "http://livekit:7880"
+  LIVEKIT_EXTERNAL_URL: "ws://localhost:7880"
