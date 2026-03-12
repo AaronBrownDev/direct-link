@@ -35,7 +35,7 @@ signals:
 
     void sessionClosed(bool success);
 
-    void sessionsReceived(const QStringList &roomCodes);
+    void sessionsReceived(const QVariantList &roomCodes);
 
     void error(const QString &message);
 

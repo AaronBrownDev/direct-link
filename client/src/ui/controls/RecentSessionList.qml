@@ -10,6 +10,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import network
 import ui.controls
 import ui.theme
 
@@ -85,11 +86,8 @@ ColumnLayout {
             clip: true
             spacing: 10
 
-            // Placeholder
             model: ListModel {
                 id: dl_session_model
-                ListElement { roomCode: "ROOM-1234"; roomStatus: "Open"; timestamp: "12:37 PM"; maxCameras: 4 }
-                ListElement { roomCode: "ROOM-5678"; roomStatus: "Closed"; timestamp: "08:00 AM"; maxCameras: 2 }
             }
 
             delegate: Rectangle {
@@ -110,7 +108,7 @@ ColumnLayout {
                     }
                     Text {
                         Layout.alignment: Qt.AlignLeft
-                        text: timestamp + " - " + roomStatus + " - " + maxCameras + " Cameras"
+                        text: "Created " + createdAt + " - " + roomStatus + " - " + maxCameras + " Cameras"
                         color: Theme.textMuted
                     }
                 }
@@ -124,6 +122,20 @@ ColumnLayout {
 
             }
 
+        }
+
+        Connections {
+            target: SessionClient
+
+            function onSessionsReceived(sessions) {
+                    dl_session_model.clear()
+                for (let i = 0; i < sessions.length; i++) {
+                    dl_session_model.append(sessions[i])
+                }
+            }
+            function onError(message) {
+                dl_session_model.clear()
+            }
         }
 
         Text {

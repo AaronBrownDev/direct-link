@@ -138,15 +138,21 @@ void SessionClient::getMySessions(const QString &userId) {
             return;
         }
 
-        QStringList room_codes;
+        QVariantList sessions;
 
         for (const auto &session : resp->sessions()) {
             qDebug() << session.roomCode()
                      << session.status()
                      << session.maxCameras();
-            room_codes << session.roomCode();
+
+            QVariantMap entry;
+            entry["roomCode"] = session.roomCode();
+            entry["roomStatus"] = session.status();
+            entry["maxCameras"] = static_cast<int>(session.maxCameras());
+            entry["createdAt"] = session.createdAt();
+            sessions.append(entry);
         }
 
-        emit sessionsReceived(room_codes);
+        emit sessionsReceived(sessions);
     });
 }

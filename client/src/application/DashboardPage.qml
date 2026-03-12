@@ -55,7 +55,9 @@ ColumnLayout {
             Layout.minimumHeight: 200
 
             onSessionSelected: (roomCode, maxCameras) => {
-               dl_root_layout.StackView.view.push(dl_session_page_component, {
+                SessionClient.joinSession(roomCode, dl_root_layout.user_id, dl_root_layout.user_type.toLowerCase())
+
+                dl_root_layout.StackView.view.push(dl_session_page_component, {
                     user_type: dl_root_layout.user_type,
                     max_camera_count: maxCameras,
                     room_code: roomCode
@@ -72,7 +74,9 @@ ColumnLayout {
         id: dl_dash_director_view
         DashboardDirectorView {
             onJoinClicked: (roomCode) => {
-               dl_root_layout.StackView.view.push(dl_session_page_component, {
+                SessionClient.joinSession(roomCode, dl_root_layout.user_id, dl_root_layout.user_type.toLowerCase())
+
+                dl_root_layout.StackView.view.push(dl_session_page_component, {
                   user_type: dl_root_layout.user_type,
                   room_code: roomCode
                 })
@@ -85,6 +89,8 @@ ColumnLayout {
             }
 
             onCreateClicked: (projectName, sessionDesc, qualitySettings, cameraCount) => {
+                SessionClient.createSession(dl_root_layout.user_id, cameraCount)
+
                 dl_root_layout.StackView.view.push(dl_session_page_component, {
                     user_type: dl_root_layout.user_type,
                     max_camera_count: cameraCount
