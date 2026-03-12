@@ -27,14 +27,27 @@ Rectangle {
     property string emptyText: ""
     property bool isCode: false
     property int maxLength: Number.MAX_VALUE
+
     readonly property string input: dl_field_input.text
 
     color: Theme.fieldBackground
     radius: 15
     border {
-        color: Theme.fieldHover
-        width: 2
+        width: 0
     }
+
+    states: [
+        State {
+            name: "invalid"
+            PropertyChanges {
+                target: dl_field
+                border.color: Theme.danger
+                border.width: 2
+            }
+        }
+    ]
+
+    signal fieldChanged(string newValue)
 
     Text {
         id: dl_field_label
@@ -73,6 +86,7 @@ Rectangle {
         selectionColor: Theme.primary
 
         onTextEdited: {
+            dl_field.state = ""
             if (dl_field.isCode) {
                 let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
                 clean = clean.substring(0,10)
@@ -82,6 +96,7 @@ Rectangle {
                 if (text !== clean)
                     text = clean
             }
+            dl_field.fieldChanged(text)
         }
     }
 }

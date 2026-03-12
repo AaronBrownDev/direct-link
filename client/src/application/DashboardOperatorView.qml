@@ -30,86 +30,17 @@ RowLayout {
 
     spacing: 20
 
-    Rectangle {
-        id: dl_join_session_bg
+    JoinSessionView {
+        id: dl_join_session_view
 
         Layout.fillWidth: true
         Layout.preferredHeight: 550
 
-        color: Theme.surface
-        radius: 15
+        showCameraField: true
+        canQuickJoin: dl_dash_view_layout.canQuickJoin
 
-        ColumnLayout {
-            id: dl_join_session_layout
-
-            anchors.fill: parent
-            anchors.margins: 20
-
-            Text {
-                id: dl_join_session_title
-
-                text: "Join Session"
-                color: Theme.textWhite
-                font.pointSize: 25
-                font.bold: true
-            }
-
-            DLTextField {
-                id: dl_session_code_field
-
-                Layout.topMargin: 50
-                Layout.preferredHeight: 65
-                Layout.fillWidth: true
-
-                label: "Session Code"
-                emptyText: "Enter 8-digit code"
-                maxLength: 9
-                isCode: true
-            }
-
-            DLTextField {
-                id: dl_camera_name_field
-
-                Layout.topMargin: 40
-                Layout.preferredHeight: 65
-                Layout.fillWidth: true
-
-                label: "Camera Name"
-                emptyText: "e.g. Camera A - Wide Angle"
-                maxLength: 32
-            }
-
-            Item { Layout.fillHeight: true }
-
-            DLButton {
-                id: dl_join_button
-
-                Layout.fillWidth: true
-                Layout.preferredHeight: 65
-
-                buttonType: DLButton.ButtonType.Primary
-                buttonText: "Join Session"
-
-                onClicked: {
-                    if (dl_session_code_field.input.length === 11)
-                        joinClicked(dl_session_code_field.input, dl_camera_name_field.input)
-                }
-            }
-
-            DLButton {
-                id: dl_quick_join_button
-
-                Layout.fillWidth: true
-                Layout.preferredHeight: 55
-                Layout.topMargin: 10
-
-                buttonType: DLButton.ButtonType.Neutral
-                buttonText: "Quick Join Last Session"
-                active: dl_dash_view_layout.canQuickJoin
-
-                onClicked: quickJoinClicked()
-            }
-        }
+        onJoinClicked: (roomCode, cameraName) => dl_dash_view_layout.joinClicked(roomCode)
+        onQuickJoinClicked: () => dl_dash_view_layout.quickJoinClicked()
     }
 
     Rectangle {

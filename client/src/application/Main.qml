@@ -30,7 +30,7 @@ Window {
 
         visible: true
         minimumWidth: 1400
-        minimumHeight: 1100
+        minimumHeight: 1200
         width: minimumWidth
         height: minimumHeight
         color: Theme.background
