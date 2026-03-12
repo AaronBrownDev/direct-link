@@ -75,7 +75,6 @@ target_link_libraries(direct-link PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
-    # Qt6::MultimediaQuick
     Qt6::Protobuf
     Qt6::Grpc
     signaling_proto

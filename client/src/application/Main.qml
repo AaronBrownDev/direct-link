@@ -113,6 +113,11 @@ Window {
                 SessionClient.createSession(root.user_id, maxCameras)
             }
 
+            function onSessionFetchRequested() {
+                root.current_operation = "getSessions"
+                SessionClient.getMySessions(root.user_id)
+            }
+
             function onSessionCloseRequested(roomCode) {
                 root.pending_close_room = roomCode
                 dl_session_close_popup.open()
@@ -121,11 +126,6 @@ Window {
             function onRoomCodeReceived(roomCode) {
                 dl_info_popup.displayText = "Room Successfully Created: " + roomCode
                 dl_info_popup.open()
-            }
-
-            function onErrorReceived(message) {
-                dl_error_popup.displayText = message
-                dl_error_popup.open()
             }
         }
 
@@ -146,7 +146,31 @@ Window {
                     user_type: "Operator",
                     room_code: root.last_room
                 })
-        }
+            }
+
+            function onError(msg) {
+                switch (root.current_operation) {
+                    case "getSessions":
+                        dl_error_popup.displayText = "Failed to retrieve sessions. Please try again."
+                        dl_error_popup.open()
+                        return
+                    case "joinSession":
+                        if (msg === "session is closed")
+                            dl_error_popup.displayText = "This session has ended."
+                        else
+                            dl_error_popup.displayText = "Failed to join session. Please try again."
+                        
+                        dl_error_popup.open()
+                        return
+                    case "createSession":
+                        dl_error_popup.displayText = "Failed to create session. Please try again."
+                        dl_error_popup.open()
+                        return
+                    default:
+                        dl_error_popup.displayText = "An error has occurred: " + msg
+                        dl_error_popup.open()
+                }
+            }
         }
 
         // Components

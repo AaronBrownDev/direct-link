@@ -56,7 +56,7 @@ Rectangle {
                 id: dl_session_join_status
 
                 visible: false
-                text: ""
+                text: "Please enter a valid code"
                 font.pointSize: 14
             }
 
@@ -89,7 +89,6 @@ Rectangle {
                         joinClicked(dl_session_code_field.input, dl_camera_name_field.input)
                     else {
                         dl_session_code_field.state = "invalid"
-                        dl_session_join_status.text = "Please enter a valid code."
                         dl_session_join_status.color = Theme.danger
                         dl_session_join_status.visible = true
                     }
@@ -118,7 +117,6 @@ Rectangle {
                 switch (msg) {
                     case "session not found":
                         dl_session_code_field.state = "invalid"
-                        dl_session_join_status.text = "Invalid room code."
                         dl_session_join_status.color = Theme.danger
                         dl_session_join_status.visible = true
                         return

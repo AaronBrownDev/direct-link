@@ -22,14 +22,11 @@ ColumnLayout {
     property string user_id: ""
     property string user_type: "Director"
     property bool canQuickJoin: false
-    property string current_operation: ""
 
     signal joinRequested(string roomCode)
     signal quickJoinRequested()
     signal createRequested(int maxCameras)
-
-    signal roomCodeReceived(string roomCode)
-    signal errorReceived(string message)
+    signal sessionFetchRequested()
 
     ColumnLayout {
         id: dl_content_layout
@@ -68,8 +65,7 @@ ColumnLayout {
             }
 
             onRefreshClicked: () => {
-                dl_root_layout.current_operation = "getSessions"
-                SessionClient.getMySessions(dl_root_layout.user_id)
+                dl_root_layout.sessionFetchRequested()
             }
         }
     }
@@ -107,35 +103,4 @@ ColumnLayout {
             }
         }
     }
-
-    Connections {
-        target: SessionClient
-
-        function onSessionCreated(roomCode) {
-            dl_root_layout.roomCodeReceived(roomCode)
-        }
-
-        function onError(msg) {
-            switch (dl_root_layout.current_operation) {
-                case "getSessions":
-                    dl_root_layout.errorReceived("Failed to retrieve sessions. Please try again.")
-                    dl_dash_recent_sessions.clearSessions()
-                    return
-                case "joinSession":
-                    if (msg === "session is closed")
-                        dl_root_layout.errorReceived("This session has ended.")
-                    else
-                        dl_root_layout.errorReceived("Failed to join session. Please try again.")
-                    return
-                case "createSession":
-                    dl_root_layout.errorReceived("Failed to create session. Please try again.")
-                    return
-                default:
-                    dl_root_layout.errorReceived("An error has occurred: " + msg)
-            }
-        }
-    }
-
-    
-
 }
