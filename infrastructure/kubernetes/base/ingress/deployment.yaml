@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingress
+  labels:
+    app.kubernetes.io/name: ingress
+    app.kubernetes.io/component: ingress-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ingress
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ingress
+        app.kubernetes.io/component: ingress-server
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: ingress
+          image: livekit/ingress:latest
+          args: ["--config", "/etc/ingress/ingress.yaml"]
+          ports:
+            - name: whip
+              containerPort: 8080
+              protocol: TCP
+            - name: rtmp
+              containerPort: 1935
+              protocol: TCP
+          env:
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: directlink-secret
+                  key: LIVEKIT_API_KEY
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directlink-secret
+                  key: LIVEKIT_API_SECRET
+            - name: LIVEKIT_WS_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: directlink-config
+                  key: LIVEKIT_HOST
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: ingress-config
+              mountPath: /etc/ingress
+              readOnly: true
+      volumes:
+        - name: ingress-config
+          configMap:
+            name: ingress-config
