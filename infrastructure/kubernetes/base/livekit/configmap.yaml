@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: livekit-config
+  labels:
+    app.kubernetes.io/name: livekit
+    app.kubernetes.io/component: sfu
+data:
+  livekit.yaml: |
+    port: 7880
+    rtc:
+      tcp_port: 7881
+      port_range_start: 50000
+      port_range_end: 60000
+      use_ice_lite: true
+    prometheus_port: 9091
+    redis:
+      address: redis:6379
+    keys:
+      changeme: changeme
+    webhook:
+      api_key: changeme
+      urls:
+        - http://signaling:8081/webhooks/livekit
+    ingress:
+      whip_base_url: http://localhost:8080/whip

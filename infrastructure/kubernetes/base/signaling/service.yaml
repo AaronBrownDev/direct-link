@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: signaling
+  labels:
+    app.kubernetes.io/name: signaling
+    app.kubernetes.io/component: signaling-server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: signaling
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+      protocol: TCP
+    - name: http
+      port: 8081
+      targetPort: http
+      protocol: TCP

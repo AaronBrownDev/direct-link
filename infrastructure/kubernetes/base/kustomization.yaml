@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: directlink
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: directlink
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - signaling/deployment.yaml
+  - signaling/service.yaml
+  - redis/deployment.yaml
+  - redis/service.yaml
+  - redis/pvc.yaml
+  - livekit/deployment.yaml
+  - livekit/service.yaml
+  - livekit/configmap.yaml
+  - ingress/deployment.yaml
+  - ingress/configmap.yaml
