@@ -17,6 +17,7 @@ import ui.controls
 ColumnLayout {
     id: dl_root_layout
 
+    property string user_id: ""
     property string user_type: "Director"
     property real max_camera_count: 4
     property string room_code: "XXXX-XXXX"

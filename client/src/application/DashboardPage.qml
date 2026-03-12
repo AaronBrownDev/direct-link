@@ -21,6 +21,7 @@ ColumnLayout {
 
     property string user_id: ""
     property string user_type: "Director"
+    property string last_room: ""
 
     ColumnLayout {
         id: dl_content_layout
@@ -55,13 +56,8 @@ ColumnLayout {
             Layout.minimumHeight: 200
 
             onSessionSelected: (roomCode, maxCameras) => {
+                dl_root_layout.last_room = roomCode
                 SessionClient.joinSession(roomCode, dl_root_layout.user_id, dl_root_layout.user_type.toLowerCase())
-
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                    user_type: dl_root_layout.user_type,
-                    max_camera_count: maxCameras,
-                    room_code: roomCode
-               })
             }
 
             onRefreshClicked: () => {
@@ -73,28 +69,19 @@ ColumnLayout {
     Component {
         id: dl_dash_director_view
         DashboardDirectorView {
-            onJoinClicked: (roomCode) => {
-                SessionClient.joinSession(roomCode, dl_root_layout.user_id, dl_root_layout.user_type.toLowerCase())
+            canQuickJoin: last_room.length === 11 ? true : false
 
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                  user_type: dl_root_layout.user_type,
-                  room_code: roomCode
-                })
+            onJoinClicked: (roomCode) => {
+                dl_root_layout.last_room = roomCode
+                SessionClient.joinSession(roomCode, dl_root_layout.user_id, "director")
             }
 
             onQuickJoinClicked: () => {
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                   user_type: dl_root_layout.user_type
-                })
+                SessionClient.joinSession(dl_root_layout.last_room, dl_root_layout.user_id, "director")
             }
 
             onCreateClicked: (projectName, sessionDesc, qualitySettings, cameraCount) => {
                 SessionClient.createSession(dl_root_layout.user_id, cameraCount)
-
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                    user_type: dl_root_layout.user_type,
-                    max_camera_count: cameraCount
-                })
             }
         }
     }
@@ -102,18 +89,36 @@ ColumnLayout {
     Component {
         id: dl_dash_operator_view
         DashboardOperatorView {
+            canQuickJoin: last_room.length === 11 ? true : false
+            
             onJoinClicked: (roomCode, cameraName) => {
-               dl_root_layout.StackView.view.push(dl_session_page_component, {
-                  user_type: dl_root_layout.user_type,
-                  room_code: roomCode
-                })
+                dl_root_layout.last_room = roomCode
+                SessionClient.joinSession(roomCode, dl_root_layout.user_id, "camera")
             }
 
             onQuickJoinClicked: () => {
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                   user_type: dl_root_layout.user_type
-                })
+                SessionClient.joinSession(dl_root_layout.last_room, dl_root_layout.user_id, "camera")
             }
+        }
+    }
+
+    Connections {
+        target: SessionClient
+
+        function onDirectorJoined(token, livekitUrl) {
+            dl_root_layout.StackView.view.push(dl_session_page_component, {
+                user_id: dl_root_layout.user_id,
+                user_type: "Director",
+                room_code: dl_root_layout.last_room
+            })
+        }
+
+        function onCameraJoined(whipUrl, streamKey) {
+            dl_root_layout.StackView.view.push(dl_session_page_component, {
+                  user_id: dl_root_layout.user_id,
+                  user_type: "Operator",
+                  room_code: dl_root_layout.last_room
+                })
         }
     }
 

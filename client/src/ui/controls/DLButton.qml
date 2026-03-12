@@ -31,20 +31,21 @@ Rectangle {
 
     property string buttonText: ""
     property int buttonType: DLButton.ButtonType.Primary
+    property bool active: true
 
     signal clicked()
 
     color: switch (buttonType) {
            case DLButton.ButtonType.Neutral:
-               if (dl_button_area.pressed) return Theme.fieldPressed
+               if (dl_button_area.pressed || !active) return Theme.fieldPressed
                if (dl_button_area.containsMouse) return Theme.fieldHover
                return Theme.fieldBackground
            case DLButton.ButtonType.Danger:
-               if (dl_button_area.pressed) return Theme.dangerPressed
+               if (dl_button_area.pressed || !active) return Theme.dangerPressed
                if (dl_button_area.containsMouse) return Theme.dangerHover
                return Theme.danger
            default:
-               if (dl_button_area.pressed) return Theme.primaryPressed
+               if (dl_button_area.pressed || !active) return Theme.primaryPressed
                if (dl_button_area.containsMouse) return Theme.primaryHover
                return Theme.primary
     }
@@ -57,14 +58,17 @@ Rectangle {
         font.pointSize: 14
         font.bold: true
         text: buttonText
-        color: Theme.textWhite
+        color: active ? Theme.textWhite : Theme.textMuted
     }
 
     MouseArea {
         id: dl_button_area
         anchors.fill: parent
         hoverEnabled: true
-        onClicked: dl_button_bg.clicked()
+        onClicked: {
+            if (active)
+                dl_button_bg.clicked()
+        }
     }
 
 }

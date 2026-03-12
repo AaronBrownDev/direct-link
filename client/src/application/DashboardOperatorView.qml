@@ -23,6 +23,8 @@ import ui.theme
 RowLayout {
     id: dl_dash_view_layout
 
+    property bool canQuickJoin: false
+
     signal joinClicked(string roomCode, string cameraName)
     signal quickJoinClicked()
 
@@ -103,6 +105,7 @@ RowLayout {
 
                 buttonType: DLButton.ButtonType.Neutral
                 buttonText: "Quick Join Last Session"
+                active: dl_dash_view_layout.canQuickJoin
 
                 onClicked: quickJoinClicked()
             }
