@@ -67,7 +67,7 @@ Rectangle {
         anchors.margins: 15
         clip: true
         verticalAlignment: TextInput.AlignVCenter
-        maximumLength: dl_field.isCode ? 9 : dl_field.maxLength
+        maximumLength: dl_field.isCode ? 11 : dl_field.maxLength
         color: Theme.textWhite
         font.pointSize: 16
         selectionColor: Theme.primary
@@ -75,7 +75,7 @@ Rectangle {
         onTextEdited: {
             if (dl_field.isCode) {
                 let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
-                clean = clean.substring(0,8)
+                clean = clean.substring(0,10)
                 if (clean.length > 4)
                     clean = clean.substring(0,4) + "-" + clean.substring(4)
 

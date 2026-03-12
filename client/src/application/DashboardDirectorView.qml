@@ -64,8 +64,8 @@ RowLayout {
                 Layout.fillWidth: true
 
                 label: "Session Code"
-                emptyText: "Enter 8-digit code"
-                maxLength: 9
+                emptyText: "Enter code (XXXX-XXXXXX)"
+                maxLength: 11
                 isCode: true
             }
 
@@ -82,7 +82,7 @@ RowLayout {
                 buttonText: "Join Session"
 
                 onClicked: {
-                    if (dl_session_code_field.input.length === 9)
+                    if (dl_session_code_field.input.length === 11)
                         joinClicked(dl_session_code_field.input)
                 }
             }
