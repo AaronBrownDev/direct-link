@@ -29,6 +29,9 @@ spec:
             - name: rtmp
               containerPort: 1935
               protocol: TCP
+            - name: health
+              containerPort: 8090
+              protocol: TCP
           env:
             - name: LIVEKIT_API_KEY
               valueFrom:
@@ -44,7 +47,7 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: directlink-config
-                  key: LIVEKIT_HOST
+                  key: LIVEKIT_WS_URL
           livenessProbe:
             httpGet:
               path: /

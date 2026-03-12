@@ -5,4 +5,5 @@ metadata:
 data:
   REDIS_ADDR: "redis:6379"
   LIVEKIT_HOST: "http://livekit:7880"
+  LIVEKIT_WS_URL: "ws://livekit:7880"
   LIVEKIT_EXTERNAL_URL: "ws://localhost:7880"
