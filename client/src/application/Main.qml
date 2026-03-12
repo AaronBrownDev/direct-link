@@ -21,8 +21,13 @@ Window {
 
         property string user_id: "director-1"
         property string user_type: "Director"
+        
         property real max_camera_count: 4
         property url channel: "http://localhost:50051"
+
+        property string last_room: ""
+        property string pending_close_room: ""
+        property string current_operation: ""
 
         visible: true
         minimumWidth: 1400
@@ -86,6 +91,28 @@ Window {
             target: dl_page_stack.currentItem
             ignoreUnknownSignals: true
 
+            function onJoinRequested(roomCode) {
+                root.current_operation = "joinSession"
+                root.last_room = roomCode
+                SessionClient.joinSession(roomCode, root.user_id, root.user_type.toLowerCase())
+            }
+
+            function onQuickJoinRequested() {
+                if (root.last_room === "") {
+                    dl_error_popup.displayText = "Failed to join session. Please try again."
+                    dl_error_popup.open()
+                    return
+                }
+
+                root.current_operation = "joinSession"
+                SessionClient.joinSession(root.last_room, root.user_id, root.user_type.toLowerCase())
+            }
+
+            function onCreateRequested(maxCameras) {
+                root.current_operation = "createSession"
+                SessionClient.createSession(root.user_id, maxCameras)
+            }
+
             function onSessionCloseRequested(roomCode) {
                 root.pending_close_room = roomCode
                 dl_session_close_popup.open()
@@ -102,6 +129,26 @@ Window {
             }
         }
 
+        Connections {
+            target: SessionClient
+
+            function onDirectorJoined(token, livekitUrl) {
+                dl_page_stack.push(dl_session_page_component, {
+                    user_id: root.user_id,
+                    user_type: "Director",
+                    room_code: root.last_room
+                })
+            }
+
+            function onCameraJoined(whipUrl, streamKey) {
+            dl_page_stack.push(dl_session_page_component, {
+                    user_id: root.user_id,
+                    user_type: "Operator",
+                    room_code: root.last_room
+                })
+        }
+        }
+
         // Components
 
         Component {
@@ -109,6 +156,12 @@ Window {
             DashboardPage {
                 user_id: root.user_id
                 user_type: root.user_type
+                canQuickJoin: root.last_room.length === 11
             }
+        }
+
+        Component {
+            id: dl_session_page_component
+            SessionPage {}
         }
 }

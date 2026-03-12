@@ -52,7 +52,8 @@ ColumnLayout {
             implicitWidth: 500
 
             Component.onCompleted: {
-                FrameReader.videoSink = dl_active_camera.videoSink
+                // TODO: Restore when FrameReader pushes actual frames
+                // FrameReader.videoSink = dl_active_camera.videoSink
             }
         }
 

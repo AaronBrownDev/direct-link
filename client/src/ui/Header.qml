@@ -15,7 +15,15 @@ Rectangle {
 
     signal settingsClicked()
 
-    Text {
+
+    RowLayout {
+        id: dl_header_layout
+
+        anchors.fill: parent
+        anchors.rightMargin: 20
+        anchors.leftMargin: 20
+
+            Text {
         id: dl_header_logo
 
         text: "DirectLink"
@@ -54,6 +62,8 @@ Rectangle {
             height: radius
         }
         onClicked: dl_header.settingsClicked()
+    }
+
     }
 
 }
