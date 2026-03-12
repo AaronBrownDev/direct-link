@@ -77,7 +77,7 @@ Popup {
                 Layout.preferredWidth: 200
                 Layout.preferredHeight: 55
 
-                buttonText: "Cancel"
+                buttonText: dl_popup.inputType === DLPopup.InputType.ConfirmCancel ? "Cancel" : "Close"
                 buttonType: DLButton.ButtonType.Neutral
                 onClicked: {
                     dl_popup.close()

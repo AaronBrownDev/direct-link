@@ -23,6 +23,10 @@ import ui.theme
 ColumnLayout {
     id: dl_session_list_layout
 
+    function clearSessions() {
+        dl_session_model.clear()
+    }
+
     signal sessionSelected(string roomCode, int maxCameras)
     signal refreshClicked()
 
@@ -132,9 +136,6 @@ ColumnLayout {
                 for (let i = 0; i < sessions.length; i++) {
                     dl_session_model.append(sessions[i])
                 }
-            }
-            function onError(message) {
-                dl_session_model.clear()
             }
         }
 

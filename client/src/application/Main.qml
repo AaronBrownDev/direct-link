@@ -21,12 +21,8 @@ Window {
 
         property string user_id: "director-1"
         property string user_type: "Director"
-        // property string user_id: "operator-1"
-        // property string user_type: "Operator"
         property real max_camera_count: 4
         property url channel: "http://localhost:50051"
-
-        property string pending_close_room: ""
 
         visible: true
         minimumWidth: 1400
@@ -39,6 +35,8 @@ Window {
         Component.onCompleted: {
             SessionClient.connectToServer(channel)
         }
+
+        // Header + Page Stack
 
         ColumnLayout {
             id: dl_main_layout
@@ -60,6 +58,8 @@ Window {
             }
         }
 
+        // Popups
+
         DLPopup {
             id: dl_session_close_popup
 
@@ -74,13 +74,13 @@ Window {
             inputType: DLPopup.InputType.Cancel
         }
 
-        Component {
-            id: dl_dashboard_component
-            DashboardPage {
-                user_id: root.user_id
-                user_type: root.user_type
-            }
+        DLPopup {
+            id: dl_error_popup
+
+            inputType: DLPopup.InputType.Cancel
         }
+
+        // SessionClient Connection
 
         Connections {
             target: dl_page_stack.currentItem
@@ -94,6 +94,21 @@ Window {
             function onRoomCodeReceived(roomCode) {
                 dl_info_popup.displayText = "Room Successfully Created: " + roomCode
                 dl_info_popup.open()
+            }
+
+            function onErrorReceived(message) {
+                dl_error_popup.displayText = message
+                dl_error_popup.open()
+            }
+        }
+
+        // Components
+
+        Component {
+            id: dl_dashboard_component
+            DashboardPage {
+                user_id: root.user_id
+                user_type: root.user_type
             }
         }
 }

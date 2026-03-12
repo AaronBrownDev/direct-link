@@ -22,8 +22,10 @@ ColumnLayout {
     property string user_id: ""
     property string user_type: "Director"
     property string last_room: ""
+    property string current_operation: ""
 
     signal roomCodeReceived(string roomCode)
+    signal errorReceived(string message)
 
     ColumnLayout {
         id: dl_content_layout
@@ -58,11 +60,13 @@ ColumnLayout {
             Layout.minimumHeight: 200
 
             onSessionSelected: (roomCode, maxCameras) => {
+                dl_root_layout.current_operation = "joinSession"
                 dl_root_layout.last_room = roomCode
                 SessionClient.joinSession(roomCode, dl_root_layout.user_id, dl_root_layout.user_type.toLowerCase())
             }
 
             onRefreshClicked: () => {
+                dl_root_layout.current_operation = "getSessions"
                 SessionClient.getMySessions(dl_root_layout.user_id)
             }
         }
@@ -74,15 +78,18 @@ ColumnLayout {
             canQuickJoin: last_room.length === 11 ? true : false
 
             onJoinClicked: (roomCode) => {
+                dl_root_layout.current_operation = "joinSession"
                 dl_root_layout.last_room = roomCode
                 SessionClient.joinSession(roomCode, dl_root_layout.user_id, "director")
             }
 
             onQuickJoinClicked: () => {
+                dl_root_layout.current_operation = "joinSession"
                 SessionClient.joinSession(dl_root_layout.last_room, dl_root_layout.user_id, "director")
             }
 
             onCreateClicked: (projectName, sessionDesc, qualitySettings, cameraCount) => {
+                dl_root_layout.current_operation = "createSession"
                 SessionClient.createSession(dl_root_layout.user_id, cameraCount)
             }
         }
@@ -91,14 +98,16 @@ ColumnLayout {
     Component {
         id: dl_dash_operator_view
         DashboardOperatorView {
-            canQuickJoin: last_room.length === 11 ? true : false
+            canQuickJoin: last_room.length === 11
             
             onJoinClicked: (roomCode, cameraName) => {
+                dl_root_layout.current_operation = "joinSession"
                 dl_root_layout.last_room = roomCode
                 SessionClient.joinSession(roomCode, dl_root_layout.user_id, "camera")
             }
 
             onQuickJoinClicked: () => {
+                dl_root_layout.current_operation = "joinSession"
                 SessionClient.joinSession(dl_root_layout.last_room, dl_root_layout.user_id, "camera")
             }
         }
@@ -125,6 +134,26 @@ ColumnLayout {
 
         function onSessionCreated(roomCode) {
             dl_root_layout.roomCodeReceived(roomCode)
+        }
+
+        function onError(msg) {
+            switch (dl_root_layout.current_operation) {
+                case "getSessions":
+                    dl_root_layout.errorReceived("Failed to retrieve sessions. Please try again.")
+                    dl_dash_recent_sessions.clearSessions()
+                    return
+                case "joinSession":
+                    if (msg === "session is closed")
+                        dl_root_layout.errorReceived("This session has ended.")
+                    else
+                        dl_root_layout.errorReceived("Failed to join session. Please try again.")
+                    return
+                case "createSession":
+                    dl_root_layout.errorReceived("Failed to create session. Please try again.")
+                    return
+                default:
+                    dl_root_layout.errorReceived("An error has occurred: " + msg)
+            }
         }
     }
 
