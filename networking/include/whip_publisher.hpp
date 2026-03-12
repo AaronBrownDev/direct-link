@@ -22,7 +22,7 @@ public:
     Result start();
     Result stop();
 
-    void pushPacket(std::unique_ptr<videoCore::Frame> packet);
+    void pushPacket(std::unique_ptr<videoCore::Packet> packet);
     [[nodiscard]] bool isRunning() const noexcept { return running_; }
 
 private:

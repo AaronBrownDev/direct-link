@@ -143,50 +143,21 @@ Result WHIPPublisher::stop() {
     return Result::Success;
 }
 
-void WHIPPublisher::pushPacket(std::unique_ptr<videoCore::Frame> packet) {
+void WHIPPublisher::pushPacket(std::unique_ptr<videoCore::Packet> packet) {
     if (!isRunning()) {
         return;
     }
 
-    GstBuffer *buffer = gst_buffer_new_allocate(
-        nullptr, packet->width * packet->height * 3 / 2, nullptr);
+    AVPacket *av = packet->packet.get();
 
-    AVFrame *av = packet->frame.get();
+    GstBuffer *buffer = gst_buffer_new_allocate(nullptr, av->size, nullptr);
+
     GstMapInfo map;
     gst_buffer_map(buffer, &map, GST_MAP_WRITE);
-
-    uint8_t *dst = map.data;
-
-    // Y plane — one byte per pixel
-    for (int row = 0; row < av->height; row++) {
-        std::memcpy(dst,
-                    av->data[0] +
-                        static_cast<std::ptrdiff_t>(row) * av->linesize[0],
-                    av->width);
-        dst += av->width;
-    }
-
-    // U plane — quarter size (half width, half height)
-    for (int row = 0; row < av->height / 2; row++) {
-        std::memcpy(dst,
-                    av->data[1] +
-                        static_cast<std::ptrdiff_t>(row) * av->linesize[1],
-                    av->width / 2);
-        dst += av->width / 2;
-    }
-
-    // V plane — quarter size
-    for (int row = 0; row < av->height / 2; row++) {
-        std::memcpy(dst,
-                    av->data[2] +
-                        static_cast<std::ptrdiff_t>(row) * av->linesize[2],
-                    av->width / 2);
-        dst += av->width / 2;
-    }
-
+    std::memcpy(map.data, av->data, av->size);
     gst_buffer_unmap(buffer, &map);
 
-    GST_BUFFER_PTS(buffer) = frameCount_ * GST_SECOND / 30;
+    GST_BUFFER_PTS(buffer)      = static_cast<GstClockTime>(packet->pts);
     GST_BUFFER_DURATION(buffer) = GST_SECOND / 30;
     frameCount_++;
 
