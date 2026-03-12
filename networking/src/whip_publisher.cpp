@@ -27,26 +27,32 @@ WHIPPublisher::initialize(const std::string &whip_url,
     }
 
     appsrc_ = gst_element_factory_make("appsrc", "video-source");
-    GstElement *videoconvert =
-        gst_element_factory_make("videoconvert", "convertert");
-    GstElement *x264enc = gst_element_factory_make("x264enc", "h264-encoder");
+    GstElement *h264parse =
+        gst_element_factory_make("h264parse", "h264-parser");
     GstElement *rtph264pay =
         gst_element_factory_make("rtph264pay", "rtp-payload");
     GstElement *whipsink = gst_element_factory_make("whipsink", "whip-sink");
-    if (!pipeline_ || !appsrc_ || !videoconvert || !x264enc || !rtph264pay ||
-        !whipsink) {
+
+    if (!pipeline_ || !appsrc_ || !h264parse || !rtph264pay || !whipsink) {
         return Result::ErrorPipelineFailed;
     }
-    g_object_set(x264enc, "tune", 4, "speed-preset", 1, "key-int-max", 60,
-                 nullptr);
+
+    // appsrc receives encoded H.264 byte-stream from videoCore
+    GstCaps *caps = gst_caps_new_simple(
+        "video/x-h264", "stream-format", G_TYPE_STRING, "byte-stream",
+        "alignment", G_TYPE_STRING, "au", nullptr);
+    g_object_set(appsrc_, "caps", caps, "is-live", TRUE, "format",
+                 GST_FORMAT_TIME, nullptr);
+    gst_caps_unref(caps);
+
     g_object_set(rtph264pay, "config-interval", 1, nullptr);
     g_object_set(whipsink, "whip-endpoint", whipUrl_.c_str(), "auth-token",
                  streamKey_.c_str(), nullptr);
 
-    gst_bin_add_many(GST_BIN(pipeline_), appsrc_, videoconvert, x264enc,
-                     rtph264pay, whipsink, nullptr);
-    if (!gst_element_link_many(appsrc_, videoconvert, x264enc, rtph264pay,
-                               nullptr)) {
+    gst_bin_add_many(GST_BIN(pipeline_), appsrc_, h264parse, rtph264pay,
+                     whipsink, nullptr);
+
+    if (!gst_element_link_many(appsrc_, h264parse, rtph264pay, nullptr)) {
         return Result::ErrorPipelineFailed;
     }
 
@@ -54,30 +60,21 @@ WHIPPublisher::initialize(const std::string &whip_url,
     GstPad *sink_pad = gst_element_request_pad_simple(whipsink, "sink_0");
 
     GstPadLinkReturn ret = gst_pad_link(src_pad, sink_pad);
+    gst_object_unref(src_pad);
+    gst_object_unref(sink_pad);
+
     if (ret != GST_PAD_LINK_OK) {
         return Result::ErrorPipelineFailed;
     }
 
-    gst_object_unref(src_pad);
-    gst_object_unref(sink_pad);
-
-    // TODO - Make caps configurable
-    GstCaps *caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING,
-                                        "I420", "width", G_TYPE_INT, 1920,
-                                        "height", G_TYPE_INT, 1080, "framerate",
-                                        GST_TYPE_FRACTION, 30, 1, nullptr);
-    g_object_set(appsrc_, "caps", caps, "is-live", TRUE, "format",
-                 GST_FORMAT_TIME, nullptr);
-    gst_caps_unref(caps);
-
     GstBus *bus = gst_element_get_bus(pipeline_);
     gst_bus_add_watch(
         bus,
-        [](GstBus *bus, GstMessage *msg, gpointer data) -> gboolean {
+        [](GstBus * /*bus*/, GstMessage *msg, gpointer data) -> gboolean {
             auto *publisher = static_cast<WHIPPublisher *>(data);
             if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ERROR) {
-                GError *err;
-                gchar *debug_info;
+                GError *err = nullptr;
+                gchar *debug_info = nullptr;
                 gst_message_parse_error(msg, &err, &debug_info);
                 publisher->onErrorCallback_("GStreamer Error: " +
                                             std::string(err->message));
@@ -157,7 +154,7 @@ void WHIPPublisher::pushPacket(std::unique_ptr<videoCore::Packet> packet) {
     std::memcpy(map.data, av->data, av->size);
     gst_buffer_unmap(buffer, &map);
 
-    GST_BUFFER_PTS(buffer)      = static_cast<GstClockTime>(packet->pts);
+    GST_BUFFER_PTS(buffer) = static_cast<GstClockTime>(packet->pts);
     GST_BUFFER_DURATION(buffer) = GST_SECOND / 30;
     frameCount_++;
 
@@ -166,7 +163,9 @@ void WHIPPublisher::pushPacket(std::unique_ptr<videoCore::Packet> packet) {
     gst_buffer_unref(buffer);
 
     if (ret != GST_FLOW_OK) {
-        onErrorCallback_("Failed to push buffer to GStreamer pipeline");
+        if (onErrorCallback_) {
+            onErrorCallback_("Failed to push buffer to GStreamer pipeline");
+        }
     }
 }
 
