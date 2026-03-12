@@ -42,7 +42,11 @@ WHIPPublisher::initialize(const std::string &whip_url,
         "video/x-h264", "stream-format", G_TYPE_STRING, "byte-stream",
         "alignment", G_TYPE_STRING, "au", nullptr);
     g_object_set(appsrc_, "caps", caps, "is-live", TRUE, "format",
-                 GST_FORMAT_TIME, nullptr);
+                 GST_FORMAT_TIME, "block", FALSE, 
+                 "max-bytes", static_cast<guint64>(512 * 1024), // 512KB cap
+                 "min-latency", static_cast<gint64>(0),
+                 "max-latency", static_cast<gint64>(0),
+                 nullptr);
     gst_caps_unref(caps);
 
     g_object_set(rtph264pay, "config-interval", 1, nullptr);
