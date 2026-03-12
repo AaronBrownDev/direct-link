@@ -13,6 +13,8 @@ Rectangle {
 
     color: Theme.surface
 
+    signal settingsClicked()
+
     Text {
         id: dl_header_logo
 
@@ -51,8 +53,7 @@ Rectangle {
             width: radius
             height: radius
         }
-
+        onClicked: dl_header.settingsClicked()
     }
-
 
 }

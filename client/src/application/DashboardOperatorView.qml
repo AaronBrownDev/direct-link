@@ -91,7 +91,7 @@ RowLayout {
                 buttonText: "Join Session"
 
                 onClicked: {
-                    if (dl_session_code_field.input.length === 9)
+                    if (dl_session_code_field.input.length === 11)
                         joinClicked(dl_session_code_field.input, dl_camera_name_field.input)
                 }
             }

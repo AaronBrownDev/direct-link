@@ -23,6 +23,8 @@ ColumnLayout {
     property string user_type: "Director"
     property string last_room: ""
 
+    signal roomCodeReceived(string roomCode)
+
     ColumnLayout {
         id: dl_content_layout
 
@@ -119,6 +121,10 @@ ColumnLayout {
                   user_type: "Operator",
                   room_code: dl_root_layout.last_room
                 })
+        }
+
+        function onSessionCreated(roomCode) {
+            dl_root_layout.roomCodeReceived(roomCode)
         }
     }
 

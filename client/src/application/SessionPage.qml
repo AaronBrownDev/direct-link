@@ -11,6 +11,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import network
 import ui
 import ui.controls
 
@@ -23,6 +24,8 @@ ColumnLayout {
     property string room_code: "XXXX-XXXX"
 
     spacing: 15
+
+    signal sessionCloseRequested(string roomCode)
 
     SessionInfo {
         id: dl_session_details
@@ -66,8 +69,23 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 100
 
+        showCloseButton: user_type === "Director"
+
         onLeavePage: () => {
                          dl_root_layout.StackView.view.pop()
                      }
+
+        onCloseClicked: () => {
+            dl_root_layout.sessionCloseRequested(dl_root_layout.room_code)
+        }
+    }
+
+    Connections {
+        target: SessionClient
+
+        function onSessionClosed(success) {
+            if (success)
+                dl_root_layout.StackView.view.pop()
+        }
     }
 }
