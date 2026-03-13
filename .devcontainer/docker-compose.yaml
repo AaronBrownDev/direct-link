@@ -18,6 +18,7 @@ services:
       - /dev/video0:/dev/video0
     group_add:
       - "985"
+      - video
 
   dev-gpu:
     extends: dev
