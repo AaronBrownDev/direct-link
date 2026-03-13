@@ -22,7 +22,6 @@ Window {
         property string user_id: "director-1"
         property string user_type: "Director"
         
-        property real max_camera_count: 4
         property url channel: "http://localhost:50051"
 
         property string last_room: ""
@@ -63,7 +62,7 @@ Window {
             }
         }
 
-        // Popups
+        // App Popups
 
         DLPopup {
             id: dl_session_close_popup
@@ -85,7 +84,7 @@ Window {
             inputType: DLPopup.InputType.Cancel
         }
 
-        // SessionClient Connection
+        // Page Connections
 
         Connections {
             target: dl_page_stack.currentItem
@@ -122,12 +121,9 @@ Window {
                 root.pending_close_room = roomCode
                 dl_session_close_popup.open()
             }
-
-            function onRoomCodeReceived(roomCode) {
-                dl_info_popup.displayText = "Room Successfully Created: " + roomCode
-                dl_info_popup.open()
-            }
         }
+
+        // Signaling connections
 
         Connections {
             target: SessionClient
@@ -141,11 +137,33 @@ Window {
             }
 
             function onCameraJoined(whipUrl, streamKey) {
-            dl_page_stack.push(dl_session_page_component, {
+                dl_page_stack.push(dl_session_page_component, {
                     user_id: root.user_id,
                     user_type: "Operator",
                     room_code: root.last_room
                 })
+            }
+
+            function onSessionCreated(roomCode) {
+                dl_info_popup.displayText = "Room Successfully Created: " + roomCode
+                dl_info_popup.open()
+                root.current_operation = "joinSession"
+                root.last_room = roomCode
+                SessionClient.joinSession(roomCode, root.user_id, root.user_type.toLowerCase())
+            }
+
+            function onSessionClosed(success) {
+                if (success) {
+                    if (root.last_room === root.pending_close_room)
+                        root.last_room = ""
+                    
+                    root.pending_close_room = ""
+                    dl_page_stack.pop()
+                }
+                else {
+                    dl_error_popup.displayText = "Failed to close session. Please try again."
+                    dl_error_popup.open()
+                }
             }
 
             function onError(msg) {
@@ -173,7 +191,7 @@ Window {
             }
         }
 
-        // Components
+        // Page Components
 
         Component {
             id: dl_dashboard_component
@@ -181,6 +199,11 @@ Window {
                 user_id: root.user_id
                 user_type: root.user_type
                 canQuickJoin: root.last_room.length === 11
+
+                StackView.onActivated: {
+                    root.current_operation = "getSessions"
+                    SessionClient.getMySessions(root.user_id)
+                }
             }
         }
 

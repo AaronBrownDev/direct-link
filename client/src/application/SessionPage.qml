@@ -11,7 +11,6 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import network
 import ui
 import ui.controls
 
@@ -78,15 +77,6 @@ ColumnLayout {
 
         onCloseClicked: () => {
             dl_root_layout.sessionCloseRequested(dl_root_layout.room_code)
-        }
-    }
-
-    Connections {
-        target: SessionClient
-
-        function onSessionClosed(success) {
-            if (success)
-                dl_root_layout.StackView.view.pop()
         }
     }
 }

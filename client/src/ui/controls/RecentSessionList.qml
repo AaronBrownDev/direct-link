@@ -23,6 +23,8 @@ import ui.theme
 ColumnLayout {
     id: dl_session_list_layout
 
+    property bool fetchPending: false
+
     signal sessionSelected(string roomCode, int maxCameras)
     signal refreshClicked()
 
@@ -53,6 +55,7 @@ ColumnLayout {
             buttonType: DLButton.ButtonType.Neutral
 
             onClicked: {
+                dl_session_list_layout.fetchPending = true
                 dl_session_list_layout.refreshClicked()
             }
 
@@ -128,15 +131,18 @@ ColumnLayout {
             target: SessionClient
 
             function onSessionsReceived(sessions) {
-                    dl_session_model.clear()
+                dl_session_model.clear()
                 for (let i = 0; i < sessions.length; i++) {
                     dl_session_model.append(sessions[i])
                 }
+                dl_session_list_layout.fetchPending = false
             }
 
             function onError(msg) {
-                if (msg !== "session is closed")
+                if (dl_session_list_layout.fetchPending && msg !== "session is closed") {
                     dl_session_model.clear()
+                    dl_session_list_layout.fetchPending = false
+                }
             }
         }
 
