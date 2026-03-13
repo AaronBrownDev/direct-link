@@ -24,6 +24,7 @@ qt_add_qml_module(directlink_app
         DashboardPage.qml
         DashboardDirectorView.qml
         DashboardOperatorView.qml
+        JoinSessionView.qml
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../framereader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../framereader.cpp

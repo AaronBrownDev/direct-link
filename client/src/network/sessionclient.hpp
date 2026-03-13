@@ -10,10 +10,16 @@
 class SessionClient : public QObject {
     Q_OBJECT
     QML_ELEMENT
+    QML_SINGLETON
 public:
     explicit SessionClient(QObject *parent = nullptr);
 
-    void connectToServer(const QUrl &url);
+    static SessionClient *create(QQmlEngine *, QJSEngine *) {
+        static SessionClient instance;
+        return &instance;
+    }
+
+    Q_INVOKABLE void connectToServer(const QUrl &url);
 
     Q_INVOKABLE void createSession(const QString &userId, int maxCameras);
     Q_INVOKABLE void joinSession(const QString &roomCode, const QString &userId, const QString &role);
@@ -29,7 +35,7 @@ signals:
 
     void sessionClosed(bool success);
 
-    void sessionsReceived(const QStringList &roomCodes);
+    void sessionsReceived(const QVariantList &roomCodes);
 
     void error(const QString &message);
 

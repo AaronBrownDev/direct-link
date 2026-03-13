@@ -11,14 +11,35 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import network
 import ui
 import ui.controls
 import ui.theme
 
+/*
+    PROPERTIES
+
+        user_type:string - Reflects the user's role and updates text displays to match
+        canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+
+    SIGNALS
+
+        joinClicked(roomCode:string, cameraName:string) - Fires when the operator has input
+            a room code and clicked on the 'Join Session' button. Passes the entered room
+            code and entered camera name
+        quickJoinClicked() - Fires when the operator has clicked on the 'Quick Join
+            Last Session' button
+ */
 ColumnLayout {
     id: dl_root_layout
 
     property string user_type: "Director"
+    property bool canQuickJoin: false
+
+    signal joinRequested(string roomCode)
+    signal quickJoinRequested
+    signal createRequested(int maxCameras)
+    signal sessionFetchRequested
 
     ColumnLayout {
         id: dl_content_layout
@@ -45,44 +66,38 @@ ColumnLayout {
             sourceComponent: dl_root_layout.user_type === "Director" ? dl_dash_director_view : dl_dash_operator_view
         }
 
-
-
         RecentSessionList {
             id: dl_dash_recent_sessions
 
             Layout.minimumHeight: 200
 
+            visible: user_type === "Director"
+
             onSessionSelected: (roomCode, maxCameras) => {
-               dl_root_layout.StackView.view.push(dl_session_page_component, {
-                    user_type: dl_root_layout.user_type,
-                    max_camera_count: maxCameras,
-                    room_code: roomCode
-               })
-           }
+                dl_root_layout.joinRequested(roomCode);
+            }
+
+            onRefreshClicked: () => {
+                dl_root_layout.sessionFetchRequested();
+            }
         }
     }
 
     Component {
         id: dl_dash_director_view
         DashboardDirectorView {
-            onJoinClicked: (roomCode) => {
-               dl_root_layout.StackView.view.push(dl_session_page_component, {
-                  user_type: dl_root_layout.user_type,
-                  room_code: roomCode
-                })
+            canQuickJoin: dl_root_layout.canQuickJoin
+
+            onJoinClicked: roomCode => {
+                dl_root_layout.joinRequested(roomCode);
             }
 
             onQuickJoinClicked: () => {
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                   user_type: dl_root_layout.user_type
-                })
+                dl_root_layout.quickJoinRequested();
             }
 
-            onCreateClicked: (projectName, sessionDesc, qualitySettings, cameraCount) => {
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                    user_type: dl_root_layout.user_type,
-                    max_camera_count: cameraCount
-                })
+            onCreateClicked: (projectName, sessionDesc, qualitySettings, maxCameras) => {
+                dl_root_layout.createRequested(maxCameras);
             }
         }
     }
@@ -90,24 +105,15 @@ ColumnLayout {
     Component {
         id: dl_dash_operator_view
         DashboardOperatorView {
+            canQuickJoin: dl_root_layout.canQuickJoin
+
             onJoinClicked: (roomCode, cameraName) => {
-               dl_root_layout.StackView.view.push(dl_session_page_component, {
-                  user_type: dl_root_layout.user_type,
-                  room_code: roomCode
-                })
+                dl_root_layout.joinRequested(roomCode);
             }
 
             onQuickJoinClicked: () => {
-                dl_root_layout.StackView.view.push(dl_session_page_component, {
-                   user_type: dl_root_layout.user_type
-                })
+                dl_root_layout.quickJoinRequested();
             }
         }
     }
-
-    Component {
-        id: dl_session_page_component
-        SessionPage {}
-    }
-
 }

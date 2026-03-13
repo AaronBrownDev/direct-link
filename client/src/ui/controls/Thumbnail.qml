@@ -6,7 +6,7 @@ Rectangle {
 
     property real aspect_ratio: 16 / 9
 
-    color: "black"
+    color: Theme.background
     state: "inactive"
 
     states: [

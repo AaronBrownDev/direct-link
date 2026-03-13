@@ -45,30 +45,6 @@ The full Docker Compose stack must be running (Redis, LiveKit, LiveKit Ingress, 
 cd /workspace/backend && make run-signaling
 ```
 
-### Verify with grpcurl
-
-`grpcurl` is available in the devcontainer. Run these in order, replacing `ROOM-XXXX` with the room code returned by `CreateSession`:
-
-```bash
-# Create a session
-grpcurl -plaintext \
-  -d '{"user_id": "test-user", "max_cameras": 4}' \
-  localhost:50051 \
-  directlink.signaling.SignalingService/CreateSession
-
-# Join as director
-grpcurl -plaintext \
-  -d '{"room_code": "ROOM-XXXX", "user_id": "test-user", "role": "director"}' \
-  localhost:50051 \
-  directlink.signaling.SignalingService/JoinSession
-
-# Join as camera
-grpcurl -plaintext \
-  -d '{"room_code": "ROOM-XXXX", "user_id": "camera-1", "role": "camera"}' \
-  localhost:50051 \
-  directlink.signaling.SignalingService/JoinSession
-```
-
 ### Run the Qt roundtrip test
 
 ```bash
@@ -84,10 +60,10 @@ cmake --build build
 
 `JoinSession` returns different fields depending on the role passed in the request. The server always leaves the irrelevant pair empty.
 
-| Role | Populated fields | Empty fields |
-|------|-----------------|--------------|
-| `director` | `token`, `livekit_url` | `whip_url`, `stream_key` |
-| `camera` | `whip_url`, `stream_key` | `token`, `livekit_url` |
+| Role | Returned fields |
+|------|-----------------|
+| `director` | `token`, `livekit_url` |
+| `camera` | `whip_url`, `stream_key` |
 
 The `SessionClient` wrapper handles this branching internally and emits the appropriate signal:
 

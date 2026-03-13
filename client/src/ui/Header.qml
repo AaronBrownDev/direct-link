@@ -13,46 +13,56 @@ Rectangle {
 
     color: Theme.surface
 
-    Text {
-        id: dl_header_logo
+    signal homeClicked()
+    signal settingsClicked()
 
-        text: "DirectLink"
-        anchors {
-            left: parent.left
-            verticalCenter: parent.verticalCenter
-        }
+    RowLayout {
+        id: dl_header_layout
+
+        anchors.fill: parent
+        anchors.rightMargin: 20
         anchors.leftMargin: 20
-        color: Theme.textWhite
-        font.bold: true
-        font.pointSize: 24
-    }
+
+        Text {
+            id: dl_header_logo
+
+            text: "DirectLink"
+            Layout.leftMargin: 20
+            color: Theme.textWhite
+            font.bold: true
+            font.pointSize: 24
+
+            MouseArea {
+                id: dl_logo_area
+
+                anchors.fill: parent
+
+                onClicked: dl_header.homeClicked()
+            }
+        }
 
     Text {
         id: dl_header_type
 
         text: " | " + user_type
-        anchors {
-            left: dl_header_logo.right
-            verticalCenter: dl_header_logo.verticalCenter
-        }
         color: Theme.textMuted
         font.bold: true
         font.pointSize: 20
     }
 
+    Item {Layout.fillWidth: true}
+
     RoundButton {
         id: dl_control_app_settings
         radius: 35
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.rightMargin: 20
         icon {
             source: "qrc:/resources/icons/settings.png"
             width: radius
             height: radius
         }
-
+        onClicked: dl_header.settingsClicked()
     }
 
+    }
 
 }

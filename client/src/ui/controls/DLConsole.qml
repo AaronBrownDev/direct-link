@@ -2,7 +2,7 @@
  * File: DLConsole.qml
  * Author: Justin Williams
  * Date: 3/5/26
- * File Description: A component that provides a text box for printing messages
+ * File Description: A component that provides a text box for printing messages.
  */
 
 import QtQuick
@@ -11,8 +11,8 @@ import ui.theme
 /*
     PROPERTIES
 
-    contents (string) - The text that will display inside of the console
-    label (string) - The text that will display above the console
+        contents:string - The text that will display inside of the console
+        label:string - The text that will display above the console
  */
 Rectangle {
     id: dl_console
@@ -51,6 +51,4 @@ Rectangle {
             text: dl_console.contents
         }
     }
-
-
 }

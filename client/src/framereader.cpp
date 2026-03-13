@@ -44,6 +44,7 @@ void FrameReader::pushFrame(std::unique_ptr<videoCore::Frame> frame) {
     }
 
     QSize frame_dimensions(placeholder.width(), placeholder.height());
+    // TODO: Change to span
     src = placeholder.bits();
     size = placeholder.sizeInBytes();
 

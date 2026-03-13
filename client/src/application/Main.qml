@@ -11,47 +11,214 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
+import network
 import ui
 import ui.theme
+import ui.controls
 
 Window {
-        id: root
+    id: root
 
-        property string user_type: "Director"
-        property real max_camera_count: 4
+    property string user_id: "director-1"
+    property string user_type: "Director"
 
-        visible: true
-        minimumWidth: 1400
-        minimumHeight: 1100
-        width: minimumWidth
-        height: minimumHeight
-        color: Theme.background
-        title: "DirectLink"
+    property url channel: "http://localhost:50051"
+    property bool connected: false
 
-        ColumnLayout {
-            id: dl_main_layout
+    property string last_room: ""
+    property string pending_close_room: ""
+    property string current_operation: ""
 
-            anchors.fill: parent
+    visible: true
+    minimumWidth: 1400
+    minimumHeight: 1200
+    width: minimumWidth
+    height: minimumHeight
+    color: Theme.background
+    title: "DirectLink"
 
-            Header {
-                id: dl_dash_header
-                user_type: root.user_type
+    Component.onCompleted: {
+        SessionClient.connectToServer(channel);
+        root.connected = true;
+        if (root.user_type === "Director") {
+            root.current_operation = "getSessions";
+            SessionClient.getMySessions(root.user_id);
+        }
+    }
+
+    // Header + Page Stack
+
+    ColumnLayout {
+        id: dl_main_layout
+
+        anchors.fill: parent
+
+        Header {
+            id: dl_dash_header
+            user_type: root.user_type
+        }
+
+        StackView {
+            id: dl_page_stack
+
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            initialItem: dl_dashboard_component
+        }
+    }
+
+    // App Popups
+
+    DLPopup {
+        id: dl_session_close_popup
+
+        inputType: DLPopup.InputType.ConfirmCancel
+        displayText: "Are you sure you want to close this session?"
+        onConfirmed: SessionClient.closeSession(root.pending_close_room, root.user_id)
+    }
+
+    DLPopup {
+        id: dl_info_popup
+
+        inputType: DLPopup.InputType.Cancel
+    }
+
+    DLPopup {
+        id: dl_error_popup
+
+        inputType: DLPopup.InputType.Cancel
+    }
+
+    // Page Connections
+
+    Connections {
+        target: dl_page_stack.currentItem
+        ignoreUnknownSignals: true
+
+        function onJoinRequested(roomCode) {
+            root.current_operation = "joinSession";
+            root.last_room = roomCode;
+            SessionClient.joinSession(roomCode, root.user_id, root.user_type.toLowerCase());
+        }
+
+        function onQuickJoinRequested() {
+            if (root.last_room === "") {
+                dl_error_popup.displayText = "Failed to join session. Please try again.";
+                dl_error_popup.open();
+                return;
             }
 
-            StackView {
-                id: dl_page_stack
+            root.current_operation = "joinSession";
+            SessionClient.joinSession(root.last_room, root.user_id, root.user_type.toLowerCase());
+        }
 
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+        function onCreateRequested(maxCameras) {
+            root.current_operation = "createSession";
+            SessionClient.createSession(root.user_id, maxCameras);
+        }
 
-                initialItem: dl_dashboard_component
+        function onSessionFetchRequested() {
+            root.current_operation = "getSessions";
+            SessionClient.getMySessions(root.user_id);
+        }
+
+        function onSessionCloseRequested(roomCode) {
+            root.pending_close_room = roomCode;
+            dl_session_close_popup.open();
+        }
+    }
+
+    // Signaling connections
+
+    Connections {
+        target: SessionClient
+
+        function onDirectorJoined(token, livekitUrl) {
+            dl_page_stack.push(dl_session_page_component, {
+                user_id: root.user_id,
+                user_type: "Director",
+                room_code: root.last_room
+            });
+        }
+
+        function onCameraJoined(whipUrl, streamKey) {
+            dl_page_stack.push(dl_session_page_component, {
+                user_id: root.user_id,
+                user_type: "Operator",
+                room_code: root.last_room
+            });
+        }
+
+        function onSessionCreated(roomCode) {
+            dl_info_popup.displayText = "Room Successfully Created: " + roomCode;
+            dl_info_popup.open();
+            root.current_operation = "joinSession";
+            root.last_room = roomCode;
+            SessionClient.joinSession(roomCode, root.user_id, root.user_type.toLowerCase());
+        }
+
+        function onSessionClosed(success) {
+            if (success) {
+                if (root.last_room === root.pending_close_room)
+                    root.last_room = "";
+
+                root.pending_close_room = "";
+                dl_page_stack.pop();
+            } else {
+                dl_error_popup.displayText = "Failed to close session. Please try again.";
+                dl_error_popup.open();
             }
         }
 
-        Component {
-            id: dl_dashboard_component
-            DashboardPage {
-                user_type: root.user_type
+        function onError(msg) {
+            switch (root.current_operation) {
+            case "getSessions":
+                dl_error_popup.displayText = "Failed to retrieve sessions. Please try again.";
+                dl_error_popup.open();
+                return;
+            case "joinSession":
+                if (msg === "session is closed")
+                    dl_error_popup.displayText = "That session has ended.";
+                else if (msg === "session not found")
+                    dl_error_popup.displayText = "Session was not found. Please try again."
+                else
+                    dl_error_popup.displayText = "Failed to join session. Please try again.";
+
+                dl_error_popup.open();
+                root.last_room = "";
+                return;
+            case "createSession":
+                dl_error_popup.displayText = "Failed to create session. Please try again.";
+                dl_error_popup.open();
+                return;
+            default:
+                dl_error_popup.displayText = "An error has occurred: " + msg;
+                dl_error_popup.open();
             }
         }
+    }
+
+    // Page Components
+
+    Component {
+        id: dl_dashboard_component
+        DashboardPage {
+            user_id: root.user_id
+            user_type: root.user_type
+            canQuickJoin: root.last_room.length === 11
+
+            StackView.onActivated: {
+                if (!root.connected || user_type !== "Director")
+                    return;
+                root.current_operation = "getSessions";
+                SessionClient.getMySessions(root.user_id);
+            }
+        }
+    }
+
+    Component {
+        id: dl_session_page_component
+        SessionPage {}
+    }
 }

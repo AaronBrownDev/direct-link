@@ -12,14 +12,13 @@ import ui.theme
 /*
     PROPERTIES
 
-    label (string) - sets the text displayed above the text field
-    emptyText (string) - sets the text displayed when there is no text input
-    isCode (bool) - determines whether or not the input is evaluated as a
-        room code (i.e. ROOM-1234)
-    maxLength (int) - constrains the length of the entered text to a set amount of characters
-    input (string) - an alias for the contents of the field's text input (readonly)
+        label:string - Sets the text displayed above the text field
+        emptyText:string - Sets the text displayed when there is no text input
+        isCode:bool - Determines whether or not the input is evaluated as a
+            room code (i.e. ROOM-123456)
+        maxLength:int - Constrains the length of the entered text to a set amount of characters
+        input:string - An alias for the contents of the field's text input (readonly)
  */
-
 Rectangle {
     id: dl_field
 
@@ -27,14 +26,25 @@ Rectangle {
     property string emptyText: ""
     property bool isCode: false
     property int maxLength: Number.MAX_VALUE
+
     readonly property string input: dl_field_input.text
 
     color: Theme.fieldBackground
     radius: 15
     border {
-        color: Theme.fieldHover
-        width: 2
+        width: 0
     }
+
+    states: [
+        State {
+            name: "invalid"
+            PropertyChanges {
+                target: dl_field
+                border.color: Theme.danger
+                border.width: 2
+            }
+        }
+    ]
 
     Text {
         id: dl_field_label
@@ -44,7 +54,6 @@ Rectangle {
         anchors.left: parent.left
         anchors.bottomMargin: 10
         font.pointSize: 14
-        font.bold: true
         color: Theme.textMuted
     }
 
@@ -67,20 +76,21 @@ Rectangle {
         anchors.margins: 15
         clip: true
         verticalAlignment: TextInput.AlignVCenter
-        maximumLength: dl_field.isCode ? 9 : dl_field.maxLength
+        maximumLength: dl_field.isCode ? 11 : dl_field.maxLength
         color: Theme.textWhite
         font.pointSize: 16
         selectionColor: Theme.primary
 
         onTextEdited: {
+            dl_field.state = "";
             if (dl_field.isCode) {
-                let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
-                clean = clean.substring(0,8)
+                let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+                clean = clean.substring(0, 10);
                 if (clean.length > 4)
-                    clean = clean.substring(0,4) + "-" + clean.substring(4)
+                    clean = clean.substring(0, 4) + "-" + clean.substring(4);
 
                 if (text !== clean)
-                    text = clean
+                    text = clean;
             }
         }
     }

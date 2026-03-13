@@ -5,7 +5,8 @@
  * File Description: The qml file that contains the session page. There is a bar with
  * session details, an area for the active camera, a console for receiving backend
  * messages, and a side bar for previewing the available cameras. The 'Leave' button
- * will return the user to the previous page they were on.
+ * will return the user to the previous page they were on. The 'Close Session' button
+ * is visible only to directors and will prompt the user to confirm a session close.
  */
 
 import QtQuick
@@ -23,6 +24,8 @@ ColumnLayout {
 
     spacing: 15
 
+    signal sessionCloseRequested(string roomCode)
+
     SessionInfo {
         id: dl_session_details
 
@@ -36,7 +39,9 @@ ColumnLayout {
         spacing: 15
         Layout.margins: 15
 
-        SessionLog { id: dl_session_log }
+        SessionLog {
+            id: dl_session_log
+        }
 
         CameraFeed {
             id: dl_active_camera
@@ -48,7 +53,8 @@ ColumnLayout {
             implicitWidth: 500
 
             Component.onCompleted: {
-                FrameReader.videoSink = dl_active_camera.videoSink
+                // TODO: Restore when FrameReader pushes actual frames
+                // FrameReader.videoSink = dl_active_camera.videoSink
             }
         }
 
@@ -65,8 +71,14 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 100
 
+        showCloseButton: user_type === "Director"
+
         onLeavePage: () => {
-                         dl_root_layout.StackView.view.pop()
-                     }
+            dl_root_layout.StackView.view.pop();
+        }
+
+        onCloseClicked: () => {
+            dl_root_layout.sessionCloseRequested(dl_root_layout.room_code);
+        }
     }
 }

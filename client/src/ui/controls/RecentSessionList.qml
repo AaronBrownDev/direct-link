@@ -10,30 +10,92 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import network
+import ui.controls
 import ui.theme
 
 /*
+    PROPERTIES
+
+        fetchPending:bool - Set to true when a refresh was performed, set to false when sessions
+            have been received or when an error signal was emitted from SessionClient after a refresh
+        allSessions:var - A container for sessions retrieved from SessionClient
+
+    FUNCTIONS
+
+        populateModel():void - Clear and add all sessions currently in the allSessions property to the
+            ListView model. If the active session filter is checked, only active sessions will populate
+            the model
+
     SIGNALS
 
-    sessionSelected (string roomCode, int maxCameras) - fires when the user clicks on
-        a session in the list. Passes the room code and max cameras of the session.
+        sessionSelected(roomCode:string, maxCameras:int) - Fires when a session has been selected from
+            the list
+        refreshClicked() - Fires when the refresh button has been clicked
  */
 ColumnLayout {
     id: dl_session_list_layout
 
+    property bool fetchPending: false
+    property var allSessions: []
+
+    function populateModel() {
+        dl_session_model.clear();
+        for (let i = 0; i < allSessions.length; i++) {
+            if (!dl_list_filter.checked || allSessions[i].roomStatus === "active")
+                dl_session_model.append(allSessions[i]);
+        }
+    }
+
     signal sessionSelected(string roomCode, int maxCameras)
+    signal refreshClicked
 
     spacing: 15
 
-    Text {
-        id: dl_session_list_label
+    RowLayout {
+        id: dl_session_list_header
 
-        Layout.alignment: Qt.AlignLeft
+        spacing: 20
 
-        text: "Recent Sessions"
-        color: Theme.textWhite
-        font.pointSize: 20
-        font.bold: true
+        Text {
+            id: dl_session_list_label
+
+            Layout.alignment: Qt.AlignLeft
+
+            text: "Recent Sessions"
+            color: Theme.textWhite
+            font.pointSize: 20
+            font.bold: true
+        }
+
+        DLButton {
+            id: dl_list_refresh
+
+            Layout.preferredHeight: 50
+            Layout.preferredWidth: 50
+
+            buttonType: DLButton.ButtonType.Neutral
+
+            onClicked: {
+                dl_session_list_layout.fetchPending = true;
+                dl_session_list_layout.refreshClicked();
+            }
+
+            Image {
+                id: dl_list_refresh_icon
+
+                anchors.fill: parent
+                anchors.margins: 10
+                source: "qrc:/resources/icons/refreshIcon.png"
+            }
+        }
+
+        DLCheckbox {
+            id: dl_list_filter
+
+            label: "Show Active Sessions Only"
+            onCheckedChanged: dl_session_list_layout.populateModel()
+        }
     }
 
     Rectangle {
@@ -54,11 +116,8 @@ ColumnLayout {
             clip: true
             spacing: 10
 
-            // Placeholder
             model: ListModel {
                 id: dl_session_model
-                ListElement { roomCode: "ROOM-1234"; roomStatus: "Open"; timestamp: "12:37 PM"; maxCameras: 4 }
-                ListElement { roomCode: "ROOM-5678"; roomStatus: "Closed"; timestamp: "08:00 AM"; maxCameras: 2 }
             }
 
             delegate: Rectangle {
@@ -74,13 +133,14 @@ ColumnLayout {
                     Text {
                         Layout.alignment: Qt.AlignLeft
                         text: roomCode
-                        color: Theme.textWhite
-                        font.bold: true
+                        color: roomStatus === "active" ? Theme.textWhite : Theme.textMuted
+                        font.pointSize: 12
                     }
                     Text {
                         Layout.alignment: Qt.AlignLeft
-                        text: timestamp + " - " + roomStatus + " - " + maxCameras + " Cameras"
+                        text: "Created " + createdAt + " - " + roomStatus.charAt(0).toUpperCase() + roomStatus.slice(1) + " - " + maxCameras + " Cameras"
                         color: Theme.textMuted
+                        font.pointSize: 10
                     }
                 }
 
@@ -90,9 +150,24 @@ ColumnLayout {
                     hoverEnabled: true
                     onClicked: dl_session_list_layout.sessionSelected(roomCode, maxCameras)
                 }
+            }
+        }
 
+        Connections {
+            target: SessionClient
+
+            function onSessionsReceived(sessions) {
+                dl_session_list_layout.allSessions = sessions;
+                dl_session_list_layout.populateModel();
+                dl_session_list_layout.fetchPending = false;
             }
 
+            function onError(msg) {
+                if (dl_session_list_layout.fetchPending && msg !== "session is closed") {
+                    dl_session_model.clear();
+                    dl_session_list_layout.fetchPending = false;
+                }
+            }
         }
 
         Text {
@@ -102,8 +177,5 @@ ColumnLayout {
             text: "No sessions found"
             color: Theme.textMuted
         }
-
     }
-
-
 }
