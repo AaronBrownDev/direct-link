@@ -215,7 +215,7 @@ func TestServer_JoinSession(t *testing.T) {
 			t.Error("expected non-empty livekit_url for director role")
 		}
 		if dirResp.WhipUrl != "" {
-			t.Error("expected whipcurl for director role")
+			t.Error("expected whipurl for director role")
 		}
 		if dirResp.StreamKey != "" {
 			t.Error("expected streamKey url for director role")
