@@ -19,6 +19,7 @@ import ui.theme
 /*
     PROPERTIES
 
+        user_type:string - Reflects the user's role and updates text displays to match
         canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
 
     SIGNALS
@@ -32,7 +33,6 @@ import ui.theme
 ColumnLayout {
     id: dl_root_layout
 
-    property string user_id: ""
     property string user_type: "Director"
     property bool canQuickJoin: false
 
