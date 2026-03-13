@@ -162,7 +162,14 @@ void CameraCapture::captureLoop(const std::stop_token &stopToken) {
                     if (avcodec_receive_frame(codecCtx_, frame) == 0) {
                         auto wrapped_frame = std::make_unique<Frame>();
                         wrapped_frame->frame.reset(av_frame_clone(frame));
-                        wrapped_frame->pts = frame->pts;
+                        
+                        // Convert PTS to nanoseconds
+                        AVRational stream_tb = formatCtx_->streams[videoStreamIdx_]->time_base;
+                        constexpr AVRational ns_tb = {1, 1000000000};
+                        wrapped_frame->pts = (frame->pts != AV_NOPTS_VALUE)
+                            ? av_rescale_q(frame->pts, stream_tb, ns_tb)
+                            : 0;
+
                         wrapped_frame->width = frame->width;
                         wrapped_frame->height = frame->height;
                         wrapped_frame->format =

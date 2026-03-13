@@ -27,6 +27,7 @@ protected:
     EncoderConfig config_;
     std::function<void(std::unique_ptr<Packet>)> encodedPacketCallback_;
     bool running_ = false;
+    static int64_t rescaleToNs(int64_t value, AVRational src_tb);
 };
 
 std::unique_ptr<Encoder> createEncoder(const EncoderConfig &config);

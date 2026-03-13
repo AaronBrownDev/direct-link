@@ -111,6 +111,13 @@ Result NVENCEncoder::encodeFrame(AVFrame *frame) {
         }
     }
 
+    // Convert PTS from nanoseconds to encoder timebase
+    input_frame->pts = av_rescale_q(
+        frame->pts,                    // already nanoseconds from CameraCapture
+        AVRational{1, 1000000000},     // from
+        codecCtx_->time_base           // to encoder timebase
+    );
+
     // Send frame to encoder
     int ret = avcodec_send_frame(codecCtx_, input_frame);
     if (converted_frame != nullptr) {
@@ -125,8 +132,12 @@ Result NVENCEncoder::encodeFrame(AVFrame *frame) {
     while (avcodec_receive_packet(codecCtx_, pkt) == 0) {
         auto wrapped_packet = std::make_unique<Packet>();
         wrapped_packet->packet.reset(av_packet_clone(pkt));
-        wrapped_packet->pts = pkt->pts;
-        wrapped_packet->dts = pkt->dts;
+
+        // Convert PTS/DTS to nanoseconds
+        AVRational encoder_tb = codecCtx_->time_base;
+        wrapped_packet->pts = Encoder::rescaleToNs(pkt->pts, encoder_tb);
+        wrapped_packet->dts = Encoder::rescaleToNs(pkt->dts, encoder_tb);
+
         wrapped_packet->size = pkt->size;
         wrapped_packet->isKeyframe = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
 
@@ -151,8 +162,12 @@ Result NVENCEncoder::stop() {
     while (avcodec_receive_packet(codecCtx_, pkt) == 0) {
         auto wrapped_packet = std::make_unique<Packet>();
         wrapped_packet->packet.reset(av_packet_clone(pkt));
-        wrapped_packet->pts = pkt->pts;
-        wrapped_packet->dts = pkt->dts;
+
+        // Convert PTS/DTS to nanoseconds
+        AVRational encoder_tb = codecCtx_->time_base;
+        wrapped_packet->pts = Encoder::rescaleToNs(pkt->pts, encoder_tb);
+        wrapped_packet->dts = Encoder::rescaleToNs(pkt->dts, encoder_tb);
+
         wrapped_packet->size = pkt->size;
         wrapped_packet->isKeyframe = (pkt->flags & AV_PKT_FLAG_KEY) != 0;
         if (encodedPacketCallback_) {
