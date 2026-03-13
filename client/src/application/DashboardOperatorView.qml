@@ -3,7 +3,7 @@
  * Author: Justin Williams
  * Date: 3/5/26
  * File Description: The qml file that contains the session controls for the operator.
- * An operator can join sessions or configure their equipment.
+ * An operator can join sessions and configure their equipment.
  */
 
 import QtQuick
@@ -12,13 +12,17 @@ import ui.controls
 import ui.theme
 
 /*
+    PROPERTIES
+
+        canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+
     SIGNALS
 
-    joinClicked(string roomCode, string cameraName) - Fires when the operator has input
-        a room code and clicked on the 'Join Session' button. Passes the entered room
-        code and entered camera name.
-    quickJoinClicked () - Fires when the operator has clicked on the 'Quick Join
-        Last Session' button.
+        joinClicked(roomCode:string, cameraName:string) - Fires when the operator has input
+            a room code and clicked on the 'Join Session' button. Passes the entered room
+            code and entered camera name
+        quickJoinClicked() - Fires when the operator has clicked on the 'Quick Join
+            Last Session' button
  */
 RowLayout {
     id: dl_dash_view_layout

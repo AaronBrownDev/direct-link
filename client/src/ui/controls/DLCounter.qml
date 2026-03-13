@@ -12,12 +12,12 @@ import ui.theme
 /*
     PROPERTIES
 
-    value (int) - The current value of the counter
-    minimum (int) - The smallest possible value the counter can decrement to
-    maximum (int) - The largest possible value the counter can increment to
-    step (int) - The amount the counter value changes by when it increments or
-        decrements
-    label (string) - The display text to the right of the counter
+        value:int - The current value of the counter
+        minimum:int - The smallest possible value the counter can decrement to
+        maximum:int - The largest possible value the counter can increment to
+        step:int - The amount the counter value changes by when it increments or
+            decrements
+        label:string - The display text to the right of the counter
  */
 Rectangle {
     id: dl_counter_bg
@@ -60,9 +60,11 @@ Rectangle {
         topLeftRadius: parent.radius
         bottomLeftRadius: parent.radius
         color: {
-            if (dl_decrement.pressed || dl_counter_bg.value <= dl_counter_bg.minimum) return Theme.fieldPressed
-            if (dl_decrement.containsMouse) return Theme.fieldHover
-            return Theme.fieldBackground
+            if (dl_decrement.pressed || dl_counter_bg.value <= dl_counter_bg.minimum)
+                return Theme.fieldPressed;
+            if (dl_decrement.containsMouse)
+                return Theme.fieldHover;
+            return Theme.fieldBackground;
         }
 
         MouseArea {
@@ -73,7 +75,7 @@ Rectangle {
 
             onClicked: {
                 if (dl_counter_bg.value > dl_counter_bg.minimum)
-                    dl_counter_bg.value -= dl_counter_bg.step
+                    dl_counter_bg.value -= dl_counter_bg.step;
             }
 
             Text {
@@ -97,9 +99,11 @@ Rectangle {
         topRightRadius: parent.radius
         bottomRightRadius: parent.radius
         color: {
-            if (dl_increment.pressed || dl_counter_bg.value >= dl_counter_bg.maximum) return Theme.fieldPressed
-            if (dl_increment.containsMouse) return Theme.fieldHover
-            return Theme.fieldBackground
+            if (dl_increment.pressed || dl_counter_bg.value >= dl_counter_bg.maximum)
+                return Theme.fieldPressed;
+            if (dl_increment.containsMouse)
+                return Theme.fieldHover;
+            return Theme.fieldBackground;
         }
 
         MouseArea {
@@ -110,7 +114,7 @@ Rectangle {
 
             onClicked: {
                 if (dl_counter_bg.value < dl_counter_bg.maximum)
-                    dl_counter_bg.value += dl_counter_bg.step
+                    dl_counter_bg.value += dl_counter_bg.step;
             }
 
             Text {
@@ -124,6 +128,4 @@ Rectangle {
             }
         }
     }
-
-
 }

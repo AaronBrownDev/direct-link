@@ -16,6 +16,19 @@ import ui
 import ui.controls
 import ui.theme
 
+/*
+    PROPERTIES
+
+        canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+
+    SIGNALS
+
+        joinClicked(roomCode:string, cameraName:string) - Fires when the operator has input
+            a room code and clicked on the 'Join Session' button. Passes the entered room
+            code and entered camera name
+        quickJoinClicked() - Fires when the operator has clicked on the 'Quick Join
+            Last Session' button
+ */
 ColumnLayout {
     id: dl_root_layout
 

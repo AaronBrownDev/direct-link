@@ -180,6 +180,8 @@ Window {
             case "joinSession":
                 if (msg === "session is closed")
                     dl_error_popup.displayText = "That session has ended.";
+                else if (msg === "session not found")
+                    dl_error_popup.displayText = "Session was not found. Please try again."
                 else
                     dl_error_popup.displayText = "Failed to join session. Please try again.";
 

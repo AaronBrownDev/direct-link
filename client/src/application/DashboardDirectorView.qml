@@ -12,16 +12,20 @@ import ui.controls
 import ui.theme
 
 /*
+    PROPERTIES
+
+    canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+
     SIGNALS
 
-    joinClicked(string roomCode) - Fires when the director has input a room code
-        and clicked on the 'Join Session' button. Passes the entered room code.
-    quickJoinClicked () - Fires when the director has clicked on the 'Quick Join
+    joinClicked(roomCode:string) - Fires when the director has input
+        a room code and clicked on the 'Join Session' button. Passes the entered room
+        code.
+    quickJoinClicked() - Fires when the director has clicked on the 'Quick Join
         Last Session' button.
-    createClicked(string projectName, string sessionDesc, string qualitySettings,
-        int cameraCount) - Fires when the director has clicked on the 'Create Session'
-        button. Passes the entered project name, session description, quality settings,
-        and camera count
+    createClicked(projectName:string, sessionDesc:string, qualitySettings:string, cameraCount:int) -
+        Fires when the director has clicked on the 'Create Session' button. Passes the project name,
+        session description, quality settings, and max camera setting.
  */
 RowLayout {
     id: dl_dash_view_layout
@@ -29,10 +33,10 @@ RowLayout {
     property bool canQuickJoin: false
 
     signal joinClicked(string roomCode)
-    signal quickJoinClicked()
+    signal quickJoinClicked
     signal createClicked(string projectName, string sessionDesc, string qualitySettings, int cameraCount)
 
-    spacing: 20    
+    spacing: 20
 
     JoinSessionView {
         id: dl_join_session_view
@@ -117,7 +121,9 @@ RowLayout {
                 maximum: 4
             }
 
-            Item { Layout.fillHeight: true }
+            Item {
+                Layout.fillHeight: true
+            }
 
             DLButton {
                 id: dl_create_button
@@ -128,12 +134,7 @@ RowLayout {
                 buttonType: DLButton.ButtonType.Primary
                 buttonText: "Create Session"
 
-                onClicked: createClicked(
-                               dl_project_name.input,
-                               dl_session_desc.input,
-                               dl_quality_settings.input,
-                               dl_camera_counter.value
-                            )
+                onClicked: createClicked(dl_project_name.input, dl_session_desc.input, dl_quality_settings.input, dl_camera_counter.value)
             }
         }
     }

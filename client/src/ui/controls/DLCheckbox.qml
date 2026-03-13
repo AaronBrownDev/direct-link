@@ -9,6 +9,13 @@ import QtQuick
 import QtQuick.Layouts
 import ui.theme
 
+/*
+    PROPERTIES
+
+        checked:bool - Determines if the checkbox is checked or not
+        active:bool - Determines if the checkbox can be interacted with
+        label:string - Sets the contents of the label that displays to the right of the checkbox
+ */
 Item {
     id: dl_checkbox
 

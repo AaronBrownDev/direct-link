@@ -1,128 +1,150 @@
+/*
+ * File: JoinSessionView.qml
+ * Author: Justin Williams
+ * Date: 3/12/26
+ * File Description: A view that holds the surface for session join controls.
+ */
+
 import QtQuick
 import QtQuick.Layouts
 import network
 import ui.controls
 import ui.theme
 
+/*
+    PROPERTIES
+
+        showCameraField:bool - Determines if the 'Camera Name' text field is visible
+        canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled
+
+    SIGNALS
+
+        joinClicked(roomCode:string, cameraName:string) - Fires when a room code has been
+            entered and the 'Join Session' button has been clicked. Passes the entered room
+            code and entered camera name
+        quickJoinClicked() - Fires when the 'Quick Join Last Session' button has been pressed
+ */
 Rectangle {
-        id: dl_join_session_bg
+    id: dl_join_session_bg
 
-        property bool showCameraField: true
-        property bool canQuickJoin: false
+    property bool showCameraField: true
+    property bool canQuickJoin: false
 
-        Layout.fillWidth: true
-        Layout.preferredHeight: 550
+    Layout.fillWidth: true
+    Layout.preferredHeight: 550
 
-        color: Theme.surface
-        radius: 15
+    color: Theme.surface
+    radius: 15
 
-        signal joinClicked(string roomCode, string cameraName)
-        signal quickJoinClicked()
+    signal joinClicked(string roomCode, string cameraName)
+    signal quickJoinClicked
 
-        ColumnLayout {
-            id: dl_join_session_layout
+    ColumnLayout {
+        id: dl_join_session_layout
 
-            anchors.fill: parent
-            anchors.margins: 20
-            spacing: 10
+        anchors.fill: parent
+        anchors.margins: 20
+        spacing: 10
 
-            Text {
-                id: dl_join_session_title
+        Text {
+            id: dl_join_session_title
 
-                text: "Join Session"
-                color: Theme.textWhite
-                font.pointSize: 25
-                font.bold: true
-            }
+            text: "Join Session"
+            color: Theme.textWhite
+            font.pointSize: 25
+            font.bold: true
+        }
 
-            DLTextField {
-                id: dl_session_code_field
+        DLTextField {
+            id: dl_session_code_field
 
-                Layout.topMargin: 40
-                Layout.preferredHeight: 65
-                Layout.fillWidth: true
+            Layout.topMargin: 40
+            Layout.preferredHeight: 65
+            Layout.fillWidth: true
 
-                label: "Session Code"
-                emptyText: "Enter code (XXXX-XXXXXX)"
-                maxLength: 11
-                isCode: true
+            label: "Session Code"
+            emptyText: "Enter code (XXXX-XXXXXX)"
+            maxLength: 11
+            isCode: true
 
-                onFieldChanged: {
-                    dl_session_join_status.visible = false
-                }
-            }
-            
-            Text {
-                id: dl_session_join_status
-
-                visible: false
-                text: "Please enter a valid code"
-                font.pointSize: 14
-            }
-
-            DLTextField {
-                id: dl_camera_name_field
-
-                Layout.topMargin: 30
-                Layout.preferredHeight: 65
-                Layout.fillWidth: true
-
-                visible: showCameraField
-                label: "Camera Name"
-                emptyText: "e.g. Camera A - Wide Angle"
-                maxLength: 32
-            }
-
-            Item { Layout.fillHeight: true }
-
-            DLButton {
-                id: dl_join_button
-
-                Layout.fillWidth: true
-                Layout.preferredHeight: 65
-
-                buttonType: DLButton.ButtonType.Primary
-                buttonText: "Join Session"
-
-                onClicked: {
-                    if (dl_session_code_field.input.length === 11)
-                        joinClicked(dl_session_code_field.input, dl_camera_name_field.input)
-                    else {
-                        dl_session_code_field.state = "invalid"
-                        dl_session_join_status.color = Theme.danger
-                        dl_session_join_status.visible = true
-                    }
-                }
-            }
-
-            DLButton {
-                id: dl_quick_join_button
-
-                Layout.fillWidth: true
-                Layout.preferredHeight: 55
-                Layout.topMargin: 10
-
-                buttonType: DLButton.ButtonType.Neutral
-                buttonText: "Quick Join Last Session"
-                active: dl_join_session_bg.canQuickJoin
-
-                onClicked: quickJoinClicked()
+            onInputChanged: {
+                dl_session_join_status.visible = false;
             }
         }
 
-        Connections {
-            target: SessionClient
+        Text {
+            id: dl_session_join_status
 
-            function onError(msg) {
-                switch (msg) {
-                    case "session not found":
-                        dl_session_code_field.state = "invalid"
-                        dl_session_join_status.color = Theme.danger
-                        dl_session_join_status.visible = true
-                        return
-                    default:
-                        return
+            visible: false
+            text: "Please enter a valid code"
+            font.pointSize: 14
+        }
+
+        DLTextField {
+            id: dl_camera_name_field
+
+            Layout.topMargin: 30
+            Layout.preferredHeight: 65
+            Layout.fillWidth: true
+
+            visible: showCameraField
+            label: "Camera Name"
+            emptyText: "e.g. Camera A - Wide Angle"
+            maxLength: 32
+        }
+
+        Item {
+            Layout.fillHeight: true
+        }
+
+        DLButton {
+            id: dl_join_button
+
+            Layout.fillWidth: true
+            Layout.preferredHeight: 65
+
+            buttonType: DLButton.ButtonType.Primary
+            buttonText: "Join Session"
+
+            onClicked: {
+                if (dl_session_code_field.input.length === 11)
+                    joinClicked(dl_session_code_field.input, dl_camera_name_field.input);
+                else {
+                    dl_session_code_field.state = "invalid";
+                    dl_session_join_status.color = Theme.danger;
+                    dl_session_join_status.visible = true;
                 }
+            }
+        }
+
+        DLButton {
+            id: dl_quick_join_button
+
+            Layout.fillWidth: true
+            Layout.preferredHeight: 55
+            Layout.topMargin: 10
+
+            buttonType: DLButton.ButtonType.Neutral
+            buttonText: "Quick Join Last Session"
+            active: dl_join_session_bg.canQuickJoin
+
+            onClicked: quickJoinClicked()
+        }
+    }
+
+    Connections {
+        target: SessionClient
+
+        function onError(msg) {
+            switch (msg) {
+            case "session not found":
+                dl_session_code_field.state = "invalid";
+                dl_session_join_status.color = Theme.danger;
+                dl_session_join_status.visible = true;
+                return;
+            default:
+                return;
             }
         }
     }
+}

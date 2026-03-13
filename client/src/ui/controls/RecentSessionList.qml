@@ -15,10 +15,23 @@ import ui.controls
 import ui.theme
 
 /*
+    PROPERTIES
+
+        fetchPending:bool - Set to true when a refresh was performed, set to false when sessions
+            have been received or when an error signal was emitted from SessionClient after a refresh
+        allSessions:var - A container for sessions retrieved from SessionClient
+
+    FUNCTIONS
+
+        populateModel():void - Clear and add all sessions currently in the allSessions property to the
+            ListView model. If the active session filter is checked, only active sessions will populate
+            the model
+
     SIGNALS
 
-    sessionSelected (string roomCode, int maxCameras) - fires when the user clicks on
-        a session in the list. Passes the room code and max cameras of the session.
+        sessionSelected(roomCode:string, maxCameras:int) - Fires when a session has been selected from
+            the list
+        refreshClicked() - Fires when the refresh button has been clicked
  */
 ColumnLayout {
     id: dl_session_list_layout

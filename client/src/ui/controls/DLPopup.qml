@@ -10,6 +10,16 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import ui.theme
 
+/*
+    PROPERTIES
+
+        displayText:string - The message that displays in the popup
+        inputType:InputType - Determines the options available in the popup
+
+    SIGNALS
+
+        confirmed() - Fires when the confirm option is selected, if available
+ */
 Popup {
     id: dl_popup
 
@@ -33,7 +43,7 @@ Popup {
         radius: 15
     }
 
-    signal confirmed()
+    signal confirmed
 
     ColumnLayout {
         id: dl_popup_layout
@@ -58,7 +68,9 @@ Popup {
 
             spacing: 20
 
-            Item {Layout.fillWidth: true}
+            Item {
+                Layout.fillWidth: true
+            }
 
             DLButton {
                 Layout.preferredWidth: 200
@@ -68,8 +80,8 @@ Popup {
                 buttonText: "Confirm"
                 buttonType: DLButton.ButtonType.Danger
                 onClicked: {
-                    dl_popup.confirmed()
-                    dl_popup.close()
+                    dl_popup.confirmed();
+                    dl_popup.close();
                 }
             }
 
@@ -80,13 +92,13 @@ Popup {
                 buttonText: dl_popup.inputType === DLPopup.InputType.ConfirmCancel ? "Cancel" : "Close"
                 buttonType: DLButton.ButtonType.Neutral
                 onClicked: {
-                    dl_popup.close()
+                    dl_popup.close();
                 }
             }
 
-            Item {Layout.fillWidth: true}
+            Item {
+                Layout.fillWidth: true
+            }
         }
-
     }
-
 }

@@ -12,14 +12,13 @@ import ui.theme
 /*
     PROPERTIES
 
-    label (string) - sets the text displayed above the text field
-    emptyText (string) - sets the text displayed when there is no text input
-    isCode (bool) - determines whether or not the input is evaluated as a
-        room code (i.e. ROOM-1234)
-    maxLength (int) - constrains the length of the entered text to a set amount of characters
-    input (string) - an alias for the contents of the field's text input (readonly)
+        label:string - Sets the text displayed above the text field
+        emptyText:string - Sets the text displayed when there is no text input
+        isCode:bool - Determines whether or not the input is evaluated as a
+            room code (i.e. ROOM-123456)
+        maxLength:int - Constrains the length of the entered text to a set amount of characters
+        input:string - An alias for the contents of the field's text input (readonly)
  */
-
 Rectangle {
     id: dl_field
 
@@ -46,8 +45,6 @@ Rectangle {
             }
         }
     ]
-
-    signal fieldChanged(string newValue)
 
     Text {
         id: dl_field_label
@@ -85,17 +82,16 @@ Rectangle {
         selectionColor: Theme.primary
 
         onTextEdited: {
-            dl_field.state = ""
+            dl_field.state = "";
             if (dl_field.isCode) {
-                let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase()
-                clean = clean.substring(0,10)
+                let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+                clean = clean.substring(0, 10);
                 if (clean.length > 4)
-                    clean = clean.substring(0,4) + "-" + clean.substring(4)
+                    clean = clean.substring(0, 4) + "-" + clean.substring(4);
 
                 if (text !== clean)
-                    text = clean
+                    text = clean;
             }
-            dl_field.fieldChanged(text)
         }
     }
 }
