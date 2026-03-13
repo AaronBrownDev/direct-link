@@ -57,7 +57,6 @@ Rectangle {
         anchors.left: parent.left
         anchors.bottomMargin: 10
         font.pointSize: 14
-        font.bold: true
         color: Theme.textMuted
     }
 

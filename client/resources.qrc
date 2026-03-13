@@ -3,5 +3,6 @@
         <file>resources/icons/settings.png</file>
         <file>resources/ui/placeholderSplash.png</file>
         <file>resources/icons/refreshIcon.png</file>
+        <file>resources/icons/checkIcon.png</file>
     </qresource>
 </RCC>

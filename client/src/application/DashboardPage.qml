@@ -24,9 +24,9 @@ ColumnLayout {
     property bool canQuickJoin: false
 
     signal joinRequested(string roomCode)
-    signal quickJoinRequested()
+    signal quickJoinRequested
     signal createRequested(int maxCameras)
-    signal sessionFetchRequested()
+    signal sessionFetchRequested
 
     ColumnLayout {
         id: dl_content_layout
@@ -53,19 +53,19 @@ ColumnLayout {
             sourceComponent: dl_root_layout.user_type === "Director" ? dl_dash_director_view : dl_dash_operator_view
         }
 
-
-
         RecentSessionList {
             id: dl_dash_recent_sessions
 
             Layout.minimumHeight: 200
 
+            visible: user_type === "Director"
+
             onSessionSelected: (roomCode, maxCameras) => {
-                dl_root_layout.joinRequested(roomCode)
+                dl_root_layout.joinRequested(roomCode);
             }
 
             onRefreshClicked: () => {
-                dl_root_layout.sessionFetchRequested()
+                dl_root_layout.sessionFetchRequested();
             }
         }
     }
@@ -75,16 +75,16 @@ ColumnLayout {
         DashboardDirectorView {
             canQuickJoin: dl_root_layout.canQuickJoin
 
-            onJoinClicked: (roomCode) => {
-                dl_root_layout.joinRequested(roomCode)
+            onJoinClicked: roomCode => {
+                dl_root_layout.joinRequested(roomCode);
             }
 
             onQuickJoinClicked: () => {
-                dl_root_layout.quickJoinRequested()
+                dl_root_layout.quickJoinRequested();
             }
 
             onCreateClicked: (projectName, sessionDesc, qualitySettings, maxCameras) => {
-                dl_root_layout.createRequested(maxCameras)
+                dl_root_layout.createRequested(maxCameras);
             }
         }
     }
@@ -93,13 +93,13 @@ ColumnLayout {
         id: dl_dash_operator_view
         DashboardOperatorView {
             canQuickJoin: dl_root_layout.canQuickJoin
-            
+
             onJoinClicked: (roomCode, cameraName) => {
-                dl_root_layout.joinRequested(roomCode)
+                dl_root_layout.joinRequested(roomCode);
             }
 
             onQuickJoinClicked: () => {
-                dl_root_layout.quickJoinRequested()
+                dl_root_layout.quickJoinRequested();
             }
         }
     }

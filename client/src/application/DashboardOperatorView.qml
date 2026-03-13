@@ -26,7 +26,7 @@ RowLayout {
     property bool canQuickJoin: false
 
     signal joinClicked(string roomCode, string cameraName)
-    signal quickJoinClicked()
+    signal quickJoinClicked
 
     spacing: 20
 
@@ -39,7 +39,7 @@ RowLayout {
         showCameraField: true
         canQuickJoin: dl_dash_view_layout.canQuickJoin
 
-        onJoinClicked: (roomCode, cameraName) => dl_dash_view_layout.joinClicked(roomCode)
+        onJoinClicked: (roomCode, cameraName) => dl_dash_view_layout.joinClicked(roomCode, cameraName)
         onQuickJoinClicked: () => dl_dash_view_layout.quickJoinClicked()
     }
 
@@ -116,7 +116,9 @@ RowLayout {
                 text: "- GPU Available"
             }
 
-            Item { Layout.fillHeight: true }
+            Item {
+                Layout.fillHeight: true
+            }
         }
     }
 }

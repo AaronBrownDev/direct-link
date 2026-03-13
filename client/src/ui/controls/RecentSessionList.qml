@@ -24,9 +24,18 @@ ColumnLayout {
     id: dl_session_list_layout
 
     property bool fetchPending: false
+    property var allSessions: []
+
+    function populateModel() {
+        dl_session_model.clear();
+        for (let i = 0; i < allSessions.length; i++) {
+            if (!dl_list_filter.checked || allSessions[i].roomStatus === "active")
+                dl_session_model.append(allSessions[i]);
+        }
+    }
 
     signal sessionSelected(string roomCode, int maxCameras)
-    signal refreshClicked()
+    signal refreshClicked
 
     spacing: 15
 
@@ -55,8 +64,8 @@ ColumnLayout {
             buttonType: DLButton.ButtonType.Neutral
 
             onClicked: {
-                dl_session_list_layout.fetchPending = true
-                dl_session_list_layout.refreshClicked()
+                dl_session_list_layout.fetchPending = true;
+                dl_session_list_layout.refreshClicked();
             }
 
             Image {
@@ -67,9 +76,14 @@ ColumnLayout {
                 source: "qrc:/resources/icons/refreshIcon.png"
             }
         }
+
+        DLCheckbox {
+            id: dl_list_filter
+
+            label: "Show Active Sessions Only"
+            onCheckedChanged: dl_session_list_layout.populateModel()
+        }
     }
-
-
 
     Rectangle {
         id: dl_session_list_bg
@@ -106,13 +120,14 @@ ColumnLayout {
                     Text {
                         Layout.alignment: Qt.AlignLeft
                         text: roomCode
-                        color: Theme.textWhite
-                        font.bold: true
+                        color: roomStatus === "active" ? Theme.textWhite : Theme.textMuted
+                        font.pointSize: 12
                     }
                     Text {
                         Layout.alignment: Qt.AlignLeft
-                        text: "Created " + createdAt + " - " + roomStatus + " - " + maxCameras + " Cameras"
+                        text: "Created " + createdAt + " - " + roomStatus.charAt(0).toUpperCase() + roomStatus.slice(1) + " - " + maxCameras + " Cameras"
                         color: Theme.textMuted
+                        font.pointSize: 10
                     }
                 }
 
@@ -122,26 +137,22 @@ ColumnLayout {
                     hoverEnabled: true
                     onClicked: dl_session_list_layout.sessionSelected(roomCode, maxCameras)
                 }
-
             }
-
         }
 
         Connections {
             target: SessionClient
 
             function onSessionsReceived(sessions) {
-                dl_session_model.clear()
-                for (let i = 0; i < sessions.length; i++) {
-                    dl_session_model.append(sessions[i])
-                }
-                dl_session_list_layout.fetchPending = false
+                dl_session_list_layout.allSessions = sessions;
+                dl_session_list_layout.populateModel();
+                dl_session_list_layout.fetchPending = false;
             }
 
             function onError(msg) {
                 if (dl_session_list_layout.fetchPending && msg !== "session is closed") {
-                    dl_session_model.clear()
-                    dl_session_list_layout.fetchPending = false
+                    dl_session_model.clear();
+                    dl_session_list_layout.fetchPending = false;
                 }
             }
         }
@@ -153,8 +164,5 @@ ColumnLayout {
             text: "No sessions found"
             color: Theme.textMuted
         }
-
     }
-
-
 }

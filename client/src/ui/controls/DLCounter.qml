@@ -47,7 +47,6 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         anchors.leftMargin: 10
         font.pointSize: 14
-        font.bold: true
         color: Theme.textMuted
         text: dl_counter_bg.label
     }
