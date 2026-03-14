@@ -112,11 +112,11 @@ Result NVENCEncoder::encodeFrame(AVFrame *frame) {
     }
 
     // Convert PTS from nanoseconds to encoder timebase
-    input_frame->pts = av_rescale_q(
-        frame->pts,                    // already nanoseconds from CameraCapture
-        AVRational{1, 1000000000},     // from
-        codecCtx_->time_base           // to encoder timebase
-    );
+    input_frame->pts =
+        av_rescale_q(frame->pts, // already nanoseconds from CameraCapture
+                     AVRational{1, 1000000000}, // from
+                     codecCtx_->time_base       // to encoder timebase
+        );
 
     // Send frame to encoder
     int ret = avcodec_send_frame(codecCtx_, input_frame);
