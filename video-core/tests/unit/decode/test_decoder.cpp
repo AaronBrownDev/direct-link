@@ -59,7 +59,8 @@ static EncodedTestData generateTestPackets(int frameCount = 5) {
         av_frame_make_writable(frame);
 
         // Fill YUV420P frame with blank data (gray)
-        memset(frame->data[0], 0, frame->linesize[0] * result.height);
+        memset(frame->data[0], 0,
+               static_cast<long>(frame->linesize[0]) * result.height);
         memset(frame->data[1], 128, frame->linesize[1] * result.height / 2);
         memset(frame->data[2], 128, frame->linesize[2] * result.height / 2);
         frame->pts = i;
@@ -67,9 +68,9 @@ static EncodedTestData generateTestPackets(int frameCount = 5) {
         if (avcodec_send_frame(ctx, frame) == 0) {
             while (avcodec_receive_packet(ctx, pkt) == 0) {
                 std::vector<uint8_t> data(pkt->data, pkt->data + pkt->size);
-                result.packets.push_back(
-                    {std::vector<uint8_t>(pkt->data, pkt->data + pkt->size),
-                     pkt->pts});
+                result.packets.emplace_back(
+                    std::vector<uint8_t>(pkt->data, pkt->data + pkt->size),
+                    pkt->pts);
                 av_packet_unref(pkt);
             }
         }
@@ -79,8 +80,8 @@ static EncodedTestData generateTestPackets(int frameCount = 5) {
     avcodec_send_frame(ctx, nullptr);
     while (avcodec_receive_packet(ctx, pkt) == 0) {
         std::vector<uint8_t> data(pkt->data, pkt->data + pkt->size);
-        result.packets.push_back(
-            {std::vector<uint8_t>(pkt->data, pkt->data + pkt->size), pkt->pts});
+        result.packets.emplace_back(
+            std::vector<uint8_t>(pkt->data, pkt->data + pkt->size), pkt->pts);
         av_packet_unref(pkt);
     }
 
@@ -113,74 +114,76 @@ TEST(SoftwareDecoderTest, InitializeTwiceIsIdempotent) {
 TEST(SoftwareDecoderTest, DecodePacketProducesFrames) {
     SoftwareDecoder decoder;
 
-    std::vector<std::unique_ptr<Frame>> receivedFrames;
+    std::vector<std::unique_ptr<Frame>> received_frames;
     decoder.initialize([&](std::unique_ptr<Frame> frame) {
-        receivedFrames.push_back(std::move(frame));
+        received_frames.push_back(std::move(frame));
     });
 
-    auto testData = generateTestPackets(5);
-    ASSERT_FALSE(testData.packets.empty());
+    auto test_data = generateTestPackets(5);
+    ASSERT_FALSE(test_data.packets.empty());
 
-    for (auto &packetData : testData.packets) {
+    for (auto &packet_data : test_data.packets) {
         auto pkt = std::make_unique<Packet>();
         pkt->packet.reset(av_packet_alloc());
         av_new_packet(pkt->packet.get(),
-                      static_cast<int>(packetData.first.size()));
-        memcpy(pkt->packet->data, packetData.first.data(),
-               packetData.first.size());
+                      static_cast<int>(packet_data.first.size()));
+        memcpy(pkt->packet->data, packet_data.first.data(),
+               packet_data.first.size());
         decoder.decodePacket(std::move(pkt));
     }
 
-    EXPECT_GT(receivedFrames.size(), 0u);
+    EXPECT_GT(received_frames.size(), 0u);
 }
 
 TEST(SoftwareDecoderTest, DecodedFrameHasCorrectDimensions) {
     SoftwareDecoder decoder;
 
-    std::unique_ptr<Frame> firstFrame;
+    std::unique_ptr<Frame> first_frame;
     decoder.initialize([&](std::unique_ptr<Frame> frame) {
-        if (firstFrame == nullptr)
-            firstFrame = std::move(frame);
+        if (first_frame == nullptr) {
+            first_frame = std::move(frame);
+        }
     });
 
-    auto testData = generateTestPackets(3);
-    for (auto &packetData : testData.packets) {
+    auto test_data = generateTestPackets(3);
+    for (auto &packet_data : test_data.packets) {
         auto pkt = std::make_unique<Packet>();
         pkt->packet.reset(av_packet_alloc());
         av_new_packet(pkt->packet.get(),
-                      static_cast<int>(packetData.first.size()));
-        memcpy(pkt->packet->data, packetData.first.data(),
-               packetData.first.size());
+                      static_cast<int>(packet_data.first.size()));
+        memcpy(pkt->packet->data, packet_data.first.data(),
+               packet_data.first.size());
         decoder.decodePacket(std::move(pkt));
     }
 
-    ASSERT_NE(firstFrame, nullptr);
-    EXPECT_EQ(firstFrame->width, 320);
-    EXPECT_EQ(firstFrame->height, 240);
+    ASSERT_NE(first_frame, nullptr);
+    EXPECT_EQ(first_frame->width, 320);
+    EXPECT_EQ(first_frame->height, 240);
 }
 
 TEST(SoftwareDecoderTest, DecodedFrameHasNonNegativePts) {
     SoftwareDecoder decoder;
 
-    std::vector<int64_t> ptsValues;
-    decoder.initialize(
-        [&](std::unique_ptr<Frame> frame) { ptsValues.push_back(frame->pts); });
+    std::vector<int64_t> pts_values;
+    decoder.initialize([&](std::unique_ptr<Frame> frame) {
+        pts_values.push_back(frame->pts);
+    });
 
-    auto testData = generateTestPackets(5);
-    for (auto &packetData : testData.packets) {
+    auto test_data = generateTestPackets(5);
+    for (auto &packet_data : test_data.packets) {
         auto pkt = std::make_unique<Packet>();
         pkt->packet.reset(av_packet_alloc());
         av_new_packet(pkt->packet.get(),
-                      static_cast<int>(packetData.first.size()));
-        memcpy(pkt->packet->data, packetData.first.data(),
-               packetData.first.size());
-        pkt->packet->pts = packetData.second;
-        pkt->packet->dts = packetData.second;
+                      static_cast<int>(packet_data.first.size()));
+        memcpy(pkt->packet->data, packet_data.first.data(),
+               packet_data.first.size());
+        pkt->packet->pts = packet_data.second;
+        pkt->packet->dts = packet_data.second;
         decoder.decodePacket(std::move(pkt));
     }
 
-    ASSERT_GE(ptsValues.size(), 1u);
-    for (int64_t pts : ptsValues) {
+    ASSERT_GE(pts_values.size(), 1u);
+    for (int64_t pts : pts_values) {
         EXPECT_GE(pts, 0) << "PTS should never be negative";
     }
 }
@@ -247,21 +250,21 @@ TEST(CreateDecoderTest, ReturnedDecoderCanDecodePackets) {
     auto decoder = createDecoder();
     ASSERT_NE(decoder, nullptr);
 
-    std::vector<std::unique_ptr<Frame>> receivedFrames;
+    std::vector<std::unique_ptr<Frame>> received_frames;
     decoder->initialize([&](std::unique_ptr<Frame> frame) {
-        receivedFrames.push_back(std::move(frame));
+        received_frames.push_back(std::move(frame));
     });
 
-    auto testData = generateTestPackets(5);
-    for (auto &packetData : testData.packets) {
+    auto test_data = generateTestPackets(5);
+    for (auto &packet_data : test_data.packets) {
         auto pkt = std::make_unique<Packet>();
         pkt->packet.reset(av_packet_alloc());
         av_new_packet(pkt->packet.get(),
-                      static_cast<int>(packetData.first.size()));
-        memcpy(pkt->packet->data, packetData.first.data(),
-               packetData.first.size());
+                      static_cast<int>(packet_data.first.size()));
+        memcpy(pkt->packet->data, packet_data.first.data(),
+               packet_data.first.size());
         decoder->decodePacket(std::move(pkt));
     }
 
-    EXPECT_GT(receivedFrames.size(), 0u);
+    EXPECT_GT(received_frames.size(), 0u);
 }

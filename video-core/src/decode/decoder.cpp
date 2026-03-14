@@ -24,10 +24,10 @@ int64_t Decoder::rescaleToNs(int64_t value, AVRational src_tb) {
 
 std::unique_ptr<Decoder> createDecoder() {
     if (avcodec_find_decoder_by_name("h264_cuvid") != nullptr) {
-        AVBufferRef *hwCtx = nullptr;
-        if (av_hwdevice_ctx_create(&hwCtx, AV_HWDEVICE_TYPE_CUDA,
-                                   nullptr, nullptr, 0) == 0) {
-            av_buffer_unref(&hwCtx);
+        AVBufferRef *hw_ctx = nullptr;
+        if (av_hwdevice_ctx_create(&hw_ctx, AV_HWDEVICE_TYPE_CUDA, nullptr,
+                                   nullptr, 0) == 0) {
+            av_buffer_unref(&hw_ctx);
             return std::make_unique<NvdecDecoder>();
         }
     }
