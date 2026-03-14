@@ -2,7 +2,7 @@
 #include "../../include/encode/encoder_config.hpp"
 #include "../../include/encode/nvenc_encoder.hpp"
 #include "../../include/encode/software_encoder.hpp"
-
+#include <libavutil/mathematics.h>
 namespace videoCore::encode {
 
 Result Encoder::initialize(
