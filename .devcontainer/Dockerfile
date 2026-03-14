@@ -63,6 +63,22 @@ COPY --from=livekit/gstreamer:1.22.8-prod-rs \
     /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstwebrtchttp.so \
     /usr/lib/x86_64-linux-gnu/gstreamer-1.0/
 
+# Install LiveKit dependencies
+RUN apt-get update && apt-get install -y \
+    ninja-build \
+    llvm-dev \
+    libclang-dev \
+    clang \
+    libprotobuf-dev \
+    libabsl-dev \
+    libssl-dev \
+    libva-dev \
+    libdrm-dev \
+    libgbm-dev \
+    libx11-dev \
+    libasound2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Qt
 RUN apt-get update && apt-get install -y \
     libgl1-mesa-dev \
@@ -83,8 +99,23 @@ ENV PATH=${QT_INSTALL_DIR}/${QT_VERSION}/gcc_64/bin:${PATH}
 ENV CMAKE_PREFIX_PATH=${QT_INSTALL_DIR}/${QT_VERSION}/gcc_64
 ENV LD_LIBRARY_PATH=${QT_INSTALL_DIR}/${QT_VERSION}/gcc_64/lib:${LD_LIBRARY_PATH}
 
-# Runs the following commands as vscode so /go/pkg/mod/ is not owned by root
+# Runs the following commands as vscode so /go/pkg/mod/ and /.cargo/bin are not owned by root
 USER vscode
+
+# Install Rust Toolchain
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable
+ENV PATH="/home/vscode/.cargo/bin:${PATH}"
+
+# Clone LiveKit repo and initialize submodules
+RUN git clone --recurse-submodules https://github.com/livekit/client-sdk-cpp.git /home/vscode/livekit-cpp \
+    && cd /home/vscode/livekit-cpp \
+    && export CC=clang-18 \
+    && export CXX=clang++-18 \
+    && export LIBCLANG_PATH=/usr/lib/llvm-18/lib \
+    && export CXXFLAGS="-Wno-deprecated-declarations" \
+    && export CFLAGS="-Wno-deprecated-declarations" \
+    && cmake -B build -S . -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build
 
 # Install Go tools
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
