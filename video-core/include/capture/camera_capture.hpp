@@ -40,5 +40,8 @@ private:
     void captureLoop(const std::stop_token &stopToken);
     Result setupDevice();
     Result setupCodec();
+
+    bool processPacket(AVPacket *packet, AVFrame *frame);
+    bool processFrame(AVFrame *frame);
 };
 } // namespace videoCore::capture

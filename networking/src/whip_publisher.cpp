@@ -16,9 +16,11 @@ WHIPPublisher::~WHIPPublisher() {
 Result
 WHIPPublisher::initialize(const std::string &whip_url,
                           const std::string &stream_key,
+                          int framerate,
                           std::function<void(std::string)> onErrorCallback) {
     whipUrl_ = whip_url;
     streamKey_ = stream_key;
+    framerate_ = framerate;
     onErrorCallback_ = std::move(onErrorCallback);
 
     pipeline_ = gst_pipeline_new("whip-pipeline");
@@ -159,7 +161,7 @@ void WHIPPublisher::pushPacket(std::unique_ptr<videoCore::Packet> packet) {
     gst_buffer_unmap(buffer, &map);
 
     GST_BUFFER_PTS(buffer) = static_cast<GstClockTime>(packet->pts);
-    GST_BUFFER_DURATION(buffer) = GST_SECOND / 30;
+    GST_BUFFER_DURATION(buffer) = GST_SECOND / static_cast<GstClockTime>(framerate_);
     frameCount_++;
 
     GstFlowReturn ret;

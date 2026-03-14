@@ -151,36 +151,55 @@ Result CameraCapture::setupCodec() {
     return Result::Success;
 }
 
+bool CameraCapture::processFrame(AVFrame *frame) {
+    auto wrapped_frame = std::make_unique<Frame>();
+    wrapped_frame->frame.reset(av_frame_clone(frame));
+
+    AVRational stream_tb = formatCtx_->streams[videoStreamIdx_]->time_base;
+    constexpr AVRational ns_tb = {1, 1000000000};
+    wrapped_frame->pts = (frame->pts != AV_NOPTS_VALUE)
+                             ? av_rescale_q(frame->pts, stream_tb, ns_tb)
+                             : 0;
+
+    wrapped_frame->width = frame->width;
+    wrapped_frame->height = frame->height;
+    wrapped_frame->format = static_cast<AVPixelFormat>(frame->format);
+
+    if (frameCallback_) {
+        frameCallback_(std::move(wrapped_frame));
+    }
+
+    av_frame_unref(frame);
+    return true;
+}
+
+bool CameraCapture::processPacket(AVPacket *packet, AVFrame *frame) {
+    if (packet->stream_index != videoStreamIdx_) {
+        return false;
+    }
+    if (avcodec_send_packet(codecCtx_, packet) != 0) {
+        return false;
+    }
+    if (avcodec_receive_frame(codecCtx_, frame) != 0) {
+        return false;
+    }
+    return processFrame(frame);
+}
+
 void CameraCapture::captureLoop(const std::stop_token &stopToken) {
     AVPacket *packet = av_packet_alloc();
     AVFrame *frame = av_frame_alloc();
 
     while (!stopToken.stop_requested()) {
         if (av_read_frame(formatCtx_, packet) >= 0) {
-            if (packet->stream_index == videoStreamIdx_) {
-                if (avcodec_send_packet(codecCtx_, packet) == 0) {
-                    if (avcodec_receive_frame(codecCtx_, frame) == 0) {
-                        auto wrapped_frame = std::make_unique<Frame>();
-                        wrapped_frame->frame.reset(av_frame_clone(frame));
-                        wrapped_frame->pts = frame->pts;
-                        wrapped_frame->width = frame->width;
-                        wrapped_frame->height = frame->height;
-                        wrapped_frame->format =
-                            static_cast<AVPixelFormat>(frame->format);
-
-                        if (frameCallback_) {
-                            frameCallback_(std::move(wrapped_frame));
-                        }
-                        av_frame_unref(frame);
-                    }
-                }
-            }
+            processPacket(packet, frame);
             av_packet_unref(packet);
         }
         else {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
+
     av_frame_free(&frame);
     av_packet_free(&packet);
 }

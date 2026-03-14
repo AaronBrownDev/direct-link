@@ -32,8 +32,8 @@ struct Frame {
 
 struct Packet {
     std::unique_ptr<::AVPacket, AVPacketDeleter> packet;
-    int64_t pts = 0;
-    int64_t dts = 0;
+    int64_t pts = 0; // nanoseconds
+    int64_t dts = 0; // nanoseconds
     int size = 0;
     bool isKeyframe = false;
 

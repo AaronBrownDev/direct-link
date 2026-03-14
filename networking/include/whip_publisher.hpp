@@ -18,6 +18,7 @@ public:
 
     Result initialize(const std::string &whip_url,
                       const std::string &stream_key,
+                      int framerate,
                       std::function<void(std::string)> onErrorCallback);
     Result start();
     Result stop();
@@ -33,5 +34,6 @@ private:
     GstElement *pipeline_ = nullptr;
     GstElement *appsrc_ = nullptr;
     std::uint64_t frameCount_ = 0;
+    int framerate_ = 60; // Default framerate, can be overridden by config
 };
 } // namespace networking
