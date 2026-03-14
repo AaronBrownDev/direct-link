@@ -10,7 +10,7 @@ TEST(ResultToString, SuccessReturnsCorrectString) {
 
 // NOLINTBEGIN(clang-analyzer-optin.core.EnumCastOutOfRange)
 TEST(ResultToString, UnknownValueReturnsUnknownError) {
-    EXPECT_EQ(resultToString(static_cast<Result>(7)), "Unknown error");
+    EXPECT_EQ(resultToString(static_cast<Result>(99)), "Unknown error");
 }
 // NOLINTEND(clang-analyzer-optin.core.EnumCastOutOfRange)
 

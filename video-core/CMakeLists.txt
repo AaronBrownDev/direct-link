@@ -74,6 +74,7 @@ add_executable(video_core_tests
     tests/unit/capture/test_camera_capture.cpp
 
     tests/unit/encode/test_encoder_config.cpp
+    tests/unit/decode/test_decoder.cpp
 
     tests/unit/pipeline/test_pipeline.cpp
 )

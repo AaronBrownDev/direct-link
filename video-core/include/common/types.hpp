@@ -48,6 +48,7 @@ enum class Result : std::uint8_t {
     ErrorInitFailed,
     ErrorEncodeFailed,
     ErrorCaptureFailed,
+    ErrorDecodeFailed,
     ErrorNoData
 };
 
