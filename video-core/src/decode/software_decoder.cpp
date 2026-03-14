@@ -38,7 +38,7 @@ Result SoftwareDecoder::initialize(
         return Result::ErrorInitFailed;
     }
 
-    codecCtx_->thread_count = 0; // let FFmpeg choose optimal thread count
+    codecCtx_->thread_count = 1; // let FFmpeg choose optimal thread count
 
     if (avcodec_open2(codecCtx_, decoder, nullptr) < 0) {
         return Result::ErrorInitFailed;
