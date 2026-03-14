@@ -4,6 +4,8 @@
 #include <functional>
 
 struct AVCodecContext;
+struct AVFrame;
+struct AVBufferRef;
 
 namespace videoCore::decode {
 class SoftwareDecoder : public Decoder {
@@ -12,8 +14,8 @@ public:
     ~SoftwareDecoder() override;
     SoftwareDecoder(const SoftwareDecoder &) = delete;
     SoftwareDecoder &operator=(const SoftwareDecoder &) = delete;
-    SoftwareDecoder(const SoftwareDecoder &&) = delete;
-    SoftwareDecoder &operator=(const SoftwareDecoder &&) = delete;
+    SoftwareDecoder(SoftwareDecoder &&) = delete;
+    SoftwareDecoder &operator=(SoftwareDecoder &&) = delete;
 
     Result initialize(
         std::function<void(std::unique_ptr<Frame>)> frameCallback) override;
@@ -23,5 +25,6 @@ public:
 private:
     AVCodecContext *codecCtx_{nullptr};
     AVFrame *frame_{nullptr};
+    bool initialized_{false};
 };
 } // namespace videoCore::decode

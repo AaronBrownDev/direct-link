@@ -7,6 +7,12 @@ extern "C" {
 }
 
 namespace videoCore::decode {
+Result
+Decoder::initialize(std::function<void(std::unique_ptr<Frame>)> frameCallback) {
+    frameCallback_ = std::move(frameCallback);
+    return Result::Success;
+}
+
 std::unique_ptr<Decoder> createDecoder() {
     const AVCodec *codec = avcodec_find_decoder_by_name("h264_cuvid");
     if (codec != nullptr) {
