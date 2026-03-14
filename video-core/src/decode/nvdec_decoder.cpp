@@ -39,7 +39,7 @@ Result NvdecDecoder::initialize(
 
     if (av_hwdevice_ctx_create(&hwDeviceCtx_, AV_HWDEVICE_TYPE_CUDA, nullptr,
                                nullptr, 0) < 0) {
-        return Result::ErrorInitFailed;
+        return Result::ErrorDeviceNotFound;
     }
 
     const AVCodec *decoder = avcodec_find_decoder_by_name("h264_cuvid");
