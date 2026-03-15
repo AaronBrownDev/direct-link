@@ -13,6 +13,7 @@ target_link_libraries(directlink_app PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Multimedia
+    Qt6::Concurrent
     ${FFMPEG_LIBRARIES}
     livekit
     livekit_ffi
@@ -31,4 +32,6 @@ qt_add_qml_module(directlink_app
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../framereader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../framereader.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../directortransport.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../directortransport.cpp
 )

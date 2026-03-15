@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QQmlEngine>
+#include <QJSEngine>
 #include <QImage>
 #include <QSize>
 #include <QVideoSink>
@@ -14,9 +15,10 @@
 class FrameReader : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)
     QML_ELEMENT
     QML_SINGLETON
+
+    Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)
 
 public:
     FrameReader(QObject *parent = nullptr);

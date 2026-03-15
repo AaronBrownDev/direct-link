@@ -1,4 +1,14 @@
+/*
+ * File: sessionclient.hpp
+ * Author: Justin Williams
+ * Date: 3/9/26
+ * File Description: Wraps gRPC stubs to expose session controls to Qt.
+ * Qt can invoke session creation, session joining, and active session
+ * retrieval. Components can receive the response through signals.
+ */
+
 #pragma once
+
 #include <QObject>
 #include <QQmlEngine>
 #include <QtGrpc/QGrpcHttp2Channel>

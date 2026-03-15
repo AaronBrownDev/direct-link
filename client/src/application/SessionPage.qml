@@ -22,6 +22,9 @@ ColumnLayout {
     property real max_camera_count: 4
     property string room_code: "XXXX-XXXX"
 
+    property string livekit_token: ""
+    property string livekit_url: ""
+
     spacing: 15
 
     signal sessionCloseRequested(string roomCode)

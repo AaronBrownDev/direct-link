@@ -11,9 +11,7 @@
 
 
 
-FrameReader::FrameReader(QObject *parent) : QObject(parent) {
-
-}
+FrameReader::FrameReader(QObject *parent) : QObject(parent) {}
 
 QVideoSink *FrameReader::videoSink() const {
     return m_videoSink;
