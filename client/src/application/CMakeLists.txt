@@ -5,6 +5,7 @@ set_target_properties(directlink_app PROPERTIES AUTOMOC ON)
 target_include_directories(directlink_app PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${FFMPEG_INCLUDE_DIRS}
+    ${LIVEKIT_DIR}/include
 )
 
 target_link_libraries(directlink_app PRIVATE
@@ -13,6 +14,8 @@ target_link_libraries(directlink_app PRIVATE
     Qt6::QuickControls2
     Qt6::Multimedia
     ${FFMPEG_LIBRARIES}
+    livekit
+    livekit_ffi
 )
 
 qt_add_qml_module(directlink_app

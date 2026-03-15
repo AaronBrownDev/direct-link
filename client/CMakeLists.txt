@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
 
 project(direct-link VERSION 0.1 LANGUAGES CXX)
 
@@ -53,6 +53,20 @@ qt_add_grpc(signaling_grpc CLIENT
 )
 
 target_link_libraries(signaling_grpc PRIVATE signaling_proto)
+
+# LiveKit SDK (pre-built in container)
+set(LIVEKIT_DIR /home/vscode/livekit-cpp)
+
+add_library(livekit SHARED IMPORTED)
+set_target_properties(livekit PROPERTIES
+    IMPORTED_LOCATION ${LIVEKIT_DIR}/build/lib/liblivekit.so
+    INTERFACE_INCLUDE_DIRECTORIES ${LIVEKIT_DIR}/include
+)
+
+add_library(livekit_ffi SHARED IMPORTED)
+set_target_properties(livekit_ffi PROPERTIES
+    IMPORTED_LOCATION ${LIVEKIT_DIR}/build/lib/liblivekit_ffi.so
+)
 
 add_subdirectory(../video-core ${CMAKE_BINARY_DIR}/video-core)
 add_subdirectory(../networking ${CMAKE_BINARY_DIR}/networking)
