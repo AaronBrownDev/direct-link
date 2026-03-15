@@ -1,5 +1,5 @@
 # --------------- Stage 1: Build ------------------------------
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 # Pin versions for reproducibility
 ARG PROTOC_VERSION=34.0

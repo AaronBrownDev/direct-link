@@ -1,5 +1,5 @@
 # Dev container image
-FROM mcr.microsoft.com/devcontainers/go:2-1.25-bookworm
+FROM mcr.microsoft.com/devcontainers/go:2-1.26-bookworm
 
 RUN rm -f /etc/apt/sources.list.d/yarn.list
 
