@@ -31,6 +31,10 @@ qt_add_executable(test_signaling_client
     tests/test_signaling_client.cpp
 )
 
+qt_add_executable(test_livekit_room
+    tests/test_livekit_room.cpp
+)
+
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
@@ -87,6 +91,13 @@ target_include_directories(test_signaling_client PRIVATE
     ${CMAKE_BINARY_DIR}
 )
 
+target_include_directories(test_livekit_room PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}
+)
+
 target_link_libraries(direct-link PRIVATE
     Qt6::Core
     Qt6::Quick
@@ -112,6 +123,20 @@ target_link_libraries(test_signaling_client PRIVATE
     signaling_proto
     signaling_grpc
     directlink_networkplugin
+)
+
+target_link_libraries(test_livekit_room PRIVATE
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Concurrent
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
+    livekit
+    livekit_ffi
+    directlink_networkplugin
+    directlink_appplugin
 )
 
 if(Qt6_VERSION VERSION_LESS 6.1.0)

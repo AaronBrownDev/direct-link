@@ -21,7 +21,12 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
     Q_PROPERTY(QString connectionState READ connectionState NOTIFY connectionStateChanged)
 
     public:
-        explicit DirectorTransport(QObject *parent = nullptr);
+        static DirectorTransport *instance() {
+            static DirectorTransport instance;
+            return &instance;
+        }
+
+        ~DirectorTransport() override;
 
         static DirectorTransport *create(QQmlEngine *, QJSEngine *) {
             static DirectorTransport instance;
@@ -59,9 +64,14 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         void disconnectFromRoom();
 
     signals:
-        void connectionStateChanged();
+        void connected();
+        void disconnected();
+        void connectionStateChanged(const QString &newState);
+        
 
     private:
+        explicit DirectorTransport(QObject *parent = nullptr);
+
         std::unique_ptr<livekit::Room> m_room;
         QString m_connection_state = "disconnected";
         // DirectorSession* m_session;

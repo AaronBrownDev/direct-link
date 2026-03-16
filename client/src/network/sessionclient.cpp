@@ -31,7 +31,7 @@ void SessionClient::createSession(const QString &userId, int maxCameras) {
 
     QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
-            qWarning() << "CreateSession failed:" << status.message();
+            qWarning() << "[SessionClient] CreateSession failed:" << status.message();
             emit error(status.message());
             return;
         }
@@ -43,7 +43,7 @@ void SessionClient::createSession(const QString &userId, int maxCameras) {
         }
 
         QString room_code = resp->roomCode();
-        qDebug() << "Room code:" << room_code;
+        qDebug() << "[SessionClient] Room code:" << room_code;
 
         emit sessionCreated(room_code);
     });
@@ -60,7 +60,7 @@ void SessionClient::joinSession(const QString &roomCode, const QString &userId, 
 
     QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
-            qWarning() << "JoinSession failed:" << status.message();
+            qWarning() << "[SessionClient] JoinSession failed:" << status.message();
             emit error(status.message());
             return;
         }
@@ -76,6 +76,7 @@ void SessionClient::joinSession(const QString &roomCode, const QString &userId, 
             QString token = resp->token();
             QString livekit_url = resp->livekitUrl();
 
+            qDebug() << "[SessionClient] Director joined.";
             qDebug() << "Token:" << token.left(40) << "...";
             qDebug() << "LiveKit URL:" << livekit_url;
             emit directorJoined(token, livekit_url);
@@ -85,12 +86,13 @@ void SessionClient::joinSession(const QString &roomCode, const QString &userId, 
             QString whip_url = resp->whipUrl();
             QString stream_key = resp->streamKey();
 
+            qDebug() << "[SessionClient] Operator joined.";
             qDebug() << "WHIP URL:" << whip_url;
             qDebug() << "Stream key:" << stream_key;
             emit cameraJoined(whip_url, stream_key);
         }
         else {
-            qWarning() << "JoinReply had no credentials for either role";
+            qWarning() << "[SessionClient] JoinReply had no credentials for either role";
             emit error("Could not join session");
         }
     });
@@ -106,14 +108,14 @@ void SessionClient::closeSession(const QString &roomCode, const QString &userId)
 
     QObject::connect(reply_ptr, &QGrpcCallReply::finished, this, [this, reply = std::move(reply)](const QGrpcStatus &status) {
         if (!status.isOk()) {
-            qWarning() << "CloseSession failed:" << status.message();
+            qWarning() << "[SessionClient] CloseSession failed:" << status.message();
             emit sessionClosed(false);
             return;
         }
 
         auto resp = reply->read<CloseSessionReply>();
         if (resp && resp->success()) {
-            qDebug() << "Session closed.";
+            qDebug() << "[SessionClient] Session closed.";
             emit sessionClosed(true);
         }
     });

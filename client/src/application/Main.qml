@@ -204,7 +204,6 @@ Window {
     Component {
         id: dl_dashboard_component
         DashboardPage {
-            user_id: root.user_id
             user_type: root.user_type
             canQuickJoin: root.last_room.length === 11
 

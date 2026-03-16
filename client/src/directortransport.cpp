@@ -1,6 +1,5 @@
 #include "directortransport.hpp"
 
-#include <QtConcurrent>
 #include <QDebug>
 
 static const char* disconnectReasonToString(livekit::DisconnectReason reason) {
@@ -26,10 +25,14 @@ static const char* disconnectReasonToString(livekit::DisconnectReason reason) {
 }
 
 DirectorTransport::DirectorTransport(QObject *parent) : QObject(parent), m_room(std::make_unique<livekit::Room>()) {
+    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
     m_room->setDelegate(this);
 }
 
-
+DirectorTransport::~DirectorTransport() {
+    m_room.reset();
+    livekit::shutdown();
+}
 
 void DirectorTransport::onParticipantConnected(livekit::Room &, const livekit::ParticipantConnectedEvent &event) {
     qDebug() << "[DirectorTransport] Participant connected.\n\tidentity="
@@ -114,7 +117,7 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room &, const livekit:
             break;
     }
 
-    emit connectionStateChanged();
+    emit connectionStateChanged(m_connection_state);
     }, Qt::QueuedConnection);
 
 }
@@ -124,14 +127,15 @@ void DirectorTransport::onDisconnected(livekit::Room &, const livekit::Disconnec
 
     qDebug() << "[DirectorTransport] Disconnected."
              << "\n\treason=" << disconnectReasonToString(reason);
+
+    QMetaObject::invokeMethod(this, [this]() {
+        emit disconnected();
+    }, Qt::QueuedConnection);
 }
 
 void DirectorTransport::connectToRoom(const QString &token, const QString &url) {
     livekit::RoomOptions opts;
-    auto *watcher = new QFutureWatcher<void>(this);
-    connect(watcher, &QFutureWatcher<void>::finished, this, []() {
-        qDebug() << "[DirectorTransport] Connection finished.";
-    });
+    bool success;
 
     qDebug() << "[DirectorTransport] Connecting to room."
              << "\n\ttoken=" << token
@@ -142,17 +146,23 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
         m_room->setDelegate(this);
     }
 
-    // Run connect on a separate thread to avoid freezing the UI
-    QFuture<void> future = QtConcurrent::run([this, url, token, opts]() {
-        m_room->Connect(url.toStdString(), token.toStdString(), opts);
-    });
-    watcher->setFuture(future);
-    
+    success = m_room->Connect(url.toStdString(), token.toStdString(), opts);
+
+    if (success) {
+        qDebug() << "[DirectorTransport] Connected.";
+        emit connected();
+    }
+    else
+    {
+        qWarning() << "[DirectorTransport] Connection failed.";
+    }
 }
 
 void DirectorTransport::disconnectFromRoom() {
-    qDebug() << "[DirectorTransport] Disconnecting from room.";
+    if (m_connection_state == "disconnected") return;
+    qDebug() << "[DirectorTransport] Disconnecting...";
     m_room.reset();
+    emit disconnected();
 }
 
 QString DirectorTransport::connectionState() const {

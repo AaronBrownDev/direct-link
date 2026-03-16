@@ -1,27 +1,28 @@
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QDebug>
+#include <QTimer>
 #include "sessionclient.hpp"
-
+#include "directortransport.hpp"
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
 
     SessionClient client;
+    DirectorTransport *transport = DirectorTransport::instance();
 
     QString user_id_director = "director-1";
-    QString user_id_camera = "camera-1";
-    int max_cameras = 4;
+    int max_cameras = 1;
     QString room_code;
     QString token;
     QString livekit_url;
-    QString whip_url;
-    QString stream_key;
+    bool isConnected = false;
     bool close_state = false;
 
     QEventLoop creation_loop;
     QEventLoop d_join_loop;
-    QEventLoop c_join_loop;
+    QEventLoop room_connect_loop;
+    QEventLoop room_disconnect_loop;
     QEventLoop close_loop;
 
     client.connectToServer(QUrl("http://localhost:50051"));
@@ -32,6 +33,14 @@ int main(int argc, char *argv[]) {
 
     QObject::connect(&client, &SessionClient::error, &app, [&](const QString &msg) {
         qCritical() << "An error occurred:" << msg;
+    });
+
+    // ------------------------------------
+    // CONNECTION STATE MONITOR
+    // ------------------------------------
+
+    QObject::connect(transport, &DirectorTransport::connectionStateChanged, &app, [&](const QString &newState) {
+        qDebug() << "Connection State Updated.\n\tnewState=" << newState;
     });
 
     // ------------------------------------
@@ -53,12 +62,13 @@ int main(int argc, char *argv[]) {
     qDebug() << "Session Created.";
 
     // ------------------------------------
-    // DIRECTOR SESSION JOIN
+    // SESSION JOIN
     // ------------------------------------
 
     QObject::connect(&client, &SessionClient::directorJoined, &d_join_loop, [&](const QString &t, const QString &l) {
         token = t;
         livekit_url = l;
+        livekit_url.replace("localhost", "livekit");
         d_join_loop.quit();
     });
 
@@ -72,23 +82,45 @@ int main(int argc, char *argv[]) {
     qDebug() << "Director joined.";
 
     // ------------------------------------
-    // OPERATOR SESSION JOIN
+    // LIVEKIT CONNECT
     // ------------------------------------
 
-    QObject::connect(&client, &SessionClient::cameraJoined, &c_join_loop, [&](const QString &w, const QString &s) {
-        whip_url = w;
-        stream_key = s;
-        c_join_loop.quit();
+    QObject::connect(transport, &DirectorTransport::connected, &room_connect_loop, [&]() {
+        isConnected = true;
+        room_connect_loop.quit();
     });
 
-    qDebug() << "Joining Operator...";
-    client.joinSession(room_code, user_id_camera, "camera");
-    c_join_loop.exec();
+    qDebug() << "Connecting...";
+    transport->connectToRoom(token, livekit_url);
+    // 10-second timeout
+    QTimer::singleShot(10000, &room_connect_loop, &QEventLoop::quit);
+    room_connect_loop.exec();
 
-    Q_ASSERT(!whip_url.isEmpty());
-    Q_ASSERT(!stream_key.isEmpty());
+    if (!isConnected) {
+        qCritical() << "Timed out waiting for connection.";
+        return 1;
+    }
 
-    qDebug() << "Operator joined.";
+    qDebug() << "Director connected.";
+
+    // ------------------------------------
+    // LIVEKIT DISCONNECT
+    // ------------------------------------
+
+    QObject::connect(transport, &DirectorTransport::disconnected, &room_disconnect_loop, [&]() {
+        isConnected = false;
+        room_disconnect_loop.quit();
+    });
+
+    qDebug() << "Disconnecting...";
+    transport->disconnectFromRoom();
+    if (isConnected) {
+        room_disconnect_loop.exec();
+    }
+
+    Q_ASSERT(!isConnected);
+
+    qDebug() << "Director disconnected.";
 
     // ------------------------------------
     // SESSION CLOSING
@@ -109,4 +141,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
