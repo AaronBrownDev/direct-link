@@ -25,6 +25,7 @@ bool CameraSession::start(const std::string &whipUrl,
     if (startResult != videoCore::Result::Success) {
         return false; // Failed to initialize pipeline
     }
+    
     auto whipPublisherResult = whipPublisher_.initialize(
         whipUrl, streamKey, encoderConfig.framerate,
         [](const std::string &err) {
