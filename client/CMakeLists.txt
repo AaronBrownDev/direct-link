@@ -59,6 +59,7 @@ add_subdirectory(src/ui)
 add_subdirectory(src/ui/controls)
 add_subdirectory(src/ui/theme)
 add_subdirectory(src/network)
+add_subdirectory(src/session)
 
 target_include_directories(direct-link PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -84,6 +85,7 @@ target_link_libraries(direct-link PRIVATE
     directlink_ui_controlsplugin
     directlink_ui_themeplugin
     directlink_networkplugin
+    directlink_sessionplugin
 )
 
 target_link_libraries(test_signaling_client PRIVATE
