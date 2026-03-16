@@ -20,6 +20,7 @@ public:
     Q_INVOKABLE void stop();
 
 signals:
+    void sessionStarted();
     void errorOccurred(const QString &message);
 
 private:

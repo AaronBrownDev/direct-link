@@ -9,6 +9,7 @@ void CameraSessionController::start(const QString &whipUrl,
     if (!session_.start(whipUrl.toStdString(), streamKey.toStdString())) {
         emit errorOccurred("Failed to start camera session");
     }
+    emit sessionStarted();
 }
 
 void CameraSessionController::stop() {
