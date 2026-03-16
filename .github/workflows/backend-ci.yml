@@ -20,7 +20,7 @@ concurrency:
 
 # Shared environment variables
 env:
-  GO_VERSION: 1.25
+  GO_VERSION: 1.26
 
 
 jobs:
@@ -116,6 +116,6 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.6
+          version: latest
           working-directory: backend
           args: --timeout=5m
