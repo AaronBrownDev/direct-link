@@ -8,7 +8,15 @@ int main() {
     videoCore::pipeline::VideoPipeline pipeline;
 
     videoCore::capture::CaptureConfig capture_config;
+#ifdef _WIN32
+    std::cout << "Choosing Windows camera configuration" << "\n";
+    capture_config.devicePath = "video=0";
+    capture_config.inputFormat = "dshow";
+#else
+    std::cout << "Choosing Linux camera configuration" << "\n";
     capture_config.devicePath = "/dev/video0";
+    capture_config.inputFormat = "v4l2";
+#endif
     capture_config.width = 640;
     capture_config.height = 480;
     capture_config.framerate = 30;

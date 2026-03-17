@@ -4,8 +4,9 @@
 
 namespace videoCore::capture {
 struct CaptureConfig {
-    std::string devicePath = "/dev/video0";
-    std::string inputFormat = "v4l2";
+    std::string devicePath =
+        "/dev/video0";                // Linux: /dev/video0, Windows: "video=0"
+    std::string inputFormat = "v4l2"; // Linux: v4l2, Windows: dshow
     int width = 0;
     int height = 0;
     int framerate = 30;

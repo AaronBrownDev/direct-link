@@ -8,8 +8,13 @@ bool CameraSession::start(const std::string &whipUrl,
     }
 
     videoCore::capture::CaptureConfig captureConfig;
-    captureConfig.devicePath = "/dev/video0";
-    captureConfig.inputFormat = "v4l2";
+    #ifdef _WIN32
+        captureConfig.devicePath = "video=0";
+        captureConfig.inputFormat = "dshow";
+    #else
+        captureConfig.devicePath = "/dev/video0";
+        captureConfig.inputFormat = "v4l2";
+    #endif
     captureConfig.width = 1920;
     captureConfig.height = 1080;
     captureConfig.framerate = 30;
