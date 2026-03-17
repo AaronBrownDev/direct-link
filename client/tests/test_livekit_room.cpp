@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(&client, &SessionClient::directorJoined, &d_join_loop, [&](const QString &t, const QString &l) {
         token = t;
         livekit_url = l;
-        livekit_url.replace("localhost", "livekit");
+        livekit_url.replace("localhost", "livekit"); // Required to establish connection in container
         d_join_loop.quit();
     });
 
@@ -98,6 +98,7 @@ int main(int argc, char *argv[]) {
 
     if (!isConnected) {
         qCritical() << "Timed out waiting for connection.";
+        client.closeSession(room_code, user_id_director);
         return 1;
     }
 

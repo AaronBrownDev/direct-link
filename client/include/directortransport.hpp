@@ -12,6 +12,7 @@
 #include <QJSEngine>
 
 #include "livekit/livekit.h"
+#include "directorsession.hpp"
 
 class DirectorTransport : public QObject, public livekit::RoomDelegate {
     Q_OBJECT
@@ -19,6 +20,7 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
     QML_SINGLETON
 
     Q_PROPERTY(QString connectionState READ connectionState NOTIFY connectionStateChanged)
+    Q_PROPERTY(DirectorSession* session READ session NOTIFY sessionChanged)
 
     public:
         static DirectorTransport *instance() {
@@ -29,8 +31,7 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         ~DirectorTransport() override;
 
         static DirectorTransport *create(QQmlEngine *, QJSEngine *) {
-            static DirectorTransport instance;
-            return &instance;
+            return instance();
         }
 
         void onParticipantConnected(
@@ -58,6 +59,7 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
             const livekit::DisconnectedEvent &event) override;
 
         [[nodiscard]] QString connectionState() const;
+        [[nodiscard]] DirectorSession* session() const;
 
     public slots:
         void connectToRoom(const QString &token, const QString &url);
@@ -67,6 +69,7 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         void connected();
         void disconnected();
         void connectionStateChanged(const QString &newState);
+        void sessionChanged();
         
 
     private:
@@ -74,5 +77,5 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
 
         std::unique_ptr<livekit::Room> m_room;
         QString m_connection_state = "disconnected";
-        // DirectorSession* m_session;
+        std::unique_ptr<DirectorSession> m_session;
 };

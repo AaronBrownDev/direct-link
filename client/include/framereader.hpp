@@ -10,28 +10,25 @@
 #include <QVideoFrameFormat>
 #include <QDebug>
 #include <iostream>
-#include "../../video-core/include/common/types.hpp"
+#include "common/types.hpp"
+
+#include "livekit/livekit.h"
 
 class FrameReader : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)
 
 public:
     FrameReader(QObject *parent = nullptr);
 
-    static FrameReader *create(QQmlEngine *, QJSEngine *) {
-        static FrameReader instance;
-        return &instance;
-    }
-
     [[nodiscard]] QVideoSink *videoSink() const;
 
     void setVideoSink(QVideoSink *sink);
-    void pushFrame(std::unique_ptr<videoCore::Frame> frame);
+    // void pushFrame(std::unique_ptr<videoCore::Frame> frame);
+    void pushFrame(livekit::VideoFrame frame);
 
 signals:
     void videoSinkChanged();

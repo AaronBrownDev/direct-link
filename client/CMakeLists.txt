@@ -14,6 +14,13 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED
     libavcodec
     libavutil
+    libavdevice
+)
+
+pkg_check_modules(GST REQUIRED
+    gstreamer-1.0
+    gstreamer-app-1.0
+    gstreamer-video-1.0
 )
 
 set(PROJECT_SOURCES
@@ -105,6 +112,7 @@ target_link_libraries(direct-link PRIVATE
     Qt6::Multimedia
     Qt6::Protobuf
     Qt6::Grpc
+    ${FFMPEG_LIBRARIES}
     signaling_proto
     signaling_grpc
     directlink_appplugin
@@ -128,6 +136,7 @@ target_link_libraries(test_signaling_client PRIVATE
 target_link_libraries(test_livekit_room PRIVATE
     Qt6::Core
     Qt6::Quick
+    Qt6::Multimedia
     Qt6::Concurrent
     Qt6::Protobuf
     Qt6::Grpc
@@ -137,6 +146,7 @@ target_link_libraries(test_livekit_room PRIVATE
     livekit_ffi
     directlink_networkplugin
     directlink_appplugin
+    video_core
 )
 
 if(Qt6_VERSION VERSION_LESS 6.1.0)

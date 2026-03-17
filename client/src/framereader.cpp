@@ -21,12 +21,12 @@ void FrameReader::setVideoSink(QVideoSink *sink) {
     // Same value cannot be set twice to prevent unnecessary emission
     if (m_videoSink != sink) {
         m_videoSink = sink;
-        pushFrame(nullptr);
+        pushFrame(livekit::VideoFrame());
         emit videoSinkChanged();
     }
 }
 
-void FrameReader::pushFrame(std::unique_ptr<videoCore::Frame> frame) {
+void FrameReader::pushFrame(livekit::VideoFrame frame) {
     if (m_videoSink == nullptr) {
         qDebug() << "Could not push frame. Video sink has not been set.";
         return;
@@ -34,15 +34,13 @@ void FrameReader::pushFrame(std::unique_ptr<videoCore::Frame> frame) {
 
     QImage placeholder(":/resources/ui/placeholderSplash.png");
     placeholder = placeholder.convertToFormat(QImage::Format_RGBX8888);
+    // TODO: Change to span
     const uchar *src = nullptr;
     std::size_t size = 0;
 
-    if (frame != nullptr) {
-        qDebug() << "Frame support not yet implemented. Defaulting to placeholder frame.";
-    }
+    // TODO: Fetch video src and size from livekit video frame into span
 
     QSize frame_dimensions(placeholder.width(), placeholder.height());
-    // TODO: Change to span
     src = placeholder.bits();
     size = placeholder.sizeInBytes();
 

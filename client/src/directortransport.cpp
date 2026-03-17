@@ -30,6 +30,7 @@ DirectorTransport::DirectorTransport(QObject *parent) : QObject(parent), m_room(
 }
 
 DirectorTransport::~DirectorTransport() {
+    m_session.reset();
     m_room.reset();
     livekit::shutdown();
 }
@@ -61,6 +62,17 @@ void DirectorTransport::onTrackSubscribed(livekit::Room &, const livekit::TrackS
     qDebug() << "\n";
 
     //  TODO: Attach track to DirectorSession in QMetaObject
+
+    if (event.track && event.track->kind() == livekit::TrackKind::KIND_VIDEO) {
+        auto track = event.track;
+        QMetaObject::invokeMethod(this, [this, track]() {
+        if (m_session) {
+            m_session->attachTrack(track);
+        }
+        }, Qt::QueuedConnection);
+        
+    }
+
 }
 
 void DirectorTransport::onTrackSubscriptionFailed(livekit::Room &, const livekit::TrackSubscriptionFailedEvent &event) {
@@ -93,7 +105,11 @@ void DirectorTransport::onTrackUnsubscribed(livekit::Room &, const livekit::Trac
 
     qDebug() << "\n";
 
-    // TODO: Detach track from DirectorSession in QMetaObject
+    QMetaObject::invokeMethod(this, [this]() {
+        if (m_session) {
+            m_session->detachTrack();
+        }
+    }, Qt::QueuedConnection);
 }
 
 void DirectorTransport::onConnectionStateChanged(livekit::Room &, const livekit::ConnectionStateChangedEvent &event) {
@@ -135,7 +151,6 @@ void DirectorTransport::onDisconnected(livekit::Room &, const livekit::Disconnec
 
 void DirectorTransport::connectToRoom(const QString &token, const QString &url) {
     livekit::RoomOptions opts;
-    bool success;
 
     qDebug() << "[DirectorTransport] Connecting to room."
              << "\n\ttoken=" << token
@@ -146,11 +161,14 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
         m_room->setDelegate(this);
     }
 
-    success = m_room->Connect(url.toStdString(), token.toStdString(), opts);
+    // TODO: Use QThread to manage room connection
+    bool success = m_room->Connect(url.toStdString(), token.toStdString(), opts);
 
     if (success) {
-        qDebug() << "[DirectorTransport] Connected.";
+        m_session = std::make_unique<DirectorSession>();
+        emit sessionChanged();
         emit connected();
+        qDebug() << "[DirectorTransport] Connected.";
     }
     else
     {
@@ -161,10 +179,16 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
 void DirectorTransport::disconnectFromRoom() {
     if (m_connection_state == "disconnected") return;
     qDebug() << "[DirectorTransport] Disconnecting...";
+    m_session.reset();
+    emit sessionChanged();
     m_room.reset();
     emit disconnected();
 }
 
 QString DirectorTransport::connectionState() const {
     return m_connection_state;
+}
+
+DirectorSession *DirectorTransport::session() const {
+    return m_session.get();
 }

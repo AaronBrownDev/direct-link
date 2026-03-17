@@ -18,6 +18,7 @@ target_link_libraries(directlink_app PRIVATE
     ${FFMPEG_LIBRARIES}
     livekit
     livekit_ffi
+    video_core
 )
 
 qt_add_qml_module(directlink_app
@@ -33,6 +34,8 @@ qt_add_qml_module(directlink_app
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/framereader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/directortransport.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include/directorsession.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../framereader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../directortransport.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../directorsession.cpp
 )
