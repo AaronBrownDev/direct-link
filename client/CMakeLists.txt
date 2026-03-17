@@ -55,6 +55,7 @@ qt_add_grpc(signaling_grpc CLIENT
 target_link_libraries(signaling_grpc PRIVATE signaling_proto)
 
 add_subdirectory(../video-core ${CMAKE_BINARY_DIR}/video-core)
+add_subdirectory(../networking ${CMAKE_BINARY_DIR}/networking)
 add_subdirectory(src/application)
 add_subdirectory(src/ui)
 add_subdirectory(src/ui/controls)
