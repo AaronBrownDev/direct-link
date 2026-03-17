@@ -23,39 +23,56 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
-# Include directories
-include_directories(
+# =================================================================
+# video_core library
+# =================================================================
+add_library(video_core STATIC
+    src/capture/camera_capture.cpp
+    src/encode/encoder.cpp
+    src/encode/software_encoder.cpp
+    src/encode/nvenc_encoder.cpp
+    src/decode/decoder.cpp
+    src/decode/software_decoder.cpp
+    src/decode/nvdec_decoder.cpp
+    src/pipeline/video_pipeline.cpp
+)
+
+target_include_directories(video_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${FFMPEG_INCLUDE_DIRS}
 )
 
-# CPU encoding test executable
+target_link_libraries(video_core PUBLIC
+    ${FFMPEG_LIBRARIES}
+)
+
+# =================================================================
+# Manual test executables
+# =================================================================
 add_executable(encode_test
     tests/manual/encode_test.cpp
 )
 
-target_link_libraries(encode_test
-    ${FFMPEG_LIBRARIES}
+target_link_libraries(encode_test PRIVATE
+    video_core
 )
 
-# NVENC encoding test executable
 add_executable(nvenc_test
     tests/manual/nvenc_test.cpp
 )
 
-target_link_libraries(nvenc_test
-    ${FFMPEG_LIBRARIES}
+target_link_libraries(nvenc_test PRIVATE
+    video_core
 )
 
-# Set output directory for binaries
 set_target_properties(encode_test nvenc_test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
-# Install targets
 install(TARGETS encode_test nvenc_test
     RUNTIME DESTINATION bin
 )
+
 # =================================================================
 # Google Test
 # =================================================================
@@ -72,21 +89,14 @@ add_executable(video_core_tests
     tests/unit/common/test_types.cpp
     tests/unit/capture/test_capture_config.cpp
     tests/unit/capture/test_camera_capture.cpp
-
     tests/unit/encode/test_encoder_config.cpp
     tests/unit/decode/test_decoder.cpp
-
     tests/unit/pipeline/test_pipeline.cpp
 )
 
-target_link_libraries(video_core_tests
+target_link_libraries(video_core_tests PRIVATE
     GTest::gtest_main
-    ${FFMPEG_LIBRARIES}
-)
-
-target_include_directories(video_core_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${FFMPEG_INCLUDE_DIRS}
+    video_core
 )
 
 include(GoogleTest)
