@@ -1,6 +1,5 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include "framereader.hpp"
 
 int main(int argc, char *argv[])
 {
