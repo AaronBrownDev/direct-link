@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: directlink-dev
+
+patches:
+  - path: patches/configmap.yaml       # overrides directlink-config data
+  - path: patches/secret.yaml          # overrides directlink-secret stringData
+  - path: patches/livekit-config.yaml  # replaces livekit.yaml content
+  - path: patches/ingress-config.yaml  # replaces ingress.yaml content
+
+images:
+  - name: directlink/signaling
+    newName: us-south1-docker.pkg.dev/PROJECT_ID/directlink/signaling
+    newTag: latest

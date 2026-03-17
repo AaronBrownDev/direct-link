@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: directlink-config
+data:
+  REDIS_ADDR: "redis.directlink-dev.svc.cluster.local:6379"
+  LIVEKIT_HOST: "http://livekit.directlink-dev.svc.cluster.local:7880"
+  LIVEKIT_WS_URL: "ws://livekit.directlink-dev.svc.cluster.local:7880"
+  LIVEKIT_EXTERNAL_URL: "ws://REPLACE_NODE_IP:7880"
