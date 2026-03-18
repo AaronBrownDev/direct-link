@@ -18,7 +18,7 @@ services:
       - LIVEKIT_HOST=http://livekit:7880
       - LIVEKIT_EXTERNAL_URL=ws://localhost:7880
       - LIVEKIT_API_KEY=devkey
-      - LIVEKIT_API_SECRET=secret
+      - LIVEKIT_API_SECRET=dev-secret-that-is-32-chars-long
     depends_on:
       redis:
         condition: service_healthy
@@ -51,6 +51,7 @@ services:
       --config /etc/livekit.yaml
       --bind 0.0.0.0
       --node-ip 0.0.0.0
+    stop_grace_period: 10s
     depends_on:
       redis:
         condition: service_healthy
@@ -60,7 +61,7 @@ services:
     network_mode: host
     environment:
       - LIVEKIT_API_KEY=devkey
-      - LIVEKIT_API_SECRET=secret
+      - LIVEKIT_API_SECRET=dev-secret-that-is-32-chars-long
       - LIVEKIT_WS_URL=ws://localhost:7880
       - INGRESS_CONFIG_FILE=/etc/ingress.yaml
     volumes:
