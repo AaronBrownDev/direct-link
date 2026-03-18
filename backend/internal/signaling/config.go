@@ -47,8 +47,8 @@ func DefaultConfig() Config {
 
 		LiveKitHost:        "http://livekit:7880",
 		LiveKitExternalURL: "ws://localhost:7880",
-		LiveKitAPIKey:      "devkey", // dev default
-		LiveKitAPISecret:   "secret", // dev default
+		LiveKitAPIKey:      "devkey",                           // dev default
+		LiveKitAPISecret:   "dev-secret-that-is-32-chars-long", // dev default
 	}
 }
 
