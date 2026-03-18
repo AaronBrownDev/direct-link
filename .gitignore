@@ -124,3 +124,9 @@ CMakeLists.txt.user*
 
 # Python byte code
 *.pyc
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
