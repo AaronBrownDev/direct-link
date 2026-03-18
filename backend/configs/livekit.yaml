@@ -4,7 +4,8 @@ rtc:
   port_range_start: 50200
   port_range_end: 50300
   use_ice_lite: true
-prometheus_port: 9091
+prometheus:
+  port: 9091
 redis:
   address: redis:6379
 keys:
