@@ -136,7 +136,6 @@ Window {
 
         function onDirectorJoined(token, livekitUrl) {
             dl_page_stack.push(dl_session_page_component, {
-                user_id: root.user_id,
                 user_type: "Director",
                 room_code: root.last_room
             });
@@ -144,7 +143,6 @@ Window {
 
         function onCameraJoined(whipUrl, streamKey) {
             dl_page_stack.push(dl_session_page_component, {
-                user_id: root.user_id,
                 user_type: "Operator",
                 room_code: root.last_room
             });
