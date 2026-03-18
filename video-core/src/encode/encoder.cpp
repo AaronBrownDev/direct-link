@@ -2,7 +2,12 @@
 #include "../../include/encode/encoder_config.hpp"
 #include "../../include/encode/nvenc_encoder.hpp"
 #include "../../include/encode/software_encoder.hpp"
+
+extern "C" {
+#include <libavcodec/avcodec.h>
 #include <libavutil/mathematics.h>
+}
+
 namespace videoCore::encode {
 
 Result Encoder::initialize(
@@ -22,7 +27,22 @@ int64_t Encoder::rescaleToNs(int64_t value, AVRational src_tb) {
 }
 
 std::unique_ptr<Encoder> createEncoder(const EncoderConfig &config) {
-    switch (config.type) {
+    EncoderConfig resolved = config;
+
+    if (resolved.type == EncoderConfig::Type::Software) {
+        // Probe for NVENC — upgrade if available
+        if (avcodec_find_encoder_by_name("h264_nvenc") != nullptr) {
+            resolved.type = EncoderConfig::Type::Hardware;
+        }
+    }
+    else if (resolved.type == EncoderConfig::Type::Hardware) {
+        // Requested hardware but verify it's actually available
+        if (avcodec_find_encoder_by_name("h264_nvenc") == nullptr) {
+            resolved.type = EncoderConfig::Type::Software;
+        }
+    }
+
+    switch (resolved.type) {
     case EncoderConfig::Type::Software:
         return std::make_unique<SoftwareEncoder>();
     case EncoderConfig::Type::Hardware:
