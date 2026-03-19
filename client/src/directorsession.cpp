@@ -2,6 +2,7 @@
 
 DirectorSession::DirectorSession(QObject *parent) : QObject{parent} {
     m_frameReader = std::make_unique<FrameReader>();
+    connect(m_frameReader.get(), &FrameReader::videoSinkChanged, this, &DirectorSession::onVideoSinkChanged);
 }
 
 DirectorSession::~DirectorSession() {
@@ -32,10 +33,10 @@ void DirectorSession::attachTrack(std::shared_ptr<livekit::Track> track) {
         return;
     }
 
-    m_readFuture = QtConcurrent::run([this]() {
-        readLoop();
-    });
-
+    if (m_frameReader->videoSink()) {
+        startRead();
+    }
+    
 }
 
 void DirectorSession::detachTrack() {
@@ -46,6 +47,20 @@ void DirectorSession::detachTrack() {
         m_readFuture.waitForFinished();
     }
     m_stream.reset();
+}
+
+void DirectorSession::onVideoSinkChanged() {
+    if (m_stream && m_frameReader->videoSink() && !m_readFuture.isRunning()) {
+        startRead();
+    }
+}
+
+void DirectorSession::startRead() {
+    if (m_readFuture.isRunning()) { return; }
+
+    m_readFuture = QtConcurrent::run([this]() {
+        readLoop();
+    });
 }
 
 void DirectorSession::readLoop() {

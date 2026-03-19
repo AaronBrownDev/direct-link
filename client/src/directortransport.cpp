@@ -2,7 +2,7 @@
 
 #include <QDebug>
 
-static const char* disconnectReasonToString(livekit::DisconnectReason reason) {
+static std::string_view disconnectReasonToString(livekit::DisconnectReason reason) {
     switch (reason) {
         case livekit::DisconnectReason::ClientInitiated:    return "ClientInitiated";
         case livekit::DisconnectReason::ConnectionTimeout:  return "ConnectionTimeout";

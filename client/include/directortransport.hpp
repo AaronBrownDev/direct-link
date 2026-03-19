@@ -71,7 +71,6 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         void disconnected();
         void connectionStateChanged(const QString &newState);
         void sessionChanged();
-        
 
     private:
         std::unique_ptr<livekit::Room> m_room;

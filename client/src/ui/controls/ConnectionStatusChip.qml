@@ -21,7 +21,7 @@ Rectangle {
             name: "disconnected"
             PropertyChanges {
                 dl_status_icon.color: Theme.statusDisconnected
-                dl_status_label.text: "Disconnected"
+                dl_status_label.text: "Offline"
             }
         },
         State {

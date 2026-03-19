@@ -78,7 +78,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 100
 
-        showCloseButton: user_type === "Director"
+        showCloseButton: dl_root_layout.user_type === "Director"
 
         onLeavePage: () => {
             if (dl_root_layout.user_type === "Director") {

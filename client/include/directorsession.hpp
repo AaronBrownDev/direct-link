@@ -38,10 +38,14 @@ class DirectorSession : public QObject {
     signals:
         void videoSinkChanged();
 
+    private slots:
+        void onVideoSinkChanged();
+
     private:
         std::unique_ptr<FrameReader> m_frameReader;
         std::shared_ptr<livekit::VideoStream> m_stream;
         QFuture<void> m_readFuture;
 
+        void startRead();
         void readLoop();
 };
