@@ -27,8 +27,7 @@ static const char* disconnectReasonToString(livekit::DisconnectReason reason) {
 DirectorTransport::DirectorTransport(QObject *parent) : QObject(parent) {}
 
 DirectorTransport::~DirectorTransport() {
-    m_session.reset();
-    m_room.reset();
+    shutdown();
 }
 
 void DirectorTransport::onParticipantConnected(livekit::Room &, const livekit::ParticipantConnectedEvent &event) {
@@ -74,7 +73,7 @@ void DirectorTransport::onTrackSubscriptionFailed(livekit::Room &, const livekit
     const std::string msg = event.error;
     const std::string track_sid = event.track_sid;
 
-    qDebug() << "[DirectorTransport] Failed to subscribe to track."
+    qWarning() << "[DirectorTransport] Failed to subscribe to track."
              << "\n\tparticipant_id=" << participant_id
              << "\n\ttrack_sid=" << track_sid
              << "\n\terror=" << msg;
@@ -152,6 +151,12 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
         qWarning() << "[DirectorTransport] Connection already in progress.";
         return;
     }
+
+    if (token.isEmpty() || url.isEmpty()) {
+        qWarning() << "[DirectorTransport] Empty room credentials given. Could not connect.";
+        return;
+    }
+
     livekit::RoomOptions opts;
     std::string stdUrl = url.toStdString();
     std::string stdToken = token.toStdString();
@@ -211,6 +216,11 @@ void DirectorTransport::disconnectFromRoom() {
     emit connectionStateChanged(m_connection_state);
     emit sessionChanged();
     emit disconnected();
+}
+
+void DirectorTransport::shutdown() {
+    m_session.reset();
+    m_room.reset();
 }
 
 QString DirectorTransport::connectionState() const {

@@ -63,9 +63,9 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         [[nodiscard]] QString connectionState() const;
         [[nodiscard]] DirectorSession* session() const;
 
-    public slots:
-        void connectToRoom(const QString &token, const QString &url);
-        void disconnectFromRoom();
+        Q_INVOKABLE void connectToRoom(const QString &token, const QString &url);
+        Q_INVOKABLE void disconnectFromRoom();
+        Q_INVOKABLE void shutdown();
 
     signals:
         void connected();

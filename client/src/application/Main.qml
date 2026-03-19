@@ -12,6 +12,7 @@ import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import network
+import session
 import ui
 import ui.theme
 import ui.controls
@@ -137,14 +138,18 @@ Window {
         function onDirectorJoined(token, livekitUrl) {
             dl_page_stack.push(dl_session_page_component, {
                 user_type: "Director",
-                room_code: root.last_room
+                room_code: root.last_room,
+                livekit_token: token,
+                livekit_url: livekitUrl
             });
         }
 
         function onCameraJoined(whipUrl, streamKey) {
             dl_page_stack.push(dl_session_page_component, {
                 user_type: "Operator",
-                room_code: root.last_room
+                room_code: root.last_room,
+                whip_url: whipUrl,
+                stream_key: streamKey
             });
         }
 
@@ -162,6 +167,7 @@ Window {
                     root.last_room = "";
 
                 root.pending_close_room = "";
+                DirectorTransport.disconnectFromRoom()
                 dl_page_stack.pop();
             } else {
                 dl_error_popup.displayText = "Failed to close session. Please try again.";
@@ -191,9 +197,25 @@ Window {
                 dl_error_popup.open();
                 return;
             default:
-                dl_error_popup.displayText = "An error has occurred: " + msg;
+                dl_error_popup.displayText = "A room error has occurred: " + msg;
                 dl_error_popup.open();
             }
+        }
+    }
+
+    // Session Connections
+
+    Connections {
+        target: CameraSessionController
+
+        function onSessionStarted() {
+            dl_info_popup.displayText = "Camera Session Started.";
+            dl_info_popup.open();
+        }
+
+        function onErrorOccurred(msg) {
+            dl_error_popup.displayText = "A session error has occurred: " + msg;
+            dl_error_popup.open();
         }
     }
 

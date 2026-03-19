@@ -2,17 +2,22 @@
 #include <QQmlApplicationEngine>
 
 #include "livekit/livekit.h"
+#include "include/directortransport.hpp"
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
     livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
-    QQmlApplicationEngine engine;
+    int result;
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("application", "Main");
+        result = app.exec();
+    }
 
-    int result = app.exec();
-
-    engine.loadFromModule("application", "Main");
+    DirectorTransport::instance()->shutdown();
+    livekit::shutdown();
 
     return result;
 }

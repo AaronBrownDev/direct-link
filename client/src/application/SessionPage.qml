@@ -12,6 +12,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import session
 import ui
 import ui.controls
 
@@ -24,6 +25,9 @@ ColumnLayout {
 
     property string livekit_token: ""
     property string livekit_url: ""
+
+    property string whip_url: ""
+    property string stream_key: ""
 
     spacing: 15
 
@@ -77,11 +81,34 @@ ColumnLayout {
         showCloseButton: user_type === "Director"
 
         onLeavePage: () => {
+            if (dl_root_layout.user_type === "Director") {
+            DirectorTransport.disconnectFromRoom()
+            } else {
+                CameraSessionController.stop()
+            }
+            
             dl_root_layout.StackView.view.pop();
         }
 
         onCloseClicked: () => {
             dl_root_layout.sessionCloseRequested(dl_root_layout.room_code);
+        }
+    }
+
+    Component.onCompleted: {
+        if (dl_root_layout.user_type === "Director") {
+            DirectorTransport.connectToRoom(dl_root_layout.livekit_token, dl_root_layout.livekit_url)
+        } else {
+            CameraSessionController.start(dl_root_layout.whip_url, dl_root_layout.stream_key)
+        }
+    }
+
+    Connections {
+        target: DirectorTransport
+
+        function onConnected() {
+            let session = DirectorTransport.session
+            session.videoSink = dl_active_camera.videoSink
         }
     }
 }
