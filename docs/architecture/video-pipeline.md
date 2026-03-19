@@ -8,27 +8,27 @@ This document describes the end-to-end media path in DirectLink, from camera cap
 graph LR
     subgraph camera["Camera Workstation"]
         direction TB
-        capture["CameraCapture\n(v4l2 / dshow)"]
-        encoder["video-core Encoder\n(NVENC, H.264)"]
-        whip_pub["WHIPPublisher\n(GStreamer pipeline)"]
+        capture["CameraCapture<br>(v4l2 / dshow)"]
+        encoder["video-core Encoder<br>(NVENC, H.264)"]
+        whip_pub["WHIPPublisher<br>(GStreamer pipeline)"]
         whipsink["whipsink"]
         capture --> encoder --> whip_pub --> whipsink
     end
 
     subgraph cluster["GKE Cluster"]
         direction TB
-        ingress_svc["LiveKit Ingress\n(WHIP receiver)"]
-        passthrough["H.264 passthrough\n(no transcode)"]
-        sfu["LiveKit SFU\n(selective forward)"]
+        ingress_svc["LiveKit Ingress<br>(WHIP receiver)"]
+        passthrough["H.264 passthrough<br>(no transcode)"]
+        sfu["LiveKit SFU<br>(selective forward)"]
         ingress_svc --> passthrough --> sfu
     end
 
     subgraph director["Director Workstation (planned)"]
         direction TB
-        sdk["LiveKit C++ SDK\n(track subscribe)"]
-        nvdec["NVDEC Decode\n(H.264 → raw)"]
-        converter["Frame Conversion\n(→ ARGB)"]
-        qt["QVideoSink\n(multi-cam grid)"]
+        sdk["LiveKit C++ SDK<br>(track subscribe)"]
+        nvdec["NVDEC Decode<br>(H.264 → raw)"]
+        converter["Frame Conversion<br>(→ ARGB)"]
+        qt["QVideoSink<br>(multi-cam grid)"]
         sdk --> nvdec --> converter --> qt
     end
 

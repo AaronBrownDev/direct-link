@@ -138,7 +138,7 @@ The session store (`pkg/session/`) uses Redis with the following key patterns:
 | `session:{session_id}:access` | Hash | User ID → role mappings for access control |
 | `session:{session_id}:ingress_ids` | Set | LiveKit ingress IDs created for this session |
 | `user:{user_id}:sessions` | Set | Session IDs created by this user (for `GetMySessions`) |
-| `sessions:active` | Sorted Set | Tracks all active session IDs (scored by creation time) |
+| `sessions:active` | Sorted Set | Tracks active session IDs (scored by expiry timestamp for TTL-based pruning) |
 
 All session data is written with a configurable TTL (`SessionTTL` in server config, default 24 hours) to prevent stale data accumulation.
 
