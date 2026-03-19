@@ -57,8 +57,6 @@ void DirectorTransport::onTrackSubscribed(livekit::Room &, const livekit::TrackS
 
     qDebug() << "\n";
 
-    //  TODO: Attach track to DirectorSession in QMetaObject
-
     if (event.track && event.track->kind() == livekit::TrackKind::KIND_VIDEO) {
         auto track = event.track;
         QMetaObject::invokeMethod(this, [this, track]() {

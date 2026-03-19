@@ -2,15 +2,13 @@
 
 #include <QObject>
 #include <QQmlEngine>
-#include <QJSEngine>
 #include <QImage>
 #include <QSize>
 #include <QVideoSink>
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
 #include <QDebug>
-#include <iostream>
-#include "common/types.hpp"
+#include <span>
 
 #include "livekit/livekit.h"
 
@@ -27,7 +25,7 @@ public:
     [[nodiscard]] QVideoSink *videoSink() const;
 
     void setVideoSink(QVideoSink *sink);
-    // void pushFrame(std::unique_ptr<videoCore::Frame> frame);
+    void pushFrame();
     void pushFrame(livekit::VideoFrame frame);
 
 signals:
@@ -35,4 +33,7 @@ signals:
 
 private:
     QVideoSink *m_videoSink {nullptr};
+    QImage m_placeholder;
+
+    bool pushSpan(std::span<const uint8_t> data, QSize dimensions, QVideoFrameFormat::PixelFormat format);
 };
