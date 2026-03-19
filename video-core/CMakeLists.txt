@@ -16,6 +16,7 @@ pkg_check_modules(FFMPEG REQUIRED
     libavformat
     libavutil
     libswscale
+    libavdevice
 )
 
 # Compiler flags
