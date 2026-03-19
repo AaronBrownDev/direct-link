@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
     livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
     SessionClient client;
-    DirectorTransport *transport = DirectorTransport::instance();
+    DirectorTransport transport = DirectorTransport();
 
     QString user_id_director = "director-1";
     int max_cameras = 1;
@@ -78,13 +78,13 @@ int main(int argc, char *argv[]) {
     // LIVEKIT CONNECT
     // ------------------------------------
 
-    QObject::connect(transport, &DirectorTransport::connected, &room_connect_loop, [&]() {
+    QObject::connect(&transport, &DirectorTransport::connected, &room_connect_loop, [&]() {
         isConnected = true;
         room_connect_loop.quit();
     });
 
     qDebug() << "Connecting...";
-    transport->connectToRoom(token, livekit_url);
+    transport.connectToRoom(token, livekit_url);
     // 10-second timeout
     QTimer::singleShot(10000, &room_connect_loop, &QEventLoop::quit);
     room_connect_loop.exec();
@@ -101,12 +101,13 @@ int main(int argc, char *argv[]) {
     // LIVEKIT DISCONNECT
     // ------------------------------------
 
-    QObject::connect(transport, &DirectorTransport::disconnected, &app, [&]() {
+    // Synchronous: isConnected should already be false before Q_ASSERT if the disconnect succeeds
+    QObject::connect(&transport, &DirectorTransport::disconnected, &app, [&]() {
         isConnected = false;
     });
 
     qDebug() << "Disconnecting...";
-    transport->disconnectFromRoom();
+    transport.disconnectFromRoom();
 
     Q_ASSERT(!isConnected);
 

@@ -2,7 +2,6 @@
 #include <QQmlApplicationEngine>
 
 #include "livekit/livekit.h"
-#include "include/directortransport.hpp"
 
 int main(int argc, char *argv[])
 {
@@ -16,7 +15,6 @@ int main(int argc, char *argv[])
         result = app.exec();
     }
 
-    DirectorTransport::instance()->shutdown();
     livekit::shutdown();
 
     return result;
