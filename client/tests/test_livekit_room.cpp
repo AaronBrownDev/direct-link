@@ -5,8 +5,11 @@
 #include "sessionclient.hpp"
 #include "directortransport.hpp"
 
+#include "livekit/livekit.h"
+
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
+    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
     SessionClient client;
     DirectorTransport *transport = DirectorTransport::instance();
@@ -22,7 +25,6 @@ int main(int argc, char *argv[]) {
     QEventLoop creation_loop;
     QEventLoop d_join_loop;
     QEventLoop room_connect_loop;
-    QEventLoop room_disconnect_loop;
     QEventLoop close_loop;
 
     client.connectToServer(QUrl("http://localhost:50051"));
@@ -33,14 +35,6 @@ int main(int argc, char *argv[]) {
 
     QObject::connect(&client, &SessionClient::error, &app, [&](const QString &msg) {
         qCritical() << "An error occurred:" << msg;
-    });
-
-    // ------------------------------------
-    // CONNECTION STATE MONITOR
-    // ------------------------------------
-
-    QObject::connect(transport, &DirectorTransport::connectionStateChanged, &app, [&](const QString &newState) {
-        qDebug() << "Connection State Updated.\n\tnewState=" << newState;
     });
 
     // ------------------------------------
@@ -107,16 +101,12 @@ int main(int argc, char *argv[]) {
     // LIVEKIT DISCONNECT
     // ------------------------------------
 
-    QObject::connect(transport, &DirectorTransport::disconnected, &room_disconnect_loop, [&]() {
+    QObject::connect(transport, &DirectorTransport::disconnected, &app, [&]() {
         isConnected = false;
-        room_disconnect_loop.quit();
     });
 
     qDebug() << "Disconnecting...";
     transport->disconnectFromRoom();
-    if (isConnected) {
-        room_disconnect_loop.exec();
-    }
 
     Q_ASSERT(!isConnected);
 
@@ -139,5 +129,6 @@ int main(int argc, char *argv[]) {
 
     qDebug() << "Success.";
 
+    livekit::shutdown();
     return 0;
 }

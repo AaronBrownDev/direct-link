@@ -24,15 +24,11 @@ static const char* disconnectReasonToString(livekit::DisconnectReason reason) {
     }
 }
 
-DirectorTransport::DirectorTransport(QObject *parent) : QObject(parent), m_room(std::make_unique<livekit::Room>()) {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
-    m_room->setDelegate(this);
-}
+DirectorTransport::DirectorTransport(QObject *parent) : QObject(parent) {}
 
 DirectorTransport::~DirectorTransport() {
     m_session.reset();
     m_room.reset();
-    livekit::shutdown();
 }
 
 void DirectorTransport::onParticipantConnected(livekit::Room &, const livekit::ParticipantConnectedEvent &event) {
@@ -107,6 +103,7 @@ void DirectorTransport::onTrackUnsubscribed(livekit::Room &, const livekit::Trac
 
     QMetaObject::invokeMethod(this, [this]() {
         if (m_session) {
+            // Currently takes no args and detaches the track last attached.
             m_session->detachTrack();
         }
     }, Qt::QueuedConnection);
@@ -116,23 +113,26 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room &, const livekit:
     livekit::ConnectionState state = event.state;
 
     QMetaObject::invokeMethod(this, [this, state]() {
+        QString new_state;
+
         switch (state) {
         case livekit::ConnectionState::Connected:
-            m_connection_state = "connected";
-            qDebug() << "[DirectorTransport] Connection Status: connected";
+            new_state = "connected";
             break;
         case livekit::ConnectionState::Reconnecting:
-            m_connection_state = "reconnecting";
-            qDebug() << "[DirectorTransport] Connection Status: reconnecting";
+            new_state = "reconnecting";
             break;
         case livekit::ConnectionState::Disconnected:
-            m_connection_state = "disconnected";
-            qDebug() << "[DirectorTransport] Connection Status: disconnected";
+            new_state = "disconnected";
             break;
         default:
             break;
     }
 
+    if (m_connection_state == new_state) return;
+
+    m_connection_state = new_state;
+    qDebug() << "[DirectorTransport] Connection status changed.\n\tstatus=" << m_connection_state;
     emit connectionStateChanged(m_connection_state);
     }, Qt::QueuedConnection);
 
@@ -141,7 +141,7 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room &, const livekit:
 void DirectorTransport::onDisconnected(livekit::Room &, const livekit::DisconnectedEvent &event) {
     livekit::DisconnectReason reason = event.reason;
 
-    qDebug() << "[DirectorTransport] Disconnected."
+    qDebug() << "[DirectorTransport] Disconnected from room."
              << "\n\treason=" << disconnectReasonToString(reason);
 
     QMetaObject::invokeMethod(this, [this]() {
@@ -150,7 +150,16 @@ void DirectorTransport::onDisconnected(livekit::Room &, const livekit::Disconnec
 }
 
 void DirectorTransport::connectToRoom(const QString &token, const QString &url) {
+    if (m_connectWatcher && m_connectWatcher->isRunning()) {
+        qWarning() << "[DirectorTransport] Connection already in progress.";
+        return;
+    }
     livekit::RoomOptions opts;
+    std::string stdUrl = url.toStdString();
+    std::string stdToken = token.toStdString();
+
+    m_connection_state = "connecting";
+    emit connectionStateChanged(m_connection_state);    
 
     qDebug() << "[DirectorTransport] Connecting to room."
              << "\n\ttoken=" << token
@@ -161,27 +170,48 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
         m_room->setDelegate(this);
     }
 
-    // TODO: Use QThread to manage room connection
-    bool success = m_room->Connect(url.toStdString(), token.toStdString(), opts);
 
-    if (success) {
-        m_session = std::make_unique<DirectorSession>();
-        emit sessionChanged();
-        emit connected();
-        qDebug() << "[DirectorTransport] Connected.";
-    }
-    else
-    {
-        qWarning() << "[DirectorTransport] Connection failed.";
-    }
+    // LiveKit's connect function blocks the thread it is in
+    // Put it in a QFuture so the app does not freeze
+    m_connectWatcher = new QFutureWatcher<bool>(this);
+
+    connect(m_connectWatcher, &QFutureWatcher<bool>::finished, this, [this]() {
+        const bool success = m_connectWatcher->result();
+        m_connectWatcher->deleteLater();
+        m_connectWatcher = nullptr;
+
+        if (m_connection_state == "disconnected") {
+            qWarning() << "[DirectorTransport] Connection finished after disconnect; cancelling.";
+            return;
+        }
+
+        if (success) {
+            m_session = std::make_unique<DirectorSession>();
+            qDebug() << "[DirectorTransport] Connected.";
+            emit sessionChanged();
+            emit connected();
+        }
+        else
+        {
+            qWarning() << "[DirectorTransport] Connection failed.";
+        }
+    });
+
+    QFuture<bool> future = QtConcurrent::run([this, stdUrl, stdToken, opts]() mutable {
+        return m_room->Connect(stdUrl, stdToken, opts);
+    });
+    
+    m_connectWatcher->setFuture(future);
 }
 
 void DirectorTransport::disconnectFromRoom() {
     if (m_connection_state == "disconnected") return;
-    qDebug() << "[DirectorTransport] Disconnecting...";
     m_session.reset();
-    emit sessionChanged();
     m_room.reset();
+    m_connection_state = "disconnected";
+    qDebug() << "[DirectorTransport] Disconnected.";
+    emit connectionStateChanged(m_connection_state);
+    emit sessionChanged();
     emit disconnected();
 }
 

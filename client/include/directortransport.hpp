@@ -10,6 +10,8 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QJSEngine>
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
 
 #include "livekit/livekit.h"
 #include "directorsession.hpp"
@@ -78,4 +80,5 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         std::unique_ptr<livekit::Room> m_room;
         QString m_connection_state = "disconnected";
         std::unique_ptr<DirectorSession> m_session;
+        QFutureWatcher<bool> *m_connectWatcher = nullptr;
 };

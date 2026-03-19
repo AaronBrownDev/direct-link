@@ -90,6 +90,7 @@ add_subdirectory(src/session)
 
 target_include_directories(direct-link PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${LIVEKIT_DIR}/include
 )
 
 target_include_directories(test_signaling_client PRIVATE
@@ -115,6 +116,8 @@ target_link_libraries(direct-link PRIVATE
     ${FFMPEG_LIBRARIES}
     signaling_proto
     signaling_grpc
+    livekit
+    livekit_ffi
     directlink_appplugin
     directlink_uiplugin
     directlink_ui_controlsplugin
