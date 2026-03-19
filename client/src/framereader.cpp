@@ -1,12 +1,3 @@
-/*
- * File: framereader.cpp
- * Author: Justin Williams
- * Date: 2/21/26
- * File Description: A class implementing a frame reader. The frame reader accepts
- * AVFrame objects and wraps them in a QVideoFrame. A QVideoSink accepts
- * a QVideoFrame and updates a VideoOutput QML object to display the frame in the app.
- */
-
 #include "framereader.hpp"
 
 FrameReader::FrameReader(QObject *parent) : QObject(parent) {

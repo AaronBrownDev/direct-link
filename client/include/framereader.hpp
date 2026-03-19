@@ -1,3 +1,12 @@
+/*
+ * File: framereader.hpp
+ * Author: Justin Williams
+ * Date: 2/21/26
+ * File Description: A class implementing a frame reader. The frame reader accepts
+ * LiveKit::VideoFrame objects and moves the data into a QVideoFrame. A QVideoSink accepts
+ * a QVideoFrame and updates a connected VideoOutput QML object to display the frame in the app.
+ */
+
 #pragma once
 
 #include <QObject>

@@ -1,3 +1,13 @@
+/*
+ * File: directorsession.hpp
+ * Author: Justin Williams
+ * Date: 3/17/26
+ * File Description: A class that owns a FrameReader and accepts LiveKit tracks from
+ * DirectorTransport. The class will establish a read loop and feed LiveKit video
+ * frames into the frame reader while a track is attached. It manages the FrameReader's
+ * videoSink object.
+ */
+
 #pragma once
 
 #include <QObject>

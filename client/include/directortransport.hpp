@@ -1,8 +1,11 @@
 /*
  * File: directortransport.hpp
  * Author: Justin Williams
- * Date: 3/14/26
- * File Description: 
+ * Date: 3/15/26
+ * File Description: Accesses LiveKit's RoomDelegate events to manage a LiveKit room
+ * and its tracks. The QML application can connect to a LiveKit room given a LiveKit token
+ * and url. The class owns a DirectorSession that it exposes to QML as a property. It can 
+ * attach and detach LiveKit tracks from its DirectorSession.
  */
 
 #pragma once
