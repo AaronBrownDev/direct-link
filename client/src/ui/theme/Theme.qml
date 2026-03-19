@@ -24,6 +24,12 @@ QtObject {
     readonly property color fieldHover: "#475569"
     readonly property color fieldPressed: "#283548"
 
+    // Connection Status
+
+    readonly property color statusConnected: "#10B981"
+    readonly property color statusConnecting: "#ffcc26"
+    readonly property color statusDisconnected: '#475569'
+
     // Text
     readonly property color textWhite: "#ffffff"
     readonly property color textBlack: "#000000"

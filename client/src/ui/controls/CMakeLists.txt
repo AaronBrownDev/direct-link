@@ -18,6 +18,7 @@ qt_add_qml_module(directlink_ui_controls
         Thumbnail.qml
         ThumbnailList.qml
         RecentSessionList.qml
+        ConnectionStatusChip.qml
         DLTextField.qml
         DLButton.qml
         DLCounter.qml

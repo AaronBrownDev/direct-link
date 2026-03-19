@@ -15,4 +15,5 @@ void CameraSessionController::start(const QString &whipUrl,
 
 void CameraSessionController::stop() {
     session_.stop();
+    emit sessionStopped();
 }

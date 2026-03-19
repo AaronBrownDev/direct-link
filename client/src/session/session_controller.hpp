@@ -21,6 +21,7 @@ public:
 
 signals:
     void sessionStarted();
+    void sessionStopped();
     void errorOccurred(const QString &message);
 
 private:

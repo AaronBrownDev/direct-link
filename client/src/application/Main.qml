@@ -22,6 +22,8 @@ Window {
 
     property string user_id: "director-1"
     property string user_type: "Director"
+    // property string user_id: "operator-1"
+    // property string user_type: "Camera"
 
     property url channel: "http://localhost:50051"
     property bool connected: false
@@ -203,7 +205,25 @@ Window {
         }
     }
 
-    // Session Connections
+    // Director Session Connections
+
+    Connections {
+        target: DirectorTransport
+
+        function onConnected() {
+            dl_dash_header.connection_status = "connected"
+        }
+
+        function onDisconnected() {
+            dl_dash_header.connection_status = "disconnected"
+        }
+
+        function onConnectionStateChanged(newState) {
+            dl_dash_header.connection_status = newState
+        }
+    }
+
+    // Camera Session Connections
 
     Connections {
         target: CameraSessionController
@@ -211,12 +231,18 @@ Window {
         function onSessionStarted() {
             dl_info_popup.displayText = "Camera Session Started.";
             dl_info_popup.open();
+            dl_dash_header.connection_status = "connected"
+        }
+
+        function onSessionStopped() {
+            dl_dash_header.connection_status = "disconnected"
         }
 
         function onErrorOccurred(msg) {
             dl_error_popup.displayText = "A session error has occurred: " + msg;
             dl_error_popup.open();
         }
+        
     }
 
     // Page Components

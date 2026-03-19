@@ -117,7 +117,7 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room &, const livekit:
             new_state = "connected";
             break;
         case livekit::ConnectionState::Reconnecting:
-            new_state = "reconnecting";
+            new_state = "connecting";
             break;
         case livekit::ConnectionState::Disconnected:
             new_state = "disconnected";
