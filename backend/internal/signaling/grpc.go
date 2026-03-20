@@ -2,6 +2,7 @@ package signaling
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
@@ -106,6 +107,33 @@ func (s *Server) joinAsDirector(req *pb.JoinRequest, sess *session.Session) (*pb
 		Token:      token,
 		LivekitUrl: s.cfg.LiveKitExternalURL,
 	}, nil
+}
+
+// DeleteRoom handles cleanup when a session is closed or expires, including deleting the LiveKit room and any associated ingresses.
+func (s *Server) deleteRoom(ctx context.Context, sessionID string) {
+	ingressIDs, err := s.store.GetIngressIDs(ctx, sessionID)
+
+	if err != nil {
+		s.logger.Warn("failed to get ingressIDs for cleanup", "session_ID", sessionID, "error", err)
+	} else {
+		for _, id := range ingressIDs {
+			_, delErr := s.lkIngressClient.DeleteIngress(ctx, &livekit.DeleteIngressRequest{IngressId: id})
+			if delErr != nil {
+				s.logger.Warn("failed to delete ingressID", "error", delErr)
+			} else {
+				s.logger.Info("deleted ingress", "ingress_id", id, "session_id", sessionID)
+			}
+		}
+	}
+
+	// Delete the Livekit room itself (room name == sessionID)
+	_, err = s.lkClient.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: sessionID})
+	if err != nil {
+		s.logger.Warn("failed  to delete LiveKit room", "session_id", sessionID, "error", err,
+			slog.String("hint", "room may have already been destroyed by LiveKit"))
+		return
+	}
+	s.logger.Info("deleted LiveKit room", "session_id", sessionID)
 }
 
 // CreateSession creates a new production session and returns a room code
