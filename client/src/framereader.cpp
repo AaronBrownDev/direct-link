@@ -1,18 +1,7 @@
-/*
- * File: framereader.cpp
- * Author: Justin Williams
- * Date: 2/21/26
- * File Description: A class implementing a frame reader. The frame reader accepts
- * AVFrame objects and wraps them in a QVideoFrame. A QVideoSink accepts
- * a QVideoFrame and updates a VideoOutput QML object to display the frame in the app.
- */
-
 #include "framereader.hpp"
 
-
-
 FrameReader::FrameReader(QObject *parent) : QObject(parent) {
-
+    m_placeholder = QImage(":/resources/ui/placeholderSplash.png").convertToFormat(QImage::Format_RGBX8888);
 }
 
 QVideoSink *FrameReader::videoSink() const {
@@ -23,39 +12,67 @@ void FrameReader::setVideoSink(QVideoSink *sink) {
     // Same value cannot be set twice to prevent unnecessary emission
     if (m_videoSink != sink) {
         m_videoSink = sink;
-        pushFrame(nullptr);
+        pushFrame();
         emit videoSinkChanged();
     }
 }
 
-void FrameReader::pushFrame(std::unique_ptr<videoCore::Frame> frame) {
+bool FrameReader::pushSpan(std::span<const uint8_t> data, QSize dimensions, QVideoFrameFormat::PixelFormat format) {
     if (m_videoSink == nullptr) {
-        qDebug() << "Could not push frame. Video sink has not been set.";
-        return;
+        qWarning() << "[FrameReader] Failed to push frame. Video sink has not been set.";
+        return false;
     }
 
-    QImage placeholder(":/resources/ui/placeholderSplash.png");
-    placeholder = placeholder.convertToFormat(QImage::Format_RGBX8888);
-    const uchar *src = nullptr;
-    std::size_t size = 0;
+    QVideoFrameFormat video_format(dimensions, format);
+    QVideoFrame video_frame(video_format);
 
-    if (frame != nullptr) {
-        qDebug() << "Frame support not yet implemented. Defaulting to placeholder frame.";
+    if (!video_frame.map(QVideoFrame::WriteOnly)) {
+        qWarning() << "[FrameReader] Failed to map to video frame.";
+        return false;
     }
 
-    QSize frame_dimensions(placeholder.width(), placeholder.height());
-    // TODO: Change to span
-    src = placeholder.bits();
-    size = placeholder.sizeInBytes();
-
-    QVideoFrameFormat format(
-        frame_dimensions,
-        QVideoFrameFormat::Format_RGBX8888);
-    QVideoFrame video_frame(format);
-
-    video_frame.map(QVideoFrame::WriteOnly);
-    std::memcpy(video_frame.bits(0), src, size);
+    std::memcpy(video_frame.bits(0), data.data(), data.size_bytes());
     video_frame.unmap();
 
     m_videoSink->setVideoFrame(video_frame);
+    return true;
+}
+
+void FrameReader::pushFrame() {
+    if (m_placeholder.isNull()) {
+        qWarning() << "[FrameReader] Placeholder image failed to load.";
+        return;
+    }
+
+    std::span<const uint8_t> data(m_placeholder.bits(), m_placeholder.sizeInBytes());
+    QSize frame_dimensions(m_placeholder.width(), m_placeholder.height());
+
+    pushSpan(data, frame_dimensions, QVideoFrameFormat::Format_RGBX8888);
+}
+
+void FrameReader::pushFrame(livekit::VideoFrame frame) {
+    const uint8_t *src = frame.data();
+    const std::size_t size = frame.dataSize();
+
+    if (!src || size == 0) {
+        qWarning() << "[FrameReader] Received empty frame. Pushing placeholder frame.";
+        pushFrame();
+        return;
+    }
+
+    QSize dimensions(static_cast<int>(frame.width()), static_cast<int>(frame.height()));
+
+    if (dimensions.isEmpty()) {
+        qWarning() << "[FrameReader] Frame has no dimensions. Pushing placeholder frame.";
+        pushFrame();
+        return;
+    }
+    
+    std::span<const uint8_t> data(src, size);
+    bool success = pushSpan(data, dimensions, QVideoFrameFormat::Format_RGBA8888);
+
+    if (!success) {
+        qWarning() << "[FrameReader] Failed to push frame. Pushing placeholder frame.";
+        pushFrame();
+    }
 }

@@ -12,6 +12,7 @@ import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import network
+import session
 import ui
 import ui.theme
 import ui.controls
@@ -21,6 +22,8 @@ Window {
 
     property string user_id: "director-1"
     property string user_type: "Director"
+    // property string user_id: "operator-1"
+    // property string user_type: "Camera"
 
     property url channel: "http://localhost:50051"
     property bool connected: false
@@ -136,17 +139,19 @@ Window {
 
         function onDirectorJoined(token, livekitUrl) {
             dl_page_stack.push(dl_session_page_component, {
-                user_id: root.user_id,
                 user_type: "Director",
-                room_code: root.last_room
+                room_code: root.last_room,
+                livekit_token: token,
+                livekit_url: livekitUrl
             });
         }
 
         function onCameraJoined(whipUrl, streamKey) {
             dl_page_stack.push(dl_session_page_component, {
-                user_id: root.user_id,
                 user_type: "Operator",
-                room_code: root.last_room
+                room_code: root.last_room,
+                whip_url: whipUrl,
+                stream_key: streamKey
             });
         }
 
@@ -164,6 +169,7 @@ Window {
                     root.last_room = "";
 
                 root.pending_close_room = "";
+                DirectorTransport.disconnectFromRoom()
                 dl_page_stack.pop();
             } else {
                 dl_error_popup.displayText = "Failed to close session. Please try again.";
@@ -193,10 +199,50 @@ Window {
                 dl_error_popup.open();
                 return;
             default:
-                dl_error_popup.displayText = "An error has occurred: " + msg;
+                dl_error_popup.displayText = "A room error has occurred: " + msg;
                 dl_error_popup.open();
             }
         }
+    }
+
+    // Director Session Connections
+
+    Connections {
+        target: DirectorTransport
+
+        function onConnected() {
+            dl_dash_header.connection_status = "connected"
+        }
+
+        function onDisconnected() {
+            dl_dash_header.connection_status = "disconnected"
+        }
+
+        function onConnectionStateChanged(newState) {
+            dl_dash_header.connection_status = newState
+        }
+    }
+
+    // Camera Session Connections
+
+    Connections {
+        target: CameraSessionController
+
+        function onSessionStarted() {
+            dl_info_popup.displayText = "Camera Session Started.";
+            dl_info_popup.open();
+            dl_dash_header.connection_status = "connected"
+        }
+
+        function onSessionStopped() {
+            dl_dash_header.connection_status = "disconnected"
+        }
+
+        function onErrorOccurred(msg) {
+            dl_error_popup.displayText = "A session error has occurred: " + msg;
+            dl_error_popup.open();
+        }
+        
     }
 
     // Page Components
@@ -204,7 +250,6 @@ Window {
     Component {
         id: dl_dashboard_component
         DashboardPage {
-            user_id: root.user_id
             user_type: root.user_type
             canQuickJoin: root.last_room.length === 11
 

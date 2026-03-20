@@ -4,13 +4,14 @@ set_target_properties(directlink_session PROPERTIES AUTOMOC ON)
 
 target_include_directories(directlink_session PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${GST_INCLUDE_DIRS}
 )
 
 target_link_libraries(directlink_session PRIVATE
     Qt6::Core
     Qt6::Qml
     video_core
-    networking
+    directlink_networking
 )
 
 qt_add_qml_module(directlink_session

@@ -59,9 +59,10 @@ services:
     volumes:
       - ../backend/configs/livekit.yaml:/etc/livekit.yaml
     command: >
-      --config /etc/livekit.yaml
-      --bind 0.0.0.0
-      --node-ip 0.0.0.0
+      sh -c 'exec livekit-server
+        --config /etc/livekit.yaml
+        --bind 0.0.0.0
+        --node-ip $$(getent hosts livekit | awk "{ print $$1 }" | head -1)'
     depends_on:
       redis:
         condition: service_healthy

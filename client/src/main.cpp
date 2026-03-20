@@ -1,13 +1,21 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include "framereader.hpp"
+
+#include "livekit/livekit.h"
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
-    QQmlApplicationEngine engine;
+    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
-    engine.loadFromModule("application", "Main");
+    int result;
+    {
+        QQmlApplicationEngine engine;
+        engine.loadFromModule("application", "Main");
+        result = app.exec();
+    }
 
-    return app.exec();
+    livekit::shutdown();
+
+    return result;
 }
