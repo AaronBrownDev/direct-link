@@ -249,6 +249,43 @@ func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) (err e
 	return err
 }
 
+// GetExpiredSessions returns sessions that have expired based on the active sessions sorted set.
+func (r *RedisStore) GetExpiredSessions(ctx context.Context, now time.Time) (sessions []Session, err error) {
+	start := time.Now()
+	defer func() {
+		r.observeRedisOp("get_expired_sessions", err, start)
+	}()
+
+	// Get expired session IDs from the sorted set
+	sessionIDs, err := r.client.ZRangeByScore(ctx, activeSessionsKey, &redis.ZRangeBy{
+		Min: "-inf",
+		Max: fmt.Sprintf("%d", now.Unix()),
+	}).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	sessions = make([]Session, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		session, err := r.GetSession(ctx, sessionID)
+		if err != nil {
+			// If session not found, it may have already been cleaned up. Just skip it.
+			if errors.Is(err, ErrSessionNotFound) {
+				r.client.ZRem(ctx, activeSessionsKey, sessionID)
+				continue
+			}
+			return nil, fmt.Errorf("failed to get expired session %s: %w", sessionID, err)
+		}
+		if session.Status == "closed" {
+			r.client.ZRem(ctx, activeSessionsKey, sessionID)
+			continue
+		}
+		sessions = append(sessions, *session)
+	}
+	return sessions, nil
+
+}
+
 // GetRole returns the role assigned to a user in a session, or an empty
 // string if the user has no entry
 func (r *RedisStore) GetRole(ctx context.Context, sessionID, userID string) (str string, err error) {
