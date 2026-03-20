@@ -1,6 +1,9 @@
 package session
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Store defines the interface for session storage operations
 type Store interface {
@@ -10,6 +13,7 @@ type Store interface {
 	GetSessionByRoomCode(ctx context.Context, code string) (*Session, error)
 	UpdateSessionStatus(ctx context.Context, sessionID string, status string) error
 	DeleteSession(ctx context.Context, sessionID string) error
+	GetExpiredSessions(ctx context.Context, now time.Time) ([]Session, error)
 
 	// Access control
 	GetRole(ctx context.Context, sessionID, userID string) (string, error)
@@ -28,5 +32,6 @@ type Store interface {
 	Ping(ctx context.Context) error
 
 	// Cleanup
+	
 	Close() error
 }
