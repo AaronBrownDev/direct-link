@@ -19,7 +19,7 @@ public:
     initialize(const EncoderConfig &config,
                std::function<void(std::unique_ptr<Packet>)> packetCallback);
     [[nodiscard]] virtual Result encodeFrame(AVFrame *frame) = 0;
-    [[nodiscard]] virtual Result stop() = 0;
+    virtual void stop() = 0;
 
     [[nodiscard]] virtual bool isRunning() const { return running_; };
 

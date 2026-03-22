@@ -18,7 +18,7 @@ public:
         const EncoderConfig &config,
         std::function<void(std::unique_ptr<Packet>)> packetCallback) override;
     [[nodiscard]] Result encodeFrame(AVFrame *frame) override;
-    [[nodiscard]] Result stop() override;
+    void stop() override;
 
 private:
     AVCodecContext *codecCtx_ = nullptr;
