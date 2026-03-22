@@ -26,7 +26,10 @@ SoftwareDecoder::~SoftwareDecoder() {
 
 Result SoftwareDecoder::initialize(
     std::function<void(std::unique_ptr<Frame>)> frameCallback) {
-    Decoder::initialize(std::move(frameCallback));
+    auto res = Decoder::initialize(std::move(frameCallback));
+    if (res != Result::Success) {
+        return res;
+    }
 
     const AVCodec *decoder = avcodec_find_decoder(AV_CODEC_ID_H264);
     if (decoder == nullptr) {

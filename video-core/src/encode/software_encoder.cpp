@@ -23,7 +23,10 @@ Result SoftwareEncoder::initialize(
     const EncoderConfig &config,
     std::function<void(std::unique_ptr<Packet>)> packetCallback) {
 
-    Encoder::initialize(config, std::move(packetCallback));
+    auto res = Encoder::initialize(config, std::move(packetCallback));
+    if (res != Result::Success) {
+        return res;
+    }
 
     // Initialize x264 encoder context (codecCtx_)
     // Set up codec parameters based on config_
@@ -149,9 +152,9 @@ Result SoftwareEncoder::encodeFrame(AVFrame *frame) {
     return Result::Success;
 }
 
-Result SoftwareEncoder::stop() {
+void SoftwareEncoder::stop() {
     if (codecCtx_ == nullptr) {
-        return Result::Success;
+        return;
     }
 
     avcodec_send_frame(codecCtx_, nullptr); // Flush encoder
@@ -181,7 +184,6 @@ Result SoftwareEncoder::stop() {
         codecCtx_ = nullptr;
     }
     running_ = false;
-    return Result::Success;
 }
 
 } // namespace videoCore::encode

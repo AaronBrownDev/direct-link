@@ -115,9 +115,10 @@ TEST(SoftwareDecoderTest, DecodePacketProducesFrames) {
     SoftwareDecoder decoder;
 
     std::vector<std::unique_ptr<Frame>> received_frames;
-    decoder.initialize([&](std::unique_ptr<Frame> frame) {
+    ASSERT_EQ(decoder.initialize([&](std::unique_ptr<Frame> frame) {
         received_frames.push_back(std::move(frame));
-    });
+    }),
+              Result::Success);
 
     auto test_data = generateTestPackets(5);
     ASSERT_FALSE(test_data.packets.empty());
@@ -139,11 +140,12 @@ TEST(SoftwareDecoderTest, DecodedFrameHasCorrectDimensions) {
     SoftwareDecoder decoder;
 
     std::unique_ptr<Frame> first_frame;
-    decoder.initialize([&](std::unique_ptr<Frame> frame) {
+    ASSERT_EQ(decoder.initialize([&](std::unique_ptr<Frame> frame) {
         if (first_frame == nullptr) {
             first_frame = std::move(frame);
         }
-    });
+    }),
+              Result::Success);
 
     auto test_data = generateTestPackets(3);
     for (auto &packet_data : test_data.packets) {
@@ -165,9 +167,10 @@ TEST(SoftwareDecoderTest, DecodedFrameHasNonNegativePts) {
     SoftwareDecoder decoder;
 
     std::vector<int64_t> pts_values;
-    decoder.initialize([&](std::unique_ptr<Frame> frame) {
+    ASSERT_EQ(decoder.initialize([&](std::unique_ptr<Frame> frame) {
         pts_values.push_back(frame->pts);
-    });
+    }),
+              Result::Success);
 
     auto test_data = generateTestPackets(5);
     for (auto &packet_data : test_data.packets) {
@@ -200,7 +203,8 @@ TEST(SoftwareDecoderTest, DecodeBeforeInitializeDoesNotCrash) {
 
 TEST(SoftwareDecoderTest, StopThenDecodeDoesNotCrash) {
     SoftwareDecoder decoder;
-    decoder.initialize([](std::unique_ptr<Frame>) {});
+    ASSERT_EQ(decoder.initialize([](std::unique_ptr<Frame>) {}),
+              Result::Success);
     decoder.stop();
 
     auto pkt = std::make_unique<Packet>();
