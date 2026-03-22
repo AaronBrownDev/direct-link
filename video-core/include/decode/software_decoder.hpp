@@ -17,7 +17,7 @@ public:
     SoftwareDecoder(SoftwareDecoder &&) = delete;
     SoftwareDecoder &operator=(SoftwareDecoder &&) = delete;
 
-    Result initialize(
+    [[nodiscard]] Result initialize(
         std::function<void(std::unique_ptr<Frame>)> frameCallback) override;
     void decodePacket(std::unique_ptr<Packet> packet) override;
     void stop() override;

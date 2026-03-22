@@ -14,11 +14,11 @@ public:
     SoftwareEncoder(const SoftwareEncoder &&) = delete;
     SoftwareEncoder &operator=(const SoftwareEncoder &&) = delete;
 
-    Result initialize(
+    [[nodiscard]] Result initialize(
         const EncoderConfig &config,
         std::function<void(std::unique_ptr<Packet>)> packetCallback) override;
-    Result encodeFrame(AVFrame *frame) override;
-    Result stop() override;
+    [[nodiscard]] Result encodeFrame(AVFrame *frame) override;
+    void stop() override;
 
 private:
     AVCodecContext *codecCtx_ = nullptr;

@@ -26,7 +26,10 @@ SoftwareDecoder::~SoftwareDecoder() {
 
 Result SoftwareDecoder::initialize(
     std::function<void(std::unique_ptr<Frame>)> frameCallback) {
-    Decoder::initialize(std::move(frameCallback));
+    auto res = Decoder::initialize(std::move(frameCallback));
+    if (res != Result::Success) {
+        return res;
+    }
 
     const AVCodec *decoder = avcodec_find_decoder(AV_CODEC_ID_H264);
     if (decoder == nullptr) {
@@ -38,7 +41,10 @@ Result SoftwareDecoder::initialize(
         return Result::ErrorInitFailed;
     }
 
-    codecCtx_->thread_count = 1; // let FFmpeg choose optimal thread count
+    // Single-threaded to minimize per-frame decode latency; multi-threaded
+    // frame parallelism requires lookahead buffering which adds unacceptable
+    // latency for live streaming
+    codecCtx_->thread_count = 1;
 
     if (avcodec_open2(codecCtx_, decoder, nullptr) < 0) {
         return Result::ErrorInitFailed;

@@ -24,10 +24,11 @@ public:
     VideoPipeline(VideoPipeline &&) = delete;
     VideoPipeline &operator=(VideoPipeline &&) = delete;
 
-    Result initialize(const capture::CaptureConfig &captureConfig,
-                      const encode::EncoderConfig &encoderConfig);
-    Result start(std::function<void(std::unique_ptr<Packet>)> packetCallback);
-    Result stop();
+    [[nodiscard]] Result initialize(const capture::CaptureConfig &captureConfig,
+                                    const encode::EncoderConfig &encoderConfig);
+    [[nodiscard]] Result
+    start(std::function<void(std::unique_ptr<Packet>)> packetCallback);
+    [[nodiscard]] Result stop();
 
     // Statistics getters
     [[nodiscard]] int getCurrentFramerate() const noexcept {

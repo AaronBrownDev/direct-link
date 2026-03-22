@@ -66,6 +66,8 @@ inline std::string_view resultToString(Result result) {
         return "Encode failed";
     case Result::ErrorCaptureFailed:
         return "Capture failed";
+    case Result::ErrorDecodeFailed:
+        return "Decode failed";
     case Result::ErrorNoData:
         return "No data available";
     default:

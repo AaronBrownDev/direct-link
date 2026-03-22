@@ -35,7 +35,10 @@ NvdecDecoder::~NvdecDecoder() {
 
 Result NvdecDecoder::initialize(
     std::function<void(std::unique_ptr<Frame>)> frameCallback) {
-    Decoder::initialize(std::move(frameCallback));
+    auto res = Decoder::initialize(std::move(frameCallback));
+    if (res != Result::Success) {
+        return res;
+    }
 
     if (av_hwdevice_ctx_create(&hwDeviceCtx_, AV_HWDEVICE_TYPE_CUDA, nullptr,
                                nullptr, 0) < 0) {
