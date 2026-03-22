@@ -17,10 +17,10 @@ public:
     NvdecDecoder(NvdecDecoder &&) = delete;
     NvdecDecoder &operator=(NvdecDecoder &&) = delete;
 
-    Result initialize(
+    [[nodiscard]] Result initialize(
         std::function<void(std::unique_ptr<Frame>)> frameCallback) override;
-    void decodePacket(std::unique_ptr<Packet> packet) override;
-    void stop() override;
+    [[nodiscard]] void decodePacket(std::unique_ptr<Packet> packet) override;
+    [[nodiscard]] void stop() override;
 
 private:
     AVCodecContext *codecCtx_{nullptr};

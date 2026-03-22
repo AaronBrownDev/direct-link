@@ -12,10 +12,10 @@ public:
     Decoder &operator=(const Decoder &) = delete;
     Decoder(Decoder &&) = delete;
     Decoder &operator=(Decoder &&) = delete;
-    virtual Result
+    [[nodiscard]] virtual Result
     initialize(std::function<void(std::unique_ptr<Frame>)> frameCallback) = 0;
-    virtual void decodePacket(std::unique_ptr<Packet> packet) = 0;
-    virtual void stop() = 0;
+    [[nodiscard]] virtual void decodePacket(std::unique_ptr<Packet> packet) = 0;
+    [[nodiscard]] virtual void stop() = 0;
 
 protected:
     static int64_t rescaleToNs(int64_t value, AVRational src_tb);
