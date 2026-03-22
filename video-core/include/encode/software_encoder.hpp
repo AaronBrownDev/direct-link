@@ -19,6 +19,7 @@ public:
         std::function<void(std::unique_ptr<Packet>)> packetCallback) override;
     [[nodiscard]] Result encodeFrame(AVFrame *frame) override;
     [[nodiscard]] Result stop() override;
+
 private:
     AVCodecContext *codecCtx_ = nullptr;
 };

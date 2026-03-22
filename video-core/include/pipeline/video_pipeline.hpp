@@ -25,8 +25,9 @@ public:
     VideoPipeline &operator=(VideoPipeline &&) = delete;
 
     [[nodiscard]] Result initialize(const capture::CaptureConfig &captureConfig,
-                      const encode::EncoderConfig &encoderConfig);
-    [[nodiscard]] Result start(std::function<void(std::unique_ptr<Packet>)> packetCallback);
+                                    const encode::EncoderConfig &encoderConfig);
+    [[nodiscard]] Result
+    start(std::function<void(std::unique_ptr<Packet>)> packetCallback);
     [[nodiscard]] Result stop();
 
     // Statistics getters

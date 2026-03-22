@@ -38,7 +38,10 @@ Result SoftwareDecoder::initialize(
         return Result::ErrorInitFailed;
     }
 
-    codecCtx_->thread_count = 1; // Set optimal thread count
+    // Single-threaded to minimize per-frame decode latency; multi-threaded
+    // frame parallelism requires lookahead buffering which adds unacceptable
+    // latency for live streaming
+    codecCtx_->thread_count = 1;
 
     if (avcodec_open2(codecCtx_, decoder, nullptr) < 0) {
         return Result::ErrorInitFailed;
