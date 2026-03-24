@@ -66,14 +66,14 @@ Rectangle {
         anchors.centerIn: parent
         font.pointSize: 14
         font.bold: true
-        text: buttonText
-        color: active ? Theme.textWhite : Theme.textMuted
+        text: dl_button_bg.buttonText
+        color: dl_button_bg.active ? Theme.textWhite : Theme.textMuted
     }
 
     MouseArea {
         id: dl_button_area
         anchors.fill: parent
-        enabled: active
+        enabled: dl_button_bg.active
         hoverEnabled: true
         onClicked: {
             dl_button_bg.clicked();

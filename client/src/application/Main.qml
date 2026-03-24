@@ -13,6 +13,7 @@ import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
+import types
 import network
 import session
 import ui
@@ -23,7 +24,7 @@ Window {
     id: root
 
     property string user_id: "director-1"
-    property string user_type: "Director"
+    property int user_type: UserRole.director
 
     property url channel: "http://localhost:50051"
     property bool connected: false
@@ -43,7 +44,7 @@ Window {
     Component.onCompleted: {
         SessionClient.connectToServer(channel);
         root.connected = true;
-        if (root.user_type === "Director") {
+        if (root.user_type === UserRole.director) {
             root.current_operation = "getSessions";
             SessionClient.getMySessions(root.user_id);
         }
@@ -102,7 +103,7 @@ Window {
         function onJoinRequested(roomCode) {
             root.current_operation = "joinSession";
             root.last_room = roomCode;
-            SessionClient.joinSession(roomCode, root.user_id, root.user_type.toLowerCase());
+            SessionClient.joinSession(roomCode, root.user_id, UserRole.toString(root.user_type));
         }
 
         function onQuickJoinRequested() {
@@ -113,7 +114,7 @@ Window {
             }
 
             root.current_operation = "joinSession";
-            SessionClient.joinSession(root.last_room, root.user_id, root.user_type.toLowerCase());
+            SessionClient.joinSession(root.last_room, root.user_id, UserRole.toString(root.user_type));
         }
 
         function onCreateRequested(maxCameras) {
@@ -139,7 +140,7 @@ Window {
 
         function onDirectorJoined(token, livekitUrl) {
             dl_page_stack.push(dl_session_component, {
-                user_type: "Director",
+                user_type: UserRole.director,
                 room_code: root.last_room,
                 livekit_token: token,
                 livekit_url: livekitUrl
@@ -148,7 +149,7 @@ Window {
 
         function onCameraJoined(whipUrl, streamKey) {
             dl_page_stack.push(dl_session_component, {
-                user_type: "Operator",
+                user_type: UserRole.camera,
                 room_code: root.last_room,
                 whip_url: whipUrl,
                 stream_key: streamKey
@@ -160,7 +161,7 @@ Window {
             dl_info_popup.open();
             root.current_operation = "joinSession";
             root.last_room = roomCode;
-            SessionClient.joinSession(roomCode, root.user_id, root.user_type.toLowerCase());
+            SessionClient.joinSession(roomCode, root.user_id, UserRole.toString(root.user_type));
         }
 
         function onSessionClosed(success) {
@@ -259,7 +260,7 @@ Window {
             can_quick_join: root.last_room.length === 11
 
             StackView.onActivated: {
-                if (!root.connected || user_type !== "Director")
+                if (!root.connected || user_type !== UserRole.director)
                     return;
                 root.current_operation = "getSessions";
                 SessionClient.getMySessions(root.user_id);

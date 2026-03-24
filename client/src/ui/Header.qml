@@ -1,13 +1,14 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import types
 import ui.theme
 import ui.controls
 
 Rectangle {
     id: dl_header
 
-    property string user_type: "Director"
+    property int user_type: UserRole.director
     property string connection_status: "disconnected"
 
     Layout.fillWidth: true
@@ -46,7 +47,7 @@ Rectangle {
     Text {
         id: dl_header_type
 
-        text: " | " + user_type
+        text: " | " + UserRole.toString(dl_header.user_type, true)
         color: Theme.textMuted
         font.bold: true
         font.pointSize: 20

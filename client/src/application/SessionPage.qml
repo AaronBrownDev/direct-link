@@ -10,8 +10,8 @@
  */
 
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
+import types
 import session
 import ui
 import ui.controls
@@ -19,7 +19,7 @@ import ui.controls
 ColumnLayout {
     id: dl_root_layout
 
-    property string user_type: "Director"
+    property int user_type: UserRole.director
     property real max_camera_count: 4
     property string room_code: "XXXX-XXXX"
 
@@ -78,10 +78,10 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 100
 
-        showCloseButton: dl_root_layout.user_type === "Director"
+        showCloseButton: dl_root_layout.user_type === UserRole.director
 
         onLeavePage: () => {
-            if (dl_root_layout.user_type === "Director") {
+            if (dl_root_layout.user_type === UserRole.director) {
             DirectorTransport.disconnectFromRoom()
             } else {
                 CameraSessionController.stop()
@@ -96,7 +96,7 @@ ColumnLayout {
     }
 
     Component.onCompleted: {
-        if (dl_root_layout.user_type === "Director") {
+        if (dl_root_layout.user_type === UserRole.director) {
             DirectorTransport.connectToRoom(dl_root_layout.livekit_token, dl_root_layout.livekit_url)
         } else {
             CameraSessionController.start(dl_root_layout.whip_url, dl_root_layout.stream_key)

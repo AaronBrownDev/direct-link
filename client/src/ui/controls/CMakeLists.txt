@@ -25,4 +25,5 @@ qt_add_qml_module(directlink_ui_controls
         DLConsole.qml
         DLPopup.qml
         DLCheckbox.qml
+        DLRadioButton.qml
 )

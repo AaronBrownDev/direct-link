@@ -75,6 +75,7 @@ Rectangle {
 
             visible: false
             text: "Please enter a valid code"
+            color: Theme.danger
             font.pointSize: 14
         }
 
@@ -106,7 +107,6 @@ Rectangle {
                     dl_join_session_bg.joinClicked(dl_session_code_field.input, dl_camera_name_field.input);
                 else {
                     dl_session_code_field.state = "invalid";
-                    dl_session_join_status.color = Theme.danger;
                     dl_session_join_status.visible = true;
                 }
             }
