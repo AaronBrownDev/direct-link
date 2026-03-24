@@ -257,9 +257,11 @@ func (r *RedisStore) GetExpiredSessions(ctx context.Context, now time.Time) (ses
 	}()
 
 	// Get expired session IDs from the sorted set
-	sessionIDs, err := r.client.ZRangeByScore(ctx, activeSessionsKey, &redis.ZRangeBy{
-		Min: "-inf",
-		Max: fmt.Sprintf("%d", now.Unix()),
+	sessionIDs, err := r.client.ZRangeArgs(ctx, redis.ZRangeArgs{
+		Key:     activeSessionsKey,
+		Start:   "-inf",
+		Stop:    fmt.Sprintf("%d", now.Unix()),
+		ByScore: true,
 	}).Result()
 	if err != nil {
 		return nil, err
