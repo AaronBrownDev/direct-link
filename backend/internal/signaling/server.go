@@ -58,6 +58,9 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 	// Initialize LiveKit room service and ingress client
 	s.initLiveKit()
 
+	// Initialize the session expiry Janitor
+	s.initJanitor()
+
 	return s
 }
 
