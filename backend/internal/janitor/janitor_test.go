@@ -22,6 +22,8 @@ const (
 	// time. It must exceed testSessionTTL so the sorted set scores (written as
 	// now + testSessionTTL) fall before the SweepAt threshold.
 	testExpiredOffset = testSessionTTL + time.Hour
+
+	sessionIsClosed = "closed"
 )
 
 // --- Helpers ---
@@ -133,7 +135,7 @@ func TestJanitor_ClosesExpiredSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSession: %v", err)
 	}
-	if retrieved.Status != "closed" {
+	if retrieved.Status != sessionIsClosed {
 		t.Errorf("expected session status 'closed', got %q", retrieved.Status)
 	}
 }
@@ -167,7 +169,7 @@ func TestJanitor_NoIngressIDs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSession: %v", err)
 	}
-	if retrieved.Status != "closed" {
+	if retrieved.Status != sessionIsClosed {
 		t.Errorf("expected session status 'closed', got %q", retrieved.Status)
 	}
 }
@@ -239,7 +241,7 @@ func TestJanitor_MultipleExpiredSessions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetSession %s: %v", sess.ID, err)
 		}
-		if retrieved.Status != "closed" {
+		if retrieved.Status != sessionIsClosed {
 			t.Errorf("session %s: expected status 'closed', got %q", sess.ID, retrieved.Status)
 		}
 	}
