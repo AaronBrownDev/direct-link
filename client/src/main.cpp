@@ -8,7 +8,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
-    int result;
+    int result = 0;
     {
         QQmlApplicationEngine engine;
         engine.loadFromModule("application", "Main");

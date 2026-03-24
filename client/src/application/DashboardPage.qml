@@ -8,11 +8,10 @@
  * view allows the user to see session join and equipment configuration controls.
  */
 
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
-import network
-import ui
 import ui.controls
 import ui.theme
 
@@ -20,7 +19,7 @@ import ui.theme
     PROPERTIES
 
         user_type:string - Reflects the user's role and updates text displays to match
-        canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+        can_quick_join:bool - Determines if the 'Quick Join Last Session' button is enabled or not
 
     SIGNALS
 
@@ -34,7 +33,7 @@ ColumnLayout {
     id: dl_root_layout
 
     property string user_type: "Director"
-    property bool canQuickJoin: false
+    property bool can_quick_join: false
 
     signal joinRequested(string roomCode)
     signal quickJoinRequested
@@ -54,7 +53,7 @@ ColumnLayout {
 
             Layout.alignment: Qt.AlignLeft
 
-            text: user_type + " Dashboard"
+            text: dl_root_layout.user_type + " Dashboard"
             color: Theme.textWhite
             font.pointSize: 36
             font.bold: true
@@ -71,7 +70,7 @@ ColumnLayout {
 
             Layout.minimumHeight: 200
 
-            visible: user_type === "Director"
+            visible: dl_root_layout.user_type === "Director"
 
             onSessionSelected: (roomCode, maxCameras) => {
                 dl_root_layout.joinRequested(roomCode);
@@ -86,7 +85,7 @@ ColumnLayout {
     Component {
         id: dl_dash_director_view
         DashboardDirectorView {
-            canQuickJoin: dl_root_layout.canQuickJoin
+            can_quick_join: dl_root_layout.can_quick_join
 
             onJoinClicked: roomCode => {
                 dl_root_layout.joinRequested(roomCode);
@@ -105,7 +104,7 @@ ColumnLayout {
     Component {
         id: dl_dash_operator_view
         DashboardOperatorView {
-            canQuickJoin: dl_root_layout.canQuickJoin
+            can_quick_join: dl_root_layout.can_quick_join
 
             onJoinClicked: (roomCode, cameraName) => {
                 dl_root_layout.joinRequested(roomCode);

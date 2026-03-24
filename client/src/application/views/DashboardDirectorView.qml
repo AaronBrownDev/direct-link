@@ -14,7 +14,7 @@ import ui.theme
 /*
     PROPERTIES
 
-    canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+    can_quick_join:bool - Determines if the 'Quick Join Last Session' button is enabled or not
 
     SIGNALS
 
@@ -30,7 +30,7 @@ import ui.theme
 RowLayout {
     id: dl_dash_view_layout
 
-    property bool canQuickJoin: false
+    property bool can_quick_join: false
 
     signal joinClicked(string roomCode)
     signal quickJoinClicked
@@ -44,8 +44,8 @@ RowLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 550
 
-        showCameraField: false
-        canQuickJoin: dl_dash_view_layout.canQuickJoin
+        show_camera_field: false
+        can_quick_join: dl_dash_view_layout.can_quick_join
 
         onJoinClicked: (roomCode, cameraName) => dl_dash_view_layout.joinClicked(roomCode)
         onQuickJoinClicked: () => dl_dash_view_layout.quickJoinClicked()
@@ -78,8 +78,6 @@ RowLayout {
             DLTextField {
                 id: dl_project_name
 
-                Layout.topMargin: 50
-                Layout.preferredHeight: 65
                 Layout.fillWidth: true
 
                 label: "Project Name"
@@ -90,8 +88,6 @@ RowLayout {
             DLTextField {
                 id: dl_session_desc
 
-                Layout.topMargin: 40
-                Layout.preferredHeight: 65
                 Layout.fillWidth: true
 
                 label: "Session Description"
@@ -101,8 +97,6 @@ RowLayout {
             DLTextField {
                 id: dl_quality_settings
 
-                Layout.topMargin: 40
-                Layout.preferredHeight: 65
                 Layout.fillWidth: true
 
                 label: "Quality Settings"
@@ -129,12 +123,11 @@ RowLayout {
                 id: dl_create_button
 
                 Layout.fillWidth: true
-                Layout.preferredHeight: 65
 
                 buttonType: DLButton.ButtonType.Primary
                 buttonText: "Create Session"
 
-                onClicked: createClicked(dl_project_name.input, dl_session_desc.input, dl_quality_settings.input, dl_camera_counter.value)
+                onClicked: dl_dash_view_layout.createClicked(dl_project_name.input, dl_session_desc.input, dl_quality_settings.input, dl_camera_counter.value)
             }
         }
     }

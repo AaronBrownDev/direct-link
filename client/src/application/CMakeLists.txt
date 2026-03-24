@@ -26,8 +26,9 @@ qt_add_qml_module(directlink_app
     VERSION 1.0
     QML_FILES
         Main.qml
-        SessionPage.qml
+        LoginPage.qml
         DashboardPage.qml
+        SessionPage.qml
         views/DashboardDirectorView.qml
         views/DashboardOperatorView.qml
         views/JoinSessionView.qml

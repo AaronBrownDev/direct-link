@@ -7,6 +7,8 @@
  * for the Window.
  */
 
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
@@ -22,8 +24,6 @@ Window {
 
     property string user_id: "director-1"
     property string user_type: "Director"
-    // property string user_id: "operator-1"
-    // property string user_type: "Camera"
 
     property url channel: "http://localhost:50051"
     property bool connected: false
@@ -67,7 +67,7 @@ Window {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            initialItem: dl_dashboard_component
+            initialItem: dl_login_component
         }
     }
 
@@ -138,7 +138,7 @@ Window {
         target: SessionClient
 
         function onDirectorJoined(token, livekitUrl) {
-            dl_page_stack.push(dl_session_page_component, {
+            dl_page_stack.push(dl_session_component, {
                 user_type: "Director",
                 room_code: root.last_room,
                 livekit_token: token,
@@ -147,7 +147,7 @@ Window {
         }
 
         function onCameraJoined(whipUrl, streamKey) {
-            dl_page_stack.push(dl_session_page_component, {
+            dl_page_stack.push(dl_session_component, {
                 user_type: "Operator",
                 room_code: root.last_room,
                 whip_url: whipUrl,
@@ -248,10 +248,15 @@ Window {
     // Page Components
 
     Component {
+        id: dl_login_component
+        LoginPage {}
+    }
+
+    Component {
         id: dl_dashboard_component
         DashboardPage {
             user_type: root.user_type
-            canQuickJoin: root.last_room.length === 11
+            can_quick_join: root.last_room.length === 11
 
             StackView.onActivated: {
                 if (!root.connected || user_type !== "Director")
@@ -263,7 +268,7 @@ Window {
     }
 
     Component {
-        id: dl_session_page_component
+        id: dl_session_component
         SessionPage {}
     }
 }

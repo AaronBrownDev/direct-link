@@ -56,6 +56,8 @@ Rectangle {
             return Theme.primaryHover;
         return Theme.primary;
     }
+
+    height: 65
     radius: 15
 
     Text {

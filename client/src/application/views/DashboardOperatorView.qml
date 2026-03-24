@@ -14,7 +14,7 @@ import ui.theme
 /*
     PROPERTIES
 
-        canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+        can_quick_join:bool - Determines if the 'Quick Join Last Session' button is enabled or not
 
     SIGNALS
 
@@ -27,7 +27,7 @@ import ui.theme
 RowLayout {
     id: dl_dash_view_layout
 
-    property bool canQuickJoin: false
+    property bool can_quick_join: false
 
     signal joinClicked(string roomCode, string cameraName)
     signal quickJoinClicked
@@ -40,8 +40,8 @@ RowLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: 550
 
-        showCameraField: true
-        canQuickJoin: dl_dash_view_layout.canQuickJoin
+        show_camera_field: true
+        can_quick_join: dl_dash_view_layout.can_quick_join
 
         onJoinClicked: (roomCode, cameraName) => dl_dash_view_layout.joinClicked(roomCode, cameraName)
         onQuickJoinClicked: () => dl_dash_view_layout.quickJoinClicked()
@@ -76,7 +76,6 @@ RowLayout {
 
                 Layout.topMargin: 50
                 Layout.fillWidth: true
-                Layout.preferredHeight: 65
 
                 buttonType: DLButton.ButtonType.Neutral
                 buttonText: "Configure Cameras & Hardware"
