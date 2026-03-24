@@ -88,6 +88,7 @@ Thumbs.db
 *.rc
 /.qmake.cache
 /.qmake.stash
+*.qmlls.ini
 
 # Qt protobuf/gRPC
 *.qpb.h
