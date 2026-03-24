@@ -26,6 +26,9 @@ type Config struct {
 	LiveKitExternalURL string
 	LiveKitAPIKey      string
 	LiveKitAPISecret   string
+
+	// Janitor Cleanup
+	JanitorInterval time.Duration
 }
 
 func DefaultConfig() Config {
@@ -49,6 +52,8 @@ func DefaultConfig() Config {
 		LiveKitExternalURL: "ws://localhost:7880",
 		LiveKitAPIKey:      "devkey",                           // dev default
 		LiveKitAPISecret:   "dev-secret-that-is-32-chars-long", // dev default
+
+		JanitorInterval: 1 * time.Minute,
 	}
 }
 

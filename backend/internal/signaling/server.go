@@ -11,6 +11,7 @@ import (
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
+	"github.com/AaronBrownDev/direct-link/internal/janitor"
 	"github.com/AaronBrownDev/direct-link/pkg/metrics"
 	"github.com/AaronBrownDev/direct-link/pkg/session"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
@@ -30,6 +31,7 @@ type Server struct {
 	store           session.Store
 	metrics         *metrics.Metrics
 	srvMetrics      *grpcprom.ServerMetrics
+	janitor         *janitor.Janitor
 	pb.UnimplementedSignalingServiceServer
 }
 
@@ -153,6 +155,16 @@ func (s *Server) initLiveKit() {
 
 }
 
+func (s *Server) initJanitor() {
+	s.janitor = janitor.New(
+		s.store,
+		s.deleteRoom,
+		s.logger,
+		s.cfg.JanitorInterval,
+		s.metrics,
+	)
+}
+
 func (s *Server) registerRoutes(mux *http.ServeMux) {
 
 	// Kubernetes probes
@@ -191,6 +203,9 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	go func() {
 		errCh <- s.grpcServer.Serve(grpcListener)
 	}()
+
+	// Start session expiry	janitor
+	go s.janitor.Run(ctx)
 
 	// set server as ready to use and log it
 	s.ready.Store(true)
