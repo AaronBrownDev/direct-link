@@ -1,8 +1,31 @@
+/*
+ * File: MiniProfile.qml
+ * Author: Justin Williams
+ * Date: 3/24/26
+ * File Description: A component that provides a mini profile display. The display shows 
+ * the user's id and role, and a logout button is also visible. Visibility can be controlled
+ * by the state.
+ */
+
 import QtQuick
 import QtQuick.Layouts
 import types
 import ui.theme
 
+/*
+    PROPERTIES
+
+        user_id:string - Sets the text displayed for the user's ID
+        user_type:int - Determines the text displayed for the user's role
+        states - Control the visibility of the profile
+            "visible" - The control can be seen, and the logout button is enabled
+            "hidden" - The control cannot be seen, and the logout button is disabled
+
+    SIGNALS
+
+        logoutClicked() - Fires when the logout button has been clicked
+        
+ */
 Rectangle {
         id: dl_profile
 

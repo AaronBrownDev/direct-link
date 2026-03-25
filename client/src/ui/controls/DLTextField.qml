@@ -19,6 +19,11 @@ import ui.theme
             room code (i.e. ROOM-123456)
         maxLength:int - Constrains the length of the entered text to a set amount of characters
         input:string - An alias for the contents of the field's text input (readonly)
+
+    FUNCTIONS
+
+        clear() - Sets the field input to an empty string
+        
  */
 ColumnLayout {
     id: dl_field
@@ -29,6 +34,11 @@ ColumnLayout {
     property int maxLength: Number.MAX_VALUE
 
     readonly property string input: dl_field_input.text
+
+    function clear() {
+        dl_field_input.text = ""
+        state: ""
+    }
 
     implicitHeight: dl_field_label.implicitHeight + spacing + 65
     spacing: 10

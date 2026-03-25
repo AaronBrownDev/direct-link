@@ -58,6 +58,11 @@ Window {
             state: "login"
 
             onProfileClicked: dl_profile.state = "visible"
+            onHomeClicked: {
+                if (dl_page_stack.depth > 2) {
+                    dl_page_stack.popToIndex(1, StackView.Immediate);
+                }
+            }
         }
 
         StackView {
@@ -318,6 +323,11 @@ Window {
         id: dl_dashboard_component
         DashboardPage {
             can_quick_join: root.last_room.length === 11
+
+            StackView.onStatusChanged: {
+                if (StackView.status === StackView.Inactive)
+                    clearFields();
+            }
         }
     }
 

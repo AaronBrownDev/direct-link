@@ -2,7 +2,7 @@
  * File: DLRadioButton.qml
  * Author: Justin Williams
  * Date: 3/24/26
- * File Description: A component that provides a stylized radio button
+ * File Description: A component that provides a stylized radio button.
  */
 
 import QtQuick

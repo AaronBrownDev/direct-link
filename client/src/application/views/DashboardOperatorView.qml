@@ -16,6 +16,10 @@ import ui.theme
 
         can_quick_join:bool - Determines if the 'Quick Join Last Session' button is enabled or not
 
+    FUNCTIONS
+
+        clearFields() - Clears the contents of the page's input fields
+
     SIGNALS
 
         joinClicked(roomCode:string, cameraName:string) - Fires when the operator has input
@@ -28,6 +32,10 @@ RowLayout {
     id: dl_dash_view_layout
 
     property bool can_quick_join: false
+
+    function clearFields() {
+        dl_join_session_view.clearFields();
+    }
 
     signal joinClicked(string roomCode, string cameraName)
     signal quickJoinClicked

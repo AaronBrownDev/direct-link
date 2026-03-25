@@ -22,6 +22,10 @@ import ui.theme
         user_type:int - Reflects the user's role and updates text displays to match
         can_quick_join:bool - Determines if the 'Quick Join Last Session' button is enabled or not
 
+    FUNCTIONS
+
+        clearFields() - Clears the contents of the page's input fields
+
     SIGNALS
 
         joinClicked(roomCode:string, cameraName:string) - Fires when the operator has input
@@ -35,6 +39,10 @@ ColumnLayout {
 
     property int user_type: UserRole.director
     property bool can_quick_join: false
+
+    function clearFields() {
+        dl_dash_view_loader.item.clearFields();
+    }
 
     signal joinRequested(string roomCode)
     signal quickJoinRequested

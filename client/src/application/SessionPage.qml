@@ -16,6 +16,24 @@ import session
 import ui
 import ui.controls
 
+/*
+    PROPERTIES
+
+        user_type:int - Reflects the user's role and manages either DirectorTransport for directors or CameraSessionController 
+            for operators based on the value
+        max_camera_count:int - Determines how many thumbnails the thumbnail list contains
+        room_code:string - Determines what room code is displayed
+        livekit_token:string - Determines the LiveKit token that will be passed when DirectorTransport is creating a room
+        livekit_url:string - Determines the LiveKit URL that will be passed when DirectorTransport is creating a room
+        whip_url:string - Determines the WHIP URL that will be passed when the CameraSessionController starts publishing
+        stream_key:string - Determines the stream key that will be passed when the CameraSessionController starts publishing
+
+    SIGNALS
+
+        sessionCloseRequested(roomCode:string) - Fires when the director selectes the 'Close Session' button in the footer
+        closePage() - Fires when the user selects the 'Leave' button in the footer
+
+ */
 ColumnLayout {
     id: dl_root_layout
 

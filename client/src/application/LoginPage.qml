@@ -12,6 +12,13 @@ import types
 import ui.controls
 import ui.theme
 
+/*
+    SIGNALS
+
+        login(userName:string, userRole:int) - Fires when the user selects the 'Log In' button. Passes their 
+            selected username and role.
+        
+ */
 Rectangle {
     id: dl_page_bg
 
@@ -73,16 +80,12 @@ Rectangle {
 
                     label: "Username"
                     maxLength: 24
-
-                    onInputChanged: {
-                        dl_name_status.visible = false;
-                    }
                 }
 
                 Text {
                     id: dl_name_status
 
-                    visible: false
+                    visible: dl_name_field.state === "invalid"
                     text: "Please enter a username"
                     color: Theme.danger
                     font.pointSize: 14
@@ -130,7 +133,6 @@ Rectangle {
                             dl_page_bg.login(dl_name_field.input, dl_director_radio.checked ? UserRole.director : UserRole.camera);
                         } else {
                             dl_name_field.state = "invalid";
-                            dl_name_status.visible = true;
                         }
                     }
                 }
