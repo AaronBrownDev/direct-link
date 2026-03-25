@@ -26,11 +26,12 @@ qt_add_qml_module(directlink_app
     VERSION 1.0
     QML_FILES
         Main.qml
-        SessionPage.qml
+        LoginPage.qml
         DashboardPage.qml
-        DashboardDirectorView.qml
-        DashboardOperatorView.qml
-        JoinSessionView.qml
+        SessionPage.qml
+        views/DashboardDirectorView.qml
+        views/DashboardOperatorView.qml
+        views/JoinSessionView.qml
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/framereader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/directortransport.hpp

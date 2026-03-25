@@ -56,6 +56,11 @@ Rectangle {
             radius: width / 2
 
             color: Theme.statusDisconnected
+
+            Behavior on color { ColorAnimation {
+                duration: 150
+                easing.type: Easing.InOutQuad
+            } }
         }
 
         Item {

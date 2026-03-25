@@ -8,19 +8,23 @@
  * view allows the user to see session join and equipment configuration controls.
  */
 
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
-import network
-import ui
+import types
 import ui.controls
 import ui.theme
 
 /*
     PROPERTIES
 
-        user_type:string - Reflects the user's role and updates text displays to match
-        canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+        user_type:int - Reflects the user's role and updates text displays to match
+        can_quick_join:bool - Determines if the 'Quick Join Last Session' button is enabled or not
+
+    FUNCTIONS
+
+        clearFields() - Clears the contents of the page's input fields
 
     SIGNALS
 
@@ -33,8 +37,12 @@ import ui.theme
 ColumnLayout {
     id: dl_root_layout
 
-    property string user_type: "Director"
-    property bool canQuickJoin: false
+    property int user_type: UserRole.director
+    property bool can_quick_join: false
+
+    function clearFields() {
+        dl_dash_view_loader.item.clearFields();
+    }
 
     signal joinRequested(string roomCode)
     signal quickJoinRequested
@@ -46,7 +54,7 @@ ColumnLayout {
 
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.margins: 60
+        Layout.margins: 40
         spacing: 30
 
         Text {
@@ -54,7 +62,7 @@ ColumnLayout {
 
             Layout.alignment: Qt.AlignLeft
 
-            text: user_type + " Dashboard"
+            text: UserRole.toString(dl_root_layout.user_type, true) + " Dashboard"
             color: Theme.textWhite
             font.pointSize: 36
             font.bold: true
@@ -63,7 +71,7 @@ ColumnLayout {
         Loader {
             id: dl_dash_view_loader
             Layout.fillWidth: true
-            sourceComponent: dl_root_layout.user_type === "Director" ? dl_dash_director_view : dl_dash_operator_view
+            sourceComponent: dl_root_layout.user_type === UserRole.director ? dl_dash_director_view : dl_dash_operator_view
         }
 
         RecentSessionList {
@@ -71,7 +79,7 @@ ColumnLayout {
 
             Layout.minimumHeight: 200
 
-            visible: user_type === "Director"
+            visible: dl_root_layout.user_type === UserRole.director
 
             onSessionSelected: (roomCode, maxCameras) => {
                 dl_root_layout.joinRequested(roomCode);
@@ -86,7 +94,7 @@ ColumnLayout {
     Component {
         id: dl_dash_director_view
         DashboardDirectorView {
-            canQuickJoin: dl_root_layout.canQuickJoin
+            can_quick_join: dl_root_layout.can_quick_join
 
             onJoinClicked: roomCode => {
                 dl_root_layout.joinRequested(roomCode);
@@ -105,7 +113,7 @@ ColumnLayout {
     Component {
         id: dl_dash_operator_view
         DashboardOperatorView {
-            canQuickJoin: dl_root_layout.canQuickJoin
+            can_quick_join: dl_root_layout.can_quick_join
 
             onJoinClicked: (roomCode, cameraName) => {
                 dl_root_layout.joinRequested(roomCode);

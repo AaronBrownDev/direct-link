@@ -7,10 +7,13 @@
  * for the Window.
  */
 
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
+import types
 import network
 import session
 import ui
@@ -20,10 +23,8 @@ import ui.controls
 Window {
     id: root
 
-    property string user_id: "director-1"
-    property string user_type: "Director"
-    // property string user_id: "operator-1"
-    // property string user_type: "Camera"
+    property string user_id: ""
+    property int user_type: UserRole.director
 
     property url channel: "http://localhost:50051"
     property bool connected: false
@@ -34,7 +35,7 @@ Window {
 
     visible: true
     minimumWidth: 1400
-    minimumHeight: 1200
+    minimumHeight: 1100
     width: minimumWidth
     height: minimumHeight
     color: Theme.background
@@ -43,10 +44,6 @@ Window {
     Component.onCompleted: {
         SessionClient.connectToServer(channel);
         root.connected = true;
-        if (root.user_type === "Director") {
-            root.current_operation = "getSessions";
-            SessionClient.getMySessions(root.user_id);
-        }
     }
 
     // Header + Page Stack
@@ -57,8 +54,15 @@ Window {
         anchors.fill: parent
 
         Header {
-            id: dl_dash_header
-            user_type: root.user_type
+            id: dl_header
+            state: "login"
+
+            onProfileClicked: dl_profile.state = "visible"
+            onHomeClicked: {
+                if (dl_page_stack.depth > 2) {
+                    dl_page_stack.popToIndex(1, StackView.Immediate);
+                }
+            }
         }
 
         StackView {
@@ -67,7 +71,33 @@ Window {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            initialItem: dl_dashboard_component
+            initialItem: dl_login_component
+        }
+    }
+
+    MouseArea {
+        id: dl_profile_dismiss_area
+        anchors.fill: parent
+        visible: dl_profile.state === "visible"
+        onClicked: dl_profile.state = "hidden"
+    }
+
+    MiniProfile {
+        id: dl_profile
+
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: dl_header.height + 10
+        anchors.rightMargin: 10
+
+        user_id: root.user_id
+        user_type: root.user_type
+
+        state: "hidden"
+
+        onLogoutClicked: {
+            dl_logout_popup.open();
+            dl_profile.state = "hidden";
         }
     }
 
@@ -93,16 +123,54 @@ Window {
         inputType: DLPopup.InputType.Cancel
     }
 
+    DLPopup {
+        id: dl_logout_popup
+
+        inputType: DLPopup.InputType.ConfirmCancel
+        displayText: "Are you sure you want to log out?"
+        onConfirmed: {
+            dl_page_stack.popToIndex(0, StackView.Immediate);
+            root.user_id = "";
+            root.user_type = UserRole.director;
+            root.last_room = "";
+            root.pending_close_room = "";
+            root.current_operation = "";
+            dl_header.connection_status = "disconnected"
+            dl_header.state = "login";
+            dl_profile.state = "hidden";
+        }
+    }
+
     // Page Connections
 
     Connections {
         target: dl_page_stack.currentItem
         ignoreUnknownSignals: true
 
+        function onLogin(userName, userRole) {
+            root.user_id = userName;
+            root.user_type = userRole;
+            dl_header.user_type = userRole;
+            dl_header.state = "default";
+            dl_page_stack.pushItem(dl_dashboard_component, {
+                user_type: userRole
+            }, StackView.Immediate);
+
+            if (!root.connected || userRole !== UserRole.director)
+                    return;
+            
+            root.current_operation = "getSessions";
+            SessionClient.getMySessions(root.user_id);
+        }
+
+        function onClosePage() {
+            dl_page_stack.popCurrentItem(StackView.Immediate);
+        }
+
         function onJoinRequested(roomCode) {
             root.current_operation = "joinSession";
             root.last_room = roomCode;
-            SessionClient.joinSession(roomCode, root.user_id, root.user_type.toLowerCase());
+            SessionClient.joinSession(roomCode, root.user_id, UserRole.toString(root.user_type));
         }
 
         function onQuickJoinRequested() {
@@ -113,7 +181,7 @@ Window {
             }
 
             root.current_operation = "joinSession";
-            SessionClient.joinSession(root.last_room, root.user_id, root.user_type.toLowerCase());
+            SessionClient.joinSession(root.last_room, root.user_id, UserRole.toString(root.user_type));
         }
 
         function onCreateRequested(maxCameras) {
@@ -138,21 +206,21 @@ Window {
         target: SessionClient
 
         function onDirectorJoined(token, livekitUrl) {
-            dl_page_stack.push(dl_session_page_component, {
-                user_type: "Director",
+            dl_page_stack.pushItem(dl_session_component, {
+                user_type: UserRole.director,
                 room_code: root.last_room,
                 livekit_token: token,
                 livekit_url: livekitUrl
-            });
+            }, StackView.Immediate);
         }
 
         function onCameraJoined(whipUrl, streamKey) {
-            dl_page_stack.push(dl_session_page_component, {
-                user_type: "Operator",
+            dl_page_stack.pushItem(dl_session_component, {
+                user_type: UserRole.camera,
                 room_code: root.last_room,
                 whip_url: whipUrl,
                 stream_key: streamKey
-            });
+            }, StackView.Immediate);
         }
 
         function onSessionCreated(roomCode) {
@@ -160,7 +228,7 @@ Window {
             dl_info_popup.open();
             root.current_operation = "joinSession";
             root.last_room = roomCode;
-            SessionClient.joinSession(roomCode, root.user_id, root.user_type.toLowerCase());
+            SessionClient.joinSession(roomCode, root.user_id, UserRole.toString(root.user_type));
         }
 
         function onSessionClosed(success) {
@@ -169,8 +237,7 @@ Window {
                     root.last_room = "";
 
                 root.pending_close_room = "";
-                DirectorTransport.disconnectFromRoom()
-                dl_page_stack.pop();
+                dl_page_stack.popCurrentItem(StackView.Immediate);
             } else {
                 dl_error_popup.displayText = "Failed to close session. Please try again.";
                 dl_error_popup.open();
@@ -211,15 +278,15 @@ Window {
         target: DirectorTransport
 
         function onConnected() {
-            dl_dash_header.connection_status = "connected"
+            dl_header.connection_status = "connected"
         }
 
         function onDisconnected() {
-            dl_dash_header.connection_status = "disconnected"
+            dl_header.connection_status = "disconnected"
         }
 
         function onConnectionStateChanged(newState) {
-            dl_dash_header.connection_status = newState
+            dl_header.connection_status = newState
         }
     }
 
@@ -231,11 +298,11 @@ Window {
         function onSessionStarted() {
             dl_info_popup.displayText = "Camera Session Started.";
             dl_info_popup.open();
-            dl_dash_header.connection_status = "connected"
+            dl_header.connection_status = "connected"
         }
 
         function onSessionStopped() {
-            dl_dash_header.connection_status = "disconnected"
+            dl_header.connection_status = "disconnected"
         }
 
         function onErrorOccurred(msg) {
@@ -248,22 +315,24 @@ Window {
     // Page Components
 
     Component {
+        id: dl_login_component
+        LoginPage {}
+    }
+
+    Component {
         id: dl_dashboard_component
         DashboardPage {
-            user_type: root.user_type
-            canQuickJoin: root.last_room.length === 11
+            can_quick_join: root.last_room.length === 11
 
-            StackView.onActivated: {
-                if (!root.connected || user_type !== "Director")
-                    return;
-                root.current_operation = "getSessions";
-                SessionClient.getMySessions(root.user_id);
+            StackView.onStatusChanged: {
+                if (StackView.status === StackView.Inactive)
+                    clearFields();
             }
         }
     }
 
     Component {
-        id: dl_session_page_component
+        id: dl_session_component
         SessionPage {}
     }
 }

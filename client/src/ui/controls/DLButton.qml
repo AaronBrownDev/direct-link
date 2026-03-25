@@ -11,8 +11,8 @@ import ui.theme
 /*
     PROPERTIES
 
-        buttonText:string - The text that will display inside of the button
-        buttonType:int - Determines the appearance of the button. It can be set
+        button_text:string - The text that will display inside of the button
+        button_type:int - Determines the appearance of the button. It can be set
             using the primaryButton, neutralButton, or dangerButton values stored in
             the object
         active:bool - Controls whether or not the button can be clicked
@@ -26,18 +26,19 @@ Rectangle {
 
     enum ButtonType {
         Primary,
-        Neutral,
-        Danger
+        Secondary,
+        Danger,
+        Default
     }
 
-    property string buttonText: ""
-    property int buttonType: DLButton.ButtonType.Primary
+    property string button_text: ""
+    property int button_type: DLButton.ButtonType.Default
     property bool active: true
 
     signal clicked
 
-    color: switch (buttonType) {
-    case DLButton.ButtonType.Neutral:
+    color: switch (button_type) {
+    case DLButton.ButtonType.Secondary:
         if (dl_button_area.pressed || !active)
             return Theme.fieldPressed;
         if (dl_button_area.containsMouse)
@@ -49,13 +50,21 @@ Rectangle {
         if (dl_button_area.containsMouse)
             return Theme.dangerHover;
         return Theme.danger;
-    default:
+    case DLButton.ButtonType.Primary:
         if (dl_button_area.pressed || !active)
             return Theme.primaryPressed;
         if (dl_button_area.containsMouse)
             return Theme.primaryHover;
         return Theme.primary;
+    default:
+        if (dl_button_area.pressed || !active)
+            return Theme.neutralPressed;
+        if (dl_button_area.containsMouse)
+            return Theme.neutralHover;
+        return Theme.neutral;
     }
+
+    height: 65
     radius: 15
 
     Text {
@@ -64,14 +73,14 @@ Rectangle {
         anchors.centerIn: parent
         font.pointSize: 14
         font.bold: true
-        text: buttonText
-        color: active ? Theme.textWhite : Theme.textMuted
+        text: dl_button_bg.button_text
+        color: dl_button_bg.active ? Theme.textWhite : Theme.textMuted
     }
 
     MouseArea {
         id: dl_button_area
         anchors.fill: parent
-        enabled: active
+        enabled: dl_button_bg.active
         hoverEnabled: true
         onClicked: {
             dl_button_bg.clicked();

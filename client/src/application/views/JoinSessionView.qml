@@ -14,8 +14,12 @@ import ui.theme
 /*
     PROPERTIES
 
-        showCameraField:bool - Determines if the 'Camera Name' text field is visible
-        canQuickJoin:bool - Determines if the 'Quick Join Last Session' button is enabled
+        show_camera_field:bool - Determines if the 'Camera Name' text field is visible
+        can_quick_join:bool - Determines if the 'Quick Join Last Session' button is enabled
+
+    FUNCTIONS
+
+        clearFields() - Clears the contents of the session code and camera name fields
 
     SIGNALS
 
@@ -27,8 +31,13 @@ import ui.theme
 Rectangle {
     id: dl_join_session_bg
 
-    property bool showCameraField: true
-    property bool canQuickJoin: false
+    property bool show_camera_field: true
+    property bool can_quick_join: false
+
+    function clearFields() {
+        dl_session_code_field.clear();
+        dl_camera_name_field.clear();
+    }
 
     Layout.fillWidth: true
     Layout.preferredHeight: 550
@@ -58,36 +67,29 @@ Rectangle {
         DLTextField {
             id: dl_session_code_field
 
-            Layout.topMargin: 40
-            Layout.preferredHeight: 65
             Layout.fillWidth: true
 
             label: "Session Code"
             emptyText: "Enter code (XXXX-XXXXXX)"
             maxLength: 11
             isCode: true
-
-            onInputChanged: {
-                dl_session_join_status.visible = false;
-            }
         }
 
         Text {
             id: dl_session_join_status
 
-            visible: false
+            visible: dl_session_code_field.state === "invalid"
             text: "Please enter a valid code"
+            color: Theme.danger
             font.pointSize: 14
         }
 
         DLTextField {
             id: dl_camera_name_field
 
-            Layout.topMargin: 30
-            Layout.preferredHeight: 65
             Layout.fillWidth: true
 
-            visible: showCameraField
+            visible: dl_join_session_bg.show_camera_field
             label: "Camera Name"
             emptyText: "e.g. Camera A - Wide Angle"
             maxLength: 32
@@ -101,18 +103,15 @@ Rectangle {
             id: dl_join_button
 
             Layout.fillWidth: true
-            Layout.preferredHeight: 65
 
-            buttonType: DLButton.ButtonType.Primary
-            buttonText: "Join Session"
+            button_type: DLButton.ButtonType.Primary
+            button_text: "Join Session"
 
             onClicked: {
                 if (dl_session_code_field.input.length === 11)
-                    joinClicked(dl_session_code_field.input, dl_camera_name_field.input);
+                    dl_join_session_bg.joinClicked(dl_session_code_field.input, dl_camera_name_field.input);
                 else {
                     dl_session_code_field.state = "invalid";
-                    dl_session_join_status.color = Theme.danger;
-                    dl_session_join_status.visible = true;
                 }
             }
         }
@@ -124,11 +123,11 @@ Rectangle {
             Layout.preferredHeight: 55
             Layout.topMargin: 10
 
-            buttonType: DLButton.ButtonType.Neutral
-            buttonText: "Quick Join Last Session"
-            active: dl_join_session_bg.canQuickJoin
+            button_type: DLButton.ButtonType.Secondary
+            button_text: "Quick Join Last Session"
+            active: dl_join_session_bg.can_quick_join
 
-            onClicked: quickJoinClicked()
+            onClicked: dl_join_session_bg.quickJoinClicked()
         }
     }
 
@@ -139,8 +138,6 @@ Rectangle {
             switch (msg) {
             case "session not found":
                 dl_session_code_field.state = "invalid";
-                dl_session_join_status.color = Theme.danger;
-                dl_session_join_status.visible = true;
                 return;
             default:
                 return;

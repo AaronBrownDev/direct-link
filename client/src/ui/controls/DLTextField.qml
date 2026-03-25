@@ -6,6 +6,7 @@
  */
 
 import QtQuick
+import QtQuick.Layouts
 import QtQuick.Controls
 import ui.theme
 
@@ -18,8 +19,13 @@ import ui.theme
             room code (i.e. ROOM-123456)
         maxLength:int - Constrains the length of the entered text to a set amount of characters
         input:string - An alias for the contents of the field's text input (readonly)
+
+    FUNCTIONS
+
+        clear() - Sets the field input to an empty string
+        
  */
-Rectangle {
+ColumnLayout {
     id: dl_field
 
     property string label: ""
@@ -29,68 +35,79 @@ Rectangle {
 
     readonly property string input: dl_field_input.text
 
-    color: Theme.fieldBackground
-    radius: 15
-    border {
-        width: 0
+    function clear() {
+        dl_field_input.text = ""
+        state: ""
     }
+
+    implicitHeight: dl_field_label.implicitHeight + spacing + 65
+    spacing: 10
 
     states: [
-        State {
-            name: "invalid"
-            PropertyChanges {
-                target: dl_field
-                border.color: Theme.danger
-                border.width: 2
+            State {
+                name: "invalid"
+                PropertyChanges {
+                    dl_field_bg.border.color: Theme.danger
+                    dl_field_bg.border.width: 2
+                }
             }
+        ]
+
+    Text {
+            id: dl_field_label
+
+            text: dl_field.label
+            font.pointSize: 14
+            color: Theme.textMuted
         }
-    ]
 
-    Text {
-        id: dl_field_label
+    Rectangle {
+        id: dl_field_bg
+        
+        Layout.fillWidth: true
+        Layout.preferredHeight: 65
 
-        text: dl_field.label
-        anchors.bottom: parent.top
-        anchors.left: parent.left
-        anchors.bottomMargin: 10
-        font.pointSize: 14
-        color: Theme.textMuted
-    }
+        color: Theme.fieldBackground
+        radius: 15
+        border {
+            width: 0
+        }
 
-    Text {
-        id: dl_field_empty_text
+        Text {
+            id: dl_field_empty_text
 
-        text: dl_field.emptyText
-        visible: dl_field_input.length === 0
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.left: parent.left
-        anchors.leftMargin: 15
-        color: Theme.textMuted
-        font.pointSize: 16
-    }
+            text: dl_field.emptyText
+            visible: dl_field_input.length === 0
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.leftMargin: 15
+            color: Theme.textMuted
+            font.pointSize: 16
+        }
 
-    TextInput {
-        id: dl_field_input
+        TextInput {
+            id: dl_field_input
 
-        anchors.fill: parent
-        anchors.margins: 15
-        clip: true
-        verticalAlignment: TextInput.AlignVCenter
-        maximumLength: dl_field.isCode ? 11 : dl_field.maxLength
-        color: Theme.textWhite
-        font.pointSize: 16
-        selectionColor: Theme.primary
+            anchors.fill: parent
+            anchors.margins: 15
+            clip: true
+            verticalAlignment: TextInput.AlignVCenter
+            maximumLength: dl_field.isCode ? 11 : dl_field.maxLength
+            color: Theme.textWhite
+            font.pointSize: 16
+            selectionColor: Theme.primary
 
-        onTextEdited: {
-            dl_field.state = "";
-            if (dl_field.isCode) {
-                let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-                clean = clean.substring(0, 10);
-                if (clean.length > 4)
-                    clean = clean.substring(0, 4) + "-" + clean.substring(4);
+            onTextEdited: {
+                dl_field.state = "";
+                if (dl_field.isCode) {
+                    let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+                    clean = clean.substring(0, 10);
+                    if (clean.length > 4)
+                        clean = clean.substring(0, 4) + "-" + clean.substring(4);
 
-                if (text !== clean)
-                    text = clean;
+                    if (text !== clean)
+                        text = clean;
+                }
             }
         }
     }
