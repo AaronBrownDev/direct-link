@@ -7,8 +7,6 @@ QtObject {
     readonly property color surface: "#1E293B"
     readonly property color innerSurface: "#172032"
 
-    readonly property color neutral: "#D9D9D9"
-
     // Interactive
     readonly property color primary: "#10B981"
     readonly property color primaryHover: "#12CC8E"
@@ -23,6 +21,10 @@ QtObject {
     readonly property color fieldBackground: "#334155"
     readonly property color fieldHover: "#475569"
     readonly property color fieldPressed: "#283548"
+
+    readonly property color neutral: "#D9D9D9"
+    readonly property color neutralHover: '#f7f7f7'
+    readonly property color neutralPressed: '#c5c5c5'
 
     // Connection Status
 

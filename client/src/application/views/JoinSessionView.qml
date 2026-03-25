@@ -99,8 +99,8 @@ Rectangle {
 
             Layout.fillWidth: true
 
-            buttonType: DLButton.ButtonType.Primary
-            buttonText: "Join Session"
+            button_type: DLButton.ButtonType.Primary
+            button_text: "Join Session"
 
             onClicked: {
                 if (dl_session_code_field.input.length === 11)
@@ -119,8 +119,8 @@ Rectangle {
             Layout.preferredHeight: 55
             Layout.topMargin: 10
 
-            buttonType: DLButton.ButtonType.Neutral
-            buttonText: "Quick Join Last Session"
+            button_type: DLButton.ButtonType.Secondary
+            button_text: "Quick Join Last Session"
             active: dl_join_session_bg.can_quick_join
 
             onClicked: dl_join_session_bg.quickJoinClicked()

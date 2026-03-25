@@ -77,8 +77,8 @@ RowLayout {
                 Layout.topMargin: 50
                 Layout.fillWidth: true
 
-                buttonType: DLButton.ButtonType.Neutral
-                buttonText: "Configure Cameras & Hardware"
+                button_type: DLButton.ButtonType.Secondary
+                button_text: "Configure Cameras & Hardware"
             }
 
             DLConsole {

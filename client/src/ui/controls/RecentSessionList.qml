@@ -7,10 +7,7 @@
  * session.
  */
 
-pragma ComponentBehavior: Bound
-
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import network
 import ui.controls
@@ -76,7 +73,7 @@ ColumnLayout {
             Layout.preferredHeight: 50
             Layout.preferredWidth: 50
 
-            buttonType: DLButton.ButtonType.Neutral
+            button_type: DLButton.ButtonType.Secondary
 
             onClicked: {
                 dl_session_list_layout.fetchPending = true;

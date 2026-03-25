@@ -17,7 +17,7 @@ Rectangle {
 
     color: Theme.background
 
-    signal onLogin(string userName, int userRole)
+    signal login(string userName, int userRole)
 
     ColumnLayout {
         id: dl_root_layout
@@ -113,83 +113,6 @@ Rectangle {
                         id: dl_operator_radio
                         text: "Operator"
                     }
-
-                    // RadioButton {
-                    //     id: dl_director_radio
-                    //     checked: true
-                    //     text: "Director"
-                        
-                    //     indicator: Rectangle {
-                    //         implicitWidth: 30
-                    //         implicitHeight: 30
-                    //         x: dl_director_radio.leftPadding
-                    //         y: parent.height / 2 - height / 2
-                    //         radius: 15
-                    //         color: {
-                    //             if (dl_director_radio.down)
-                    //                 return Theme.fieldPressed;
-                    //             if (dl_director_radio.hovered)
-                    //                 return Theme.fieldHover;
-                    //             return Theme.fieldBackground
-                    //         }
-
-                    //         Rectangle {
-                    //             width: 16
-                    //             height: 16
-                    //             x: 7
-                    //             y: 7
-                    //             radius: 8
-                    //             color: Theme.primary
-                    //             visible: dl_director_radio.checked
-                    //         }
-                    //     }
-
-                    //     contentItem: Text {
-                    //         text: dl_director_radio.text
-                    //         color: dl_director_radio.down ? Theme.textMuted : Theme.textWhite
-                    //         font.pointSize: 14
-                    //         verticalAlignment: Text.AlignVCenter
-                    //         leftPadding: dl_director_radio.indicator.width + dl_director_radio.spacing
-                    //     }
-                    // }
-
-                    // RadioButton {
-                    //     id: dl_operator_radio
-                    //     text: "Operator"
-
-                    //     indicator: Rectangle {
-                    //         implicitWidth: 26
-                    //         implicitHeight: 26
-                    //         x: dl_operator_radio.leftPadding
-                    //         y: parent.height / 2 - height / 2
-                    //         radius: 13
-                    //         color: {
-                    //             if (dl_operator_radio.down)
-                    //                 return Theme.fieldPressed;
-                    //             if (dl_operator_radio.hovered)
-                    //                 return Theme.fieldHover;
-                    //             return Theme.fieldBackground
-                    //         }
-
-                    //         Rectangle {
-                    //             width: 14
-                    //             height: 14
-                    //             x: 6
-                    //             y: 6
-                    //             radius: 7
-                    //             color: Theme.primary
-                    //             visible: dl_operator_radio.checked
-                    //         }
-                    //     }
-
-                    //     contentItem: Text {
-                    //         text: dl_operator_radio.text
-                    //         color: dl_operator_radio.down ? Theme.textMuted : Theme.textWhite
-                    //         font.pointSize: 14
-                    //         verticalAlignment: Text.AlignVCenter
-                    //         leftPadding: dl_operator_radio.indicator.width + dl_operator_radio.spacing
-                    //     }
-                    // }
                 }
 
                 Item {Layout.fillHeight: true}
@@ -199,12 +122,12 @@ Rectangle {
 
                     Layout.fillWidth: true
 
-                    buttonText: "Login"
-                    buttonType: DLButton.ButtonType.Primary
+                    button_text: "Log In"
+                    button_type: DLButton.ButtonType.Primary
 
                     onClicked: {
                         if (dl_name_field.input.length > 0) {
-                            dl_page_bg.onLogin(dl_name_field.input, dl_director_radio.checked ? UserRole.director : UserRole.camera)
+                            dl_page_bg.login(dl_name_field.input, dl_director_radio.checked ? UserRole.director : UserRole.camera);
                         } else {
                             dl_name_field.state = "invalid";
                             dl_name_status.visible = true;

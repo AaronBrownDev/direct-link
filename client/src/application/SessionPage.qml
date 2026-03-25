@@ -32,6 +32,7 @@ ColumnLayout {
     spacing: 15
 
     signal sessionCloseRequested(string roomCode)
+    signal closePage()
 
     SessionInfo {
         id: dl_session_details
@@ -58,11 +59,6 @@ ColumnLayout {
             Layout.preferredHeight: width / aspect_ratio
             Layout.minimumHeight: implicitWidth / aspect_ratio
             implicitWidth: 500
-
-            Component.onCompleted: {
-                // TODO: Restore when FrameReader pushes actual frames
-                // FrameReader.videoSink = dl_active_camera.videoSink
-            }
         }
 
         ThumbnailList {
@@ -82,12 +78,12 @@ ColumnLayout {
 
         onLeavePage: () => {
             if (dl_root_layout.user_type === UserRole.director) {
-            DirectorTransport.disconnectFromRoom()
+                DirectorTransport.disconnectFromRoom();
             } else {
-                CameraSessionController.stop()
+                CameraSessionController.stop();
             }
             
-            dl_root_layout.StackView.view.pop();
+            dl_root_layout.closePage();
         }
 
         onCloseClicked: () => {
@@ -97,9 +93,9 @@ ColumnLayout {
 
     Component.onCompleted: {
         if (dl_root_layout.user_type === UserRole.director) {
-            DirectorTransport.connectToRoom(dl_root_layout.livekit_token, dl_root_layout.livekit_url)
+            DirectorTransport.connectToRoom(dl_root_layout.livekit_token, dl_root_layout.livekit_url);
         } else {
-            CameraSessionController.start(dl_root_layout.whip_url, dl_root_layout.stream_key)
+            CameraSessionController.start(dl_root_layout.whip_url, dl_root_layout.stream_key);
         }
     }
 
@@ -107,8 +103,8 @@ ColumnLayout {
         target: DirectorTransport
 
         function onConnected() {
-            let session = DirectorTransport.session
-            session.videoSink = dl_active_camera.videoSink
+            let session = DirectorTransport.session;
+            session.videoSink = dl_active_camera.videoSink;
         }
     }
 }

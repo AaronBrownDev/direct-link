@@ -124,8 +124,8 @@ RowLayout {
 
                 Layout.fillWidth: true
 
-                buttonType: DLButton.ButtonType.Primary
-                buttonText: "Create Session"
+                button_type: DLButton.ButtonType.Primary
+                button_text: "Create Session"
 
                 onClicked: dl_dash_view_layout.createClicked(dl_project_name.input, dl_session_desc.input, dl_quality_settings.input, dl_camera_counter.value)
             }

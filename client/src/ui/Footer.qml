@@ -29,8 +29,8 @@ Rectangle {
             id: dl_control_app_exit
             Layout.preferredWidth: 120
             Layout.preferredHeight: 50
-            buttonType: DLButton.ButtonType.Neutral
-            buttonText: "Leave"
+            button_type: DLButton.ButtonType.Secondary
+            button_text: "Leave"
             onClicked: dl_bg_footer.leavePage()
         }
 
@@ -41,8 +41,8 @@ Rectangle {
             Layout.preferredHeight: 50
 
             visible: dl_bg_footer.showCloseButton
-            buttonType: DLButton.ButtonType.Danger
-            buttonText: "Close Session"
+            button_type: DLButton.ButtonType.Danger
+            button_text: "Close Session"
             onClicked: dl_bg_footer.closeClicked()
         }
 

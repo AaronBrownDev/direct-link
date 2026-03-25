@@ -77,8 +77,8 @@ Popup {
                 Layout.preferredHeight: 55
 
                 visible: dl_popup.inputType === DLPopup.InputType.ConfirmCancel
-                buttonText: "Confirm"
-                buttonType: DLButton.ButtonType.Danger
+                button_text: "Confirm"
+                button_type: DLButton.ButtonType.Danger
                 onClicked: {
                     dl_popup.confirmed();
                     dl_popup.close();
@@ -89,8 +89,8 @@ Popup {
                 Layout.preferredWidth: 200
                 Layout.preferredHeight: 55
 
-                buttonText: dl_popup.inputType === DLPopup.InputType.ConfirmCancel ? "Cancel" : "Close"
-                buttonType: DLButton.ButtonType.Neutral
+                button_text: dl_popup.inputType === DLPopup.InputType.ConfirmCancel ? "Cancel" : "Close"
+                button_type: DLButton.ButtonType.Secondary
                 onClicked: {
                     dl_popup.close();
                 }
