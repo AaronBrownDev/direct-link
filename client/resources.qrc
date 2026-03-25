@@ -4,5 +4,6 @@
         <file>resources/ui/placeholderSplash.png</file>
         <file>resources/icons/refreshIcon.png</file>
         <file>resources/icons/checkIcon.png</file>
+        <file>resources/icons/profile.png</file>
     </qresource>
 </RCC>

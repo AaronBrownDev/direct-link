@@ -77,12 +77,6 @@ ColumnLayout {
         showCloseButton: dl_root_layout.user_type === UserRole.director
 
         onLeavePage: () => {
-            if (dl_root_layout.user_type === UserRole.director) {
-                DirectorTransport.disconnectFromRoom();
-            } else {
-                CameraSessionController.stop();
-            }
-            
             dl_root_layout.closePage();
         }
 
@@ -97,6 +91,14 @@ ColumnLayout {
         } else {
             CameraSessionController.start(dl_root_layout.whip_url, dl_root_layout.stream_key);
         }
+    }
+
+    Component.onDestruction: {
+        if (dl_root_layout.user_type === UserRole.director) {
+                DirectorTransport.disconnectFromRoom();
+            } else {
+                CameraSessionController.stop();
+            }
     }
 
     Connections {

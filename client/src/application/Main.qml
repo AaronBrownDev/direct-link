@@ -6,7 +6,7 @@
  * contains a StackView that manages application pages and specifies properties
  * for the Window.
  */
- 
+
 pragma ComponentBehavior: Bound
 
 import QtQuick
@@ -23,7 +23,7 @@ import ui.controls
 Window {
     id: root
 
-    property string user_id: "director-1"
+    property string user_id: ""
     property int user_type: UserRole.director
 
     property url channel: "http://localhost:50051"
@@ -56,6 +56,8 @@ Window {
         Header {
             id: dl_header
             state: "login"
+
+            onProfileClicked: dl_profile.state = "visible"
         }
 
         StackView {
@@ -65,6 +67,32 @@ Window {
             Layout.fillHeight: true
 
             initialItem: dl_login_component
+        }
+    }
+
+    MouseArea {
+        id: dl_profile_dismiss_area
+        anchors.fill: parent
+        visible: dl_profile.state === "visible"
+        onClicked: dl_profile.state = "hidden"
+    }
+
+    MiniProfile {
+        id: dl_profile
+
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: dl_header.height + 10
+        anchors.rightMargin: 10
+
+        user_id: root.user_id
+        user_type: root.user_type
+
+        state: "hidden"
+
+        onLogoutClicked: {
+            dl_logout_popup.open();
+            dl_profile.state = "hidden";
         }
     }
 
@@ -90,6 +118,24 @@ Window {
         inputType: DLPopup.InputType.Cancel
     }
 
+    DLPopup {
+        id: dl_logout_popup
+
+        inputType: DLPopup.InputType.ConfirmCancel
+        displayText: "Are you sure you want to log out?"
+        onConfirmed: {
+            dl_page_stack.popToIndex(0, StackView.Immediate);
+            root.user_id = "";
+            root.user_type = UserRole.director;
+            root.last_room = "";
+            root.pending_close_room = "";
+            root.current_operation = "";
+            dl_header.connection_status = "disconnected"
+            dl_header.state = "login";
+            dl_profile.state = "hidden";
+        }
+    }
+
     // Page Connections
 
     Connections {
@@ -100,7 +146,7 @@ Window {
             root.user_id = userName;
             root.user_type = userRole;
             dl_header.user_type = userRole;
-            dl_header.state = "";
+            dl_header.state = "default";
             dl_page_stack.pushItem(dl_dashboard_component, {
                 user_type: userRole
             }, StackView.Immediate);
@@ -186,7 +232,6 @@ Window {
                     root.last_room = "";
 
                 root.pending_close_room = "";
-                DirectorTransport.disconnectFromRoom()
                 dl_page_stack.popCurrentItem(StackView.Immediate);
             } else {
                 dl_error_popup.displayText = "Failed to close session. Please try again.";

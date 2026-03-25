@@ -18,6 +18,7 @@ Rectangle {
 
     signal homeClicked()
     signal settingsClicked()
+    signal profileClicked()
 
     states: [
         State {
@@ -27,7 +28,21 @@ Rectangle {
                 dl_connection_status_chip.opacity: 0
                 dl_settings_button.opacity: 0
                 dl_settings_button.enabled: false
+                dl_profile_button.opacity: 0
+                dl_profile_button.enabled: false
                 dl_logo_area.enabled: false
+            }
+        },
+        State {
+            name: "default"
+            PropertyChanges {
+                dl_header_type_bg.opacity: 1
+                dl_connection_status_chip.opacity: 1
+                dl_settings_button.opacity: 1
+                dl_settings_button.enabled: true
+                dl_profile_button.opacity: 1
+                dl_profile_button.enabled: true
+                dl_logo_area.enabled: true
             }
         }
     ]
@@ -113,11 +128,32 @@ Rectangle {
             onClicked: dl_header.settingsClicked()
 
             Image {
-                id: dl_list_refresh_icon
-
                 anchors.fill: parent
                 anchors.margins: 10
                 source: "qrc:/resources/icons/settings.png"
+            }
+
+            Behavior on opacity { PropertyAnimation {
+                duration: 250
+                easing.type: Easing.InOutQuad
+            } }
+        }
+
+        DLButton {
+            id: dl_profile_button
+
+            Layout.preferredWidth: 50
+            Layout.preferredHeight: 50
+
+            button_type: DLButton.ButtonType.Secondary
+            radius: 25
+
+            onClicked: dl_header.profileClicked()
+
+            Image {
+                anchors.fill: parent
+                anchors.margins: 10
+                source: "qrc:/resources/icons/profile.png"
             }
 
             Behavior on opacity { PropertyAnimation {

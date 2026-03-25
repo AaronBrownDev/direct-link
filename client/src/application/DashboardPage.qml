@@ -46,7 +46,7 @@ ColumnLayout {
 
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.margins: 60
+        Layout.margins: 40
         spacing: 30
 
         Text {
