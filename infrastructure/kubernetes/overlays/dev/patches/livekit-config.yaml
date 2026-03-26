@@ -15,8 +15,6 @@ data:
     prometheus_port: 9091
     redis:
       address: redis.directlink-dev.svc.cluster.local:6379
-    keys:
-      devkey: REPLACE_DEV_SECRET
     webhook:
       api_key: devkey
       urls:

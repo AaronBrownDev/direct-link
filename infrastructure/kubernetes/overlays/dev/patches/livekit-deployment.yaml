@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: livekit
+spec:
+  template:
+    spec:
+      containers:
+        - name: livekit
+          env:
+            # LiveKit accepts API keys via LIVEKIT_KEYS env var when no keys
+            # block is present in livekit.yaml. Format is "key: secret".
+            # Kubernetes substitutes $(LIVEKIT_API_SECRET) from the env var
+            # defined immediately above it in the same container spec.
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: directlink-secret
+                  key: LIVEKIT_API_KEY
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: directlink-secret
+                  key: LIVEKIT_API_SECRET
+            - name: LIVEKIT_KEYS
+              value: "$(LIVEKIT_API_KEY):$(LIVEKIT_API_SECRET)"

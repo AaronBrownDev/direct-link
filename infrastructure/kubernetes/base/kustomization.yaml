@@ -12,7 +12,6 @@ labels:
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secret.yaml
   - signaling/deployment.yaml
   - signaling/service.yaml
   - redis/deployment.yaml
