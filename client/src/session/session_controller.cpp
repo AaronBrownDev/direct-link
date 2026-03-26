@@ -24,13 +24,16 @@ void CameraSessionController::start(const QString &whipUrl,
 
         if (success) {
             emit sessionStarted();
+            qDebug() << "[CameraSessionController] The session has started.";
         }
         else {
             emit errorOccurred("Failed to start camera session");
+            qWarning() << "[CameraSessionController] Could not start session.";
         }
     });
 
     QFuture<bool> future = QtConcurrent::run([this, std_url, std_key]() {
+        qDebug() << "[CameraSessionController] Starting session.";
         return session_.start(std_url, std_key);
     });
 
