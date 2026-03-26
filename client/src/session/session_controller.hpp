@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QQmlEngine>
+#include <QFutureWatcher>
 #include "camera_session.hpp"
 
 class CameraSessionController : public QObject {
@@ -26,4 +27,5 @@ signals:
 
 private:
     CameraSession session_;
+    QFutureWatcher<bool> *m_startWatcher = nullptr;
 };

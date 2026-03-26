@@ -147,7 +147,7 @@ void DirectorTransport::onDisconnected(livekit::Room &, const livekit::Disconnec
 }
 
 void DirectorTransport::connectToRoom(const QString &token, const QString &url) {
-    if (m_connectWatcher && m_connectWatcher->isRunning()) {
+    if ((m_connectWatcher != nullptr) && m_connectWatcher->isRunning()) {
         qWarning() << "[DirectorTransport] Connection already in progress.";
         return;
     }
