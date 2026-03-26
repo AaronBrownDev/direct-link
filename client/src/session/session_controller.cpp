@@ -32,15 +32,17 @@ void CameraSessionController::start(const QString &whipUrl,
         }
     });
 
+    std::shared_ptr<CameraSession> session = session_;
+
     QFuture<bool> future = QtConcurrent::run([this, std_url, std_key]() {
         qDebug() << "[CameraSessionController] Starting session.";
-        return session_.start(std_url, std_key);
+        return session_->start(std_url, std_key);
     });
 
     m_startWatcher->setFuture(future);
 }
 
 void CameraSessionController::stop() {
-    session_.stop();
+    session_->stop();
     emit sessionStopped();
 }

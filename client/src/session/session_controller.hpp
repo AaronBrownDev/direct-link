@@ -26,6 +26,6 @@ signals:
     void errorOccurred(const QString &message);
 
 private:
-    CameraSession session_;
+    std::shared_ptr<CameraSession> session_;
     QFutureWatcher<bool> *m_startWatcher = nullptr;
 };

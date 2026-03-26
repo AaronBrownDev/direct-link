@@ -15,9 +15,9 @@ bool CameraSession::start(const std::string &whipUrl,
         captureConfig.devicePath = "/dev/video0";
         captureConfig.inputFormat = "v4l2";
     #endif
-    captureConfig.width = 1920;
-    captureConfig.height = 1080;
-    captureConfig.framerate = 30;
+    captureConfig.width = 640;
+    captureConfig.height = 480;
+    captureConfig.framerate = 5;
 
     videoCore::encode::EncoderConfig encoderConfig;
     encoderConfig.width = 1920;
