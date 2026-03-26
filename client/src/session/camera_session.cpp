@@ -50,6 +50,12 @@ bool CameraSession::start(const std::string &whipUrl,
         return false;
     }
 
+    auto publisherResult = whipPublisher_.start();
+    if (publisherResult != networking::Result::Success) {
+        pipeline_.stop();
+        return false;
+    }
+
     isRunning_ = true;
     return true;
 }
