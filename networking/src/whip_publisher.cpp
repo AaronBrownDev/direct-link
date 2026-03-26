@@ -109,6 +109,19 @@ Result WHIPPublisher::start() {
     if (ret == GST_STATE_CHANGE_FAILURE) {
         return Result::ErrorPipelineFailed;
     }
+
+    // Wait up to 5 seconds for the async WHIP handshake to complete
+    // This blocks the calling thread 
+    if (ret == GST_STATE_CHANGE_ASYNC) {
+        GstState state;
+        GstStateChangeReturn waited = gst_element_get_state(
+            pipeline_, &state, nullptr, 5 * GST_SECOND);
+        if (waited == GST_STATE_CHANGE_FAILURE) {
+            gst_element_set_state(pipeline_, GST_STATE_NULL);
+            return Result::ErrorPipelineFailed;
+        }
+    }
+
     running_ = true;
     return Result::Success;
 }
