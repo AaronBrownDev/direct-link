@@ -93,6 +93,7 @@ add_subdirectory(src/types)
 target_include_directories(direct-link PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${LIVEKIT_DIR}/include
+    ${GST_INCLUDE_DIRS}
 )
 
 target_include_directories(test_signaling_client PRIVATE
@@ -116,6 +117,7 @@ target_link_libraries(direct-link PRIVATE
     Qt6::Protobuf
     Qt6::Grpc
     ${FFMPEG_LIBRARIES}
+    ${GST_LIBRARIES}
     signaling_proto
     signaling_grpc
     livekit

@@ -4,7 +4,14 @@
 #include <QtConcurrent/QtConcurrent>
 
 CameraSessionController::CameraSessionController(QObject *parent)
-    : QObject(parent) {}
+    : QObject(parent)
+    , session_(std::make_shared<CameraSession>()) {}
+
+CameraSessionController::~CameraSessionController() {
+    if (m_startFuture.isRunning()) {
+        m_startFuture.waitForFinished();
+    }
+}
 
 void CameraSessionController::start(const QString &whipUrl,
                                      const QString &streamKey) {
@@ -34,12 +41,12 @@ void CameraSessionController::start(const QString &whipUrl,
 
     std::shared_ptr<CameraSession> session = session_;
 
-    QFuture<bool> future = QtConcurrent::run([this, std_url, std_key]() {
+    m_startFuture = QtConcurrent::run([this, std_url, std_key]() {
         qDebug() << "[CameraSessionController] Starting session.";
         return session_->start(std_url, std_key);
     });
 
-    m_startWatcher->setFuture(future);
+    m_startWatcher->setFuture(m_startFuture);
 }
 
 void CameraSessionController::stop() {
