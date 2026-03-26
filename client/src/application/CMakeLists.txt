@@ -36,7 +36,9 @@ qt_add_qml_module(directlink_app
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/framereader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/directortransport.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/directorsession.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include/videotrack.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../framereader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../directortransport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../directorsession.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../videotrack.cpp
 )
