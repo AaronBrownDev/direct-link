@@ -17,6 +17,7 @@ func main() {
 func run() int {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 
 	cfg := signaling.LoadConfig()
 	server := signaling.NewServer(cfg, logger)
