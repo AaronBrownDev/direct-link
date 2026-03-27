@@ -10,8 +10,9 @@ data:
       port_range_start: 50000
       port_range_end: 60000
       use_ice_lite: true
+      node_ip: 34.174.171.158
       use_external_ip: true
-    prometheus_port: 
+    prometheus: 
       port: 9091
     redis:
       address: redis.directlink-dev.svc.cluster.local:6379

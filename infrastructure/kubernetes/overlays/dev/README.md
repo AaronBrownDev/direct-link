@@ -9,8 +9,20 @@ It is **not** for local development (use `docker-compose` for that).
 - `kubectl` configured to target the dev cluster
 - Signaling server image pushed to Artifact Registry
 - External Secrets Operator installed in the cluster
-- GCP Secret Manager secrets created (`directlink-livekit-api-key`, `directlink-livekit-api-secret`, `directlink-redis-password`)
+- GCP Secret Manager secrets created (`directlink-livekit-api-key`, `directlink-livekit-api-secret`)
 - Workload Identity binding configured for the ESO service account
+- Static IP addresses reserved for LoadBalancer services:
+
+```bash
+gcloud compute addresses create directlink-dev-signaling \
+  --project directlink-dev --region us-south1
+
+gcloud compute addresses create directlink-dev-livekit \
+  --project directlink-dev --region us-south1
+
+gcloud compute addresses create directlink-dev-ingress \
+  --project directlink-dev --region us-south1
+```
 
 ## Placeholder Values
 
@@ -47,7 +59,6 @@ secrets must exist in the `directlink-dev` GCP project:
 |------------------------------------|----------------------|----------------------------------|
 | `directlink-livekit-api-key`       | `LIVEKIT_API_KEY`    | LiveKit API key                  |
 | `directlink-livekit-api-secret`    | `LIVEKIT_API_SECRET` | LiveKit API secret               |
-| `directlink-redis-password`        | `REDIS_PASSWORD`     | Redis authentication password    |
 
 ESO refreshes secrets every hour. To force an immediate sync:
 
