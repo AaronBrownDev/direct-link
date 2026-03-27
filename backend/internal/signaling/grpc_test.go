@@ -46,7 +46,8 @@ func newUnitTestServer(t *testing.T, mock *mockIngressClient) *Server {
 		mr.Addr(), "", 0, 10, 2,
 		time.Second, time.Second, time.Second,
 		24*time.Hour,
-	)
+		3, 100*time.Millisecond)
+
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
