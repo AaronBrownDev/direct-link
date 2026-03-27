@@ -12,15 +12,15 @@
 #pragma once
 
 #include <QObject>
-
 #include <QtConcurrent/QtConcurrent>
+#include <QVideoSink>
+#include <livekit/video_stream.h>
 
-#include "livekit/livekit.h"
 #include "framereader.hpp"
 
 class VideoTrack : public QObject {
     Q_OBJECT
-    QML_ELEMENT
+    QML_UNCREATABLE("VideoTrack is managed by DirectorSession.")
 
     Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)
 
@@ -28,18 +28,20 @@ class VideoTrack : public QObject {
         explicit VideoTrack(QObject *parent = nullptr);
         ~VideoTrack() override;
 
+        VideoTrack(const VideoTrack &) = delete;
+        VideoTrack &operator=(const VideoTrack &) = delete;
+        VideoTrack(VideoTrack &&) = delete;
+        VideoTrack &operator=(VideoTrack &&) = delete;
+
         [[nodiscard]] QVideoSink *videoSink() const;
         
         void setVideoSink(QVideoSink *sink);
 
-        void setTrack(const std::shared_ptr<livekit::Track> &track);
+        bool setTrack(const std::shared_ptr<livekit::Track> &track);
         void unsetTrack();
 
     signals:
         void videoSinkChanged();
-
-    private slots:
-        void onVideoSinkChanged();
 
     private:
         std::unique_ptr<FrameReader> m_frameReader;
@@ -48,4 +50,6 @@ class VideoTrack : public QObject {
 
         void startRead();
         void readLoop();
+
+        Q_SLOT void onVideoSinkChanged();
 };

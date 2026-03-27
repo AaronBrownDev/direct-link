@@ -21,7 +21,7 @@ void VideoTrack::setVideoSink(QVideoSink *sink) {
     }
 }
 
-void VideoTrack::setTrack(const std::shared_ptr<livekit::Track> &track) {
+bool VideoTrack::setTrack(const std::shared_ptr<livekit::Track> &track) {
     unsetTrack();
 
     livekit::VideoStream::Options opts;
@@ -30,12 +30,14 @@ void VideoTrack::setTrack(const std::shared_ptr<livekit::Track> &track) {
     m_stream = livekit::VideoStream::fromTrack(track, opts);
     if (!m_stream) {
         qDebug() << "[VideoTrack] Failed to create VideoStream.";
-        return;
+        return false;
     }
 
     if (m_frameReader->videoSink() != nullptr) {
         startRead();
     }
+
+    return true;
 }
 
 void VideoTrack::unsetTrack() {

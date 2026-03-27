@@ -1,50 +1,48 @@
 /*
  * File: directorsession.hpp
  * Author: Justin Williams
- * Date: 3/17/26
+ * Date: 3/27/26
  * File Description: A class that owns a FrameReader and accepts LiveKit tracks from
- * DirectorTransport. 
+ * DirectorTransport. Attached tracks are stored using a map of VideoTrack objects. The
+ * QML application can access a list of the attached VideoTrack objects.
  */
 
 #pragma once
 
 #include <QObject>
 #include <QQmlEngine>
-#include <QVideoSink>
 #include <QtConcurrent/QtConcurrent>
+#include <QList>
 #include <map>
 
-#include "livekit/livekit.h"
-#include "framereader.hpp"
+#include "videotrack.hpp"
 
 class DirectorSession : public QObject {
     Q_OBJECT
     QML_ELEMENT
 
-    Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)
+    Q_PROPERTY(QList<QObject*> tracks READ tracks NOTIFY tracksChanged)
 
     public:
         explicit DirectorSession(QObject *parent = nullptr);
         ~DirectorSession() override;
 
-        [[nodiscard]] QVideoSink *videoSink() const;
+        DirectorSession(const DirectorSession &) = delete;
+        DirectorSession &operator=(const DirectorSession &) = delete;
+        DirectorSession(DirectorSession &&) = delete;
+        DirectorSession &operator=(DirectorSession &&) = delete;
 
-        void attachTrack(std::shared_ptr<livekit::Track> track);
-        void detachTrack();
+        [[nodiscard]] QList<QObject*> tracks() const;
 
-        void setVideoSink(QVideoSink *sink);
+        void attachTrack(const std::shared_ptr<livekit::Track> &track, const std::string &trackSid);
+        void detachTrack(const std::string &trackSid);
+        void detachAllTracks();
 
     signals:
-        void videoSinkChanged();
-
-    private slots:
-        void onVideoSinkChanged();
+        void tracksChanged();
+        void trackAdded();
+        void trackRemoved(qsizetype index);
 
     private:
-        std::unique_ptr<FrameReader> m_frameReader;
-        std::shared_ptr<livekit::VideoStream> m_stream;
-        QFuture<void> m_readFuture;
-
-        void startRead();
-        void readLoop();
+        std::map<std::string, std::unique_ptr<VideoTrack>> m_trackMap;
 };

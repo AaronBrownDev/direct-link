@@ -15,6 +15,7 @@ target_link_libraries(directlink_app PRIVATE
     Qt6::QuickControls2
     Qt6::Multimedia
     Qt6::Concurrent
+    Microsoft.GSL::GSL
     ${FFMPEG_LIBRARIES}
     livekit
     livekit_ffi
