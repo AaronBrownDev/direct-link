@@ -23,4 +23,4 @@ spec:
                   name: directlink-secret
                   key: LIVEKIT_API_SECRET
             - name: LIVEKIT_KEYS
-              value: "$(LIVEKIT_API_KEY):$(LIVEKIT_API_SECRET)"
+              value: "$(LIVEKIT_API_KEY): $(LIVEKIT_API_SECRET)"
