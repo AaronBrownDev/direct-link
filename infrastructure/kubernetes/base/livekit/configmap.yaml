@@ -13,7 +13,8 @@ data:
       port_range_start: 50000
       port_range_end: 60000
       use_ice_lite: true
-    prometheus_port: 9091
+    prometheus:
+      port: 9091
     redis:
       address: redis:6379
     keys:
