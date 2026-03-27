@@ -154,6 +154,8 @@ Result WHIPPublisher::stop() {
         }
     }
 
+    gst_bus_remove_watch(bus);
+    gst_object_unref(bus);
     gst_element_set_state(pipeline_, GST_STATE_NULL);
     gst_object_unref(pipeline_);
     pipeline_ = nullptr;
@@ -177,6 +179,9 @@ void WHIPPublisher::pushPacket(std::unique_ptr<videoCore::Packet> packet) {
     gst_buffer_unmap(buffer, &map);
 
     GST_BUFFER_PTS(buffer) = static_cast<GstClockTime>(packet->pts);
+    if (framerate_ == 0) {
+        framerate_ = 60; // Fallback to default if framerate is zero to avoid division by zero
+    }
     GST_BUFFER_DURATION(buffer) = GST_SECOND / static_cast<GstClockTime>(framerate_);
     frameCount_++;
 
