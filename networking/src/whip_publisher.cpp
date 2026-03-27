@@ -155,6 +155,9 @@ Result WHIPPublisher::stop() {
     }
 
     gst_element_set_state(pipeline_, GST_STATE_NULL);
+    gst_object_unref(pipeline_);
+    pipeline_ = nullptr;
+    appsrc_ = nullptr;
     running_ = false;
     return Result::Success;
 }
