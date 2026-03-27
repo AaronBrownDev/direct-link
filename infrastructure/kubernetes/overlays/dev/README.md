@@ -8,6 +8,9 @@ It is **not** for local development (use `docker-compose` for that).
 - GKE dev cluster provisioned (see `infrastructure/terraform/`)
 - `kubectl` configured to target the dev cluster
 - Signaling server image pushed to Artifact Registry
+- External Secrets Operator installed in the cluster
+- GCP Secret Manager secrets created (`directlink-livekit-api-key`, `directlink-livekit-api-secret`, `directlink-redis-password`)
+- Workload Identity binding configured for the ESO service account
 
 ## Placeholder Values
 
@@ -34,20 +37,24 @@ This value appears in three places:
 **This IP is not static.** If the GKE node restarts (especially preemptible/spot nodes),
 update all three values and re-apply.
 
-### `REPLACE_DEV_SECRET`
+### Secrets (GCP Secret Manager)
 
-A LiveKit API secret paired with the `devkey` API key. Generate one or use any
-sufficiently long string. This value must match across three files:
+Secrets are managed by the External Secrets Operator (ESO), which syncs them from
+GCP Secret Manager into a Kubernetes Secret (`directlink-secret`). The following
+secrets must exist in the `directlink-dev` GCP project:
 
-| File                          | Field              |
-|-------------------------------|--------------------|
-| `patches/secret.yaml`         | `LIVEKIT_API_SECRET` |
-| `patches/livekit-config.yaml` | `keys.devkey`        |
-| `patches/ingress-config.yaml` | `api_secret`         |
+| Secret Manager Name                | K8s Secret Key       | Purpose                          |
+|------------------------------------|----------------------|----------------------------------|
+| `directlink-livekit-api-key`       | `LIVEKIT_API_KEY`    | LiveKit API key                  |
+| `directlink-livekit-api-secret`    | `LIVEKIT_API_SECRET` | LiveKit API secret               |
+| `directlink-redis-password`        | `REDIS_PASSWORD`     | Redis authentication password    |
 
-### `PROJECT_ID`
+ESO refreshes secrets every hour. To force an immediate sync:
 
-Your GCP project ID. Update the `images` block in `kustomization.yaml`.
+```bash
+kubectl annotate externalsecret directlink-secret -n directlink-dev \
+  force-sync=$(date +%s) --overwrite
+```
 
 ## Applying
 

@@ -17,5 +17,5 @@ patches:
 
 images:
   - name: directlink/signaling
-    newName: us-south1-docker.pkg.dev/PROJECT_ID/directlink/signaling
+    newName: us-south1-docker.pkg.dev/directlink-dev/directlink/signaling
     newTag: latest
