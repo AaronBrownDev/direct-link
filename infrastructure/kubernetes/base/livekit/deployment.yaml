@@ -16,6 +16,7 @@ spec:
         app.kubernetes.io/name: livekit
         app.kubernetes.io/component: sfu
     spec:
+      enableServiceLinks: false
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       containers:

@@ -16,8 +16,6 @@ spec:
         app.kubernetes.io/name: ingress
         app.kubernetes.io/component: ingress-server
     spec:
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: ingress
           image: livekit/ingress:latest

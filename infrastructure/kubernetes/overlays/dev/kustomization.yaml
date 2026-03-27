@@ -3,16 +3,21 @@ kind: Kustomization
 
 resources:
   - ../../base
+  - eso/cluster-secret-store.yaml
+  - eso/external-secret.yaml
 
 namespace: directlink-dev
 
 patches:
   - path: patches/configmap.yaml       # overrides directlink-config data
-  - path: patches/secret.yaml          # overrides directlink-secret stringData
   - path: patches/livekit-config.yaml  # replaces livekit.yaml content
   - path: patches/ingress-config.yaml  # replaces ingress.yaml content
+  - path: patches/livekit-deployment.yaml # add LIVEKIT_KEYS env var from directlink-secret
+  - path: patches/signaling-service.yaml # promotes to LoadBalancer with reserved static IP
+  - path: patches/livekit-service.yaml   # promotes to LoadBalancer with reserved static IP
+  - path: patches/ingress-service.yaml   # promotes to LoadBalancer with reserved static IP
 
 images:
   - name: directlink/signaling
-    newName: us-south1-docker.pkg.dev/PROJECT_ID/directlink/signaling
+    newName: us-south1-docker.pkg.dev/directlink-dev/directlink/signaling
     newTag: latest

@@ -12,7 +12,6 @@ labels:
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secret.yaml
   - signaling/deployment.yaml
   - signaling/service.yaml
   - redis/deployment.yaml
@@ -22,4 +21,5 @@ resources:
   - livekit/service.yaml
   - livekit/configmap.yaml
   - ingress/deployment.yaml
+  - ingress/service.yaml
   - ingress/configmap.yaml

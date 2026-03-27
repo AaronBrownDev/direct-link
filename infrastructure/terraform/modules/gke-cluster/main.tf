@@ -21,6 +21,10 @@ resource "google_container_cluster" "primary" {
   ip_allocation_policy {
     # Let GKE handle this
   }
+
+  workload_identity_config {
+    workload_pool = "${var.project_id}.svc.id.goog"
+  }
 }
 
 #-----------
@@ -44,10 +48,14 @@ resource "google_container_node_pool" "primary" {
     ]
 
     labels = {
-      environment = "dev"
+      environment = var.environment
     }
 
-    tags = ["directlink-dev"]
+    tags = [var.cluster_name]
+
+    workload_metadata_config {
+      mode = "GKE_METADATA"
+    }
   }
 
   management {
@@ -70,7 +78,7 @@ resource "google_compute_firewall" "allow_signaling" {
   }
 
   source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["directlink-dev"]
+  target_tags   = [var.cluster_name]
 }
 
 resource "google_compute_firewall" "allow_livekit" {
@@ -84,7 +92,7 @@ resource "google_compute_firewall" "allow_livekit" {
   }
 
   source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["directlink-dev"]
+  target_tags   = [var.cluster_name]
 }
 
 resource "google_compute_firewall" "allow_whip" {
@@ -98,7 +106,7 @@ resource "google_compute_firewall" "allow_whip" {
   }
 
   source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["directlink-dev"]
+  target_tags   = [var.cluster_name]
 }
 
 resource "google_compute_firewall" "allow_webrtc_udp" {
@@ -112,5 +120,5 @@ resource "google_compute_firewall" "allow_webrtc_udp" {
   }
 
   source_ranges = ["0.0.0.0/0"]
-  target_tags   = ["directlink-dev"]
+  target_tags   = [var.cluster_name]
 }

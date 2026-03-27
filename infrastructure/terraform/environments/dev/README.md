@@ -24,11 +24,6 @@ After provisioning, configure kubectl:
 gcloud container clusters get-credentials directlink-dev --zone us-south1-a --project directlink-dev
 ```
 
-Get the node external IP for the Kustomize overlay:
-```bash
-kubectl get nodes -o wide
-```
-
 ## Cost Management
 
 This cluster uses **spot VMs** which are ~60-80% cheaper than regular instances.
@@ -41,9 +36,6 @@ To bring it back up:
 ```bash
 terraform apply
 ```
-
-The node will get a new external IP after re-provisioning. Update the
-Kustomize dev overlay's `REPLACE_NODE_IP` values accordingly.
 
 ### Estimated Costs (dev cluster)
 
@@ -74,14 +66,14 @@ Image path: `us-south1-docker.pkg.dev/directlink-dev/directlink/signaling`
   - TCP 50051 (gRPC signaling)
   - TCP 7880, 7881 (LiveKit WebSocket + RTC)
   - TCP 8080 (WHIP endpoint)
-  - UDP 50000–60000 (WebRTC media)
+  - UDP 50000-60000 (WebRTC media)
 
 ## After Provisioning
 
 1. Configure kubectl with the command from `terraform output`
-2. Get node external IP from `kubectl get nodes -o wide`
-3. Update Kustomize dev overlay (`infrastructure/kubernetes/overlays/dev/`):
-   - Replace `REPLACE_NODE_IP` in three patch files
-   - Replace `PROJECT_ID` in `kustomization.yaml`
-   - Replace `REPLACE_DEV_SECRET` in three patch files
-4. Apply workloads: `kubectl apply -k infrastructure/kubernetes/overlays/dev/`
+2. Install ESO and verify the ClusterSecretStore is healthy (see overlay README)
+3. Apply workloads: `kubectl apply -k infrastructure/kubernetes/overlays/dev/`
+
+Static IPs and secrets are already configured in the overlay. No placeholder
+substitution is needed unless the static IP reservations have changed (see
+the Hardcoded IPs table in `infrastructure/kubernetes/overlays/dev/README.md`).
