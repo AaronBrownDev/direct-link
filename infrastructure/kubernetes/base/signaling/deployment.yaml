@@ -33,10 +33,7 @@ spec:
                   name: directlink-config
                   key: REDIS_ADDR
             - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: directlink-secret
-                  key: REDIS_PASSWORD
+              value: ""
             - name: LIVEKIT_HOST
               valueFrom:
                 configMapKeyRef:

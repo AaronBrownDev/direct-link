@@ -21,4 +21,5 @@ resources:
   - livekit/service.yaml
   - livekit/configmap.yaml
   - ingress/deployment.yaml
+  - ingress/service.yaml
   - ingress/configmap.yaml
