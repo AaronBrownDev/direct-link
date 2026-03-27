@@ -33,6 +33,7 @@ qt_add_qml_module(directlink_app
         views/DashboardDirectorView.qml
         views/DashboardOperatorView.qml
         views/JoinSessionView.qml
+        views/SessionDirectorView.qml
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/framereader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/directortransport.hpp

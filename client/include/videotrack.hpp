@@ -20,6 +20,7 @@
 
 class VideoTrack : public QObject {
     Q_OBJECT
+    QML_ELEMENT
     QML_UNCREATABLE("VideoTrack is managed by DirectorSession.")
 
     Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)

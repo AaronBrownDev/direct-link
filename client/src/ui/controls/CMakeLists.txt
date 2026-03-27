@@ -16,7 +16,7 @@ qt_add_qml_module(directlink_ui_controls
         SessionInfo.qml
         SessionLog.qml
         Thumbnail.qml
-        ThumbnailList.qml
+        CameraList.qml
         RecentSessionList.qml
         ConnectionStatusChip.qml
         MiniProfile.qml

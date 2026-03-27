@@ -38,7 +38,7 @@ ColumnLayout {
     id: dl_root_layout
 
     property int user_type: UserRole.director
-    property real max_camera_count: 4
+    property int max_camera_count: 4
     property string room_code: "XXXX-XXXX"
 
     property string livekit_token: ""
@@ -60,30 +60,9 @@ ColumnLayout {
         room_code: dl_root_layout.room_code
     }
 
-    RowLayout {
-        id: dl_layout_cameras
-        spacing: 15
-        Layout.margins: 15
-
-        SessionLog {
-            id: dl_session_log
-        }
-
-        CameraFeed {
-            id: dl_active_camera
-
-            Layout.alignment: Qt.AlignVCenter
-            Layout.fillWidth: true
-            Layout.preferredHeight: width / aspect_ratio
-            Layout.minimumHeight: implicitWidth / aspect_ratio
-            implicitWidth: 500
-        }
-
-        ThumbnailList {
-            id: dl_camera_list
-            Layout.fillHeight: true
-            max_camera_count: dl_root_layout.max_camera_count
-        }
+    SessionDirectorView {
+        id: dl_director_view
+        max_camera_count: dl_root_layout.max_camera_count
     }
 
     Footer {
@@ -124,7 +103,7 @@ ColumnLayout {
 
         function onConnected() {
             let session = DirectorTransport.session;
-            session.videoSink = dl_active_camera.videoSink;
+            dl_director_view.session = session;
         }
     }
 }

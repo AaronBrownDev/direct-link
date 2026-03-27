@@ -20,6 +20,7 @@
 class DirectorSession : public QObject {
     Q_OBJECT
     QML_ELEMENT
+    QML_UNCREATABLE("DirectorSession is managed by DirectorTransport.")
 
     Q_PROPERTY(QList<QObject*> tracks READ tracks NOTIFY tracksChanged)
 
