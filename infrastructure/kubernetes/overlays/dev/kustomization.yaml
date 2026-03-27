@@ -14,6 +14,8 @@ patches:
   - path: patches/ingress-config.yaml  # replaces ingress.yaml content
   - path: patches/livekit-deployment.yaml # add LIVEKIT_KEYS env var from directlink-secret
   - path: patches/signaling-service.yaml # promotes to LoadBalancer with reserved static IP
+  - path: patches/livekit-service.yaml   # promotes to LoadBalancer with reserved static IP
+  - path: patches/ingress-service.yaml   # promotes to LoadBalancer with reserved static IP
 
 images:
   - name: directlink/signaling

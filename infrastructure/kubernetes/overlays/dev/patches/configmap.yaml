@@ -6,4 +6,4 @@ data:
   REDIS_ADDR: "redis.directlink-dev.svc.cluster.local:6379"
   LIVEKIT_HOST: "http://livekit.directlink-dev.svc.cluster.local:7880"
   LIVEKIT_WS_URL: "ws://livekit.directlink-dev.svc.cluster.local:7880"
-  LIVEKIT_EXTERNAL_URL: "ws://REPLACE_NODE_IP:7880"
+  LIVEKIT_EXTERNAL_URL: "ws://34.174.171.158:7880"

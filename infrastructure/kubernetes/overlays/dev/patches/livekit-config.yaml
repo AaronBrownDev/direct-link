@@ -10,9 +10,9 @@ data:
       port_range_start: 50000
       port_range_end: 60000
       use_ice_lite: true
-      node_ip: REPLACE_NODE_IP
       use_external_ip: true
-    prometheus_port: 9091
+    prometheus_port: 
+      port: 9091
     redis:
       address: redis.directlink-dev.svc.cluster.local:6379
     webhook:
@@ -20,4 +20,4 @@ data:
       urls:
         - http://signaling.directlink-dev.svc.cluster.local:8081/webhooks/livekit
     ingress:
-      whip_base_url: http://REPLACE_NODE_IP:8080/whip
+      whip_base_url: http://34.174.60.181:8080/whip
