@@ -19,6 +19,8 @@ type Config struct {
 	RedisDialTimeout  time.Duration
 	RedisReadTimeout  time.Duration
 	RedisWriteTimeout time.Duration
+	RedisMaxRetries   int
+	RedisRetryBackoff time.Duration
 	SessionTTL        time.Duration
 
 	// LiveKit connection
@@ -43,6 +45,8 @@ func DefaultConfig() Config {
 		RedisDialTimeout:  5 * time.Second,
 		RedisReadTimeout:  3 * time.Second,
 		RedisWriteTimeout: 3 * time.Second,
+		RedisMaxRetries:   3,
+		RedisRetryBackoff: 100 * time.Millisecond,
 		SessionTTL:        24 * time.Hour,
 
 		LiveKitHost:        "http://livekit:7880",
