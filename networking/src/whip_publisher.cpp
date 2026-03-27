@@ -15,8 +15,7 @@ WHIPPublisher::~WHIPPublisher() {
 
 Result
 WHIPPublisher::initialize(const std::string &whip_url,
-                          const std::string &stream_key,
-                          int framerate,
+                          const std::string &stream_key, int framerate,
                           std::function<void(std::string)> onErrorCallback) {
     whipUrl_ = whip_url;
     streamKey_ = stream_key;
@@ -44,11 +43,10 @@ WHIPPublisher::initialize(const std::string &whip_url,
         "video/x-h264", "stream-format", G_TYPE_STRING, "byte-stream",
         "alignment", G_TYPE_STRING, "au", nullptr);
     g_object_set(appsrc_, "caps", caps, "is-live", TRUE, "format",
-                 GST_FORMAT_TIME, "block", FALSE, 
-                 "max-bytes", static_cast<guint64>(512 * 1024), // 512KB cap
-                 "min-latency", static_cast<gint64>(0),
-                 "max-latency", static_cast<gint64>(0),
-                 nullptr);
+                 GST_FORMAT_TIME, "block", FALSE, "max-bytes",
+                 static_cast<guint64>(512 * 1024), // 512KB cap
+                 "min-latency", static_cast<gint64>(0), "max-latency",
+                 static_cast<gint64>(0), nullptr);
     gst_caps_unref(caps);
 
     g_object_set(rtph264pay, "config-interval", 1, nullptr);
@@ -59,6 +57,9 @@ WHIPPublisher::initialize(const std::string &whip_url,
                      whipsink, nullptr);
 
     if (!gst_element_link_many(appsrc_, h264parse, rtph264pay, nullptr)) {
+        gst_element_set_state(pipeline_, GST_STATE_NULL);
+        gst_object_unref(pipeline_);
+        pipeline_ = nullptr;
         return Result::ErrorPipelineFailed;
     }
 
@@ -70,6 +71,9 @@ WHIPPublisher::initialize(const std::string &whip_url,
     gst_object_unref(sink_pad);
 
     if (ret != GST_PAD_LINK_OK) {
+        gst_element_set_state(pipeline_, GST_STATE_NULL);
+        gst_object_unref(pipeline_);
+        pipeline_ = nullptr;
         return Result::ErrorPipelineFailed;
     }
 
@@ -111,11 +115,11 @@ Result WHIPPublisher::start() {
     }
 
     // Wait up to 5 seconds for the async WHIP handshake to complete
-    // This blocks the calling thread 
+    // This blocks the calling thread
     if (ret == GST_STATE_CHANGE_ASYNC) {
         GstState state;
-        GstStateChangeReturn waited = gst_element_get_state(
-            pipeline_, &state, nullptr, 5 * GST_SECOND);
+        GstStateChangeReturn waited =
+            gst_element_get_state(pipeline_, &state, nullptr, 5 * GST_SECOND);
         if (waited == GST_STATE_CHANGE_FAILURE) {
             gst_element_set_state(pipeline_, GST_STATE_NULL);
             return Result::ErrorPipelineFailed;
@@ -136,7 +140,13 @@ Result WHIPPublisher::stop() {
     }
 
     // Signal end of stream — flushes encoder and whipsink downstream
-    gst_app_src_end_of_stream(GST_APP_SRC(appsrc_));
+    // This is necessary to ensure all frames are sent and the stream is
+    // properly closed on the server side Lock appsrc while sending EOS to
+    // prevent race conditions
+    {
+        std::lock_guard<std::mutex> lock(appsrcMutex_);
+        gst_app_src_end_of_stream(GST_APP_SRC(appsrc_));
+    }
 
     // Wait for EOS to propagate through the pipeline, 3 second timeout
     GstBus *bus = gst_element_get_bus(pipeline_);
@@ -154,8 +164,9 @@ Result WHIPPublisher::stop() {
         }
     }
 
-    gst_bus_remove_watch(bus);
-    gst_object_unref(bus);
+    GstBus *bus2 = gst_element_get_bus(pipeline_);
+    gst_bus_remove_watch(bus2);
+    gst_object_unref(bus2);
     gst_element_set_state(pipeline_, GST_STATE_NULL);
     gst_object_unref(pipeline_);
     pipeline_ = nullptr;
@@ -180,18 +191,26 @@ void WHIPPublisher::pushPacket(std::unique_ptr<videoCore::Packet> packet) {
 
     GST_BUFFER_PTS(buffer) = static_cast<GstClockTime>(packet->pts);
     if (framerate_ == 0) {
-        framerate_ = 60; // Fallback to default if framerate is zero to avoid division by zero
+        framerate_ = 30; // Fallback to default if framerate is zero to avoid
+                         // division by zero
     }
-    GST_BUFFER_DURATION(buffer) = GST_SECOND / static_cast<GstClockTime>(framerate_);
+    GST_BUFFER_DURATION(buffer) =
+        GST_SECOND / static_cast<GstClockTime>(framerate_);
     frameCount_++;
 
-    GstFlowReturn ret;
-    g_signal_emit_by_name(appsrc_, "push-buffer", buffer, &ret);
-    gst_buffer_unref(buffer);
+    {
+        std::lock_guard<std::mutex> lock(appsrcMutex_);
+        if (appsrc_ == nullptr) {
+            gst_buffer_unref(buffer);
+            return;
+        }
+        GstFlowReturn ret;
+        g_signal_emit_by_name(appsrc_, "push-buffer", buffer, &ret);
 
-    if (ret != GST_FLOW_OK) {
-        if (onErrorCallback_) {
-            onErrorCallback_("Failed to push buffer to GStreamer pipeline");
+        if (ret != GST_FLOW_OK) {
+            if (onErrorCallback_) {
+                onErrorCallback_("Failed to push buffer to GStreamer pipeline");
+            }
         }
     }
 }

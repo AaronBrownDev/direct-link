@@ -34,6 +34,7 @@ private:
     bool running_ = false;
     GstElement *pipeline_ = nullptr;
     GstElement *appsrc_ = nullptr;
+    std::mutex appsrcMutex_;
     std::uint64_t frameCount_ = 0;
     int framerate_ = 60; // Default framerate, can be overridden by config
 };
