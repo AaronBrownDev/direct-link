@@ -24,9 +24,11 @@ const (
 
 // RedisStore implements the Store interface using redis
 type RedisStore struct {
-	client     *redis.Client
-	sessionTTL time.Duration
-	metrics    *metrics.Metrics
+	client       *redis.Client
+	sessionTTL   time.Duration
+	metrics      *metrics.Metrics
+	maxRetries   int
+	retryBackOff time.Duration
 }
 
 // NewRedisStore creates a new Redis-backed store
@@ -38,7 +40,9 @@ func NewRedisStore(addr string,
 	dialTimeout time.Duration,
 	readTimeout time.Duration,
 	writeTimeout time.Duration,
-	sessionTTL time.Duration) (*RedisStore, error) {
+	sessionTTL time.Duration,
+	maxRetries int,
+	backoff time.Duration) (*RedisStore, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:         addr,
 		Password:     password,
@@ -59,8 +63,10 @@ func NewRedisStore(addr string,
 	}
 
 	return &RedisStore{
-		client:     client,
-		sessionTTL: sessionTTL,
+		client:       client,
+		sessionTTL:   sessionTTL,
+		maxRetries:   maxRetries,
+		retryBackOff: backoff,
 	}, nil
 
 }
@@ -130,7 +136,13 @@ func (r *RedisStore) GetSession(ctx context.Context, sessionID string) (session 
 	}()
 
 	sessionKey := sessionPrefix + sessionID
-	result, err := r.client.HGetAll(ctx, sessionKey).Result()
+
+	var result map[string]string
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		result, e = r.client.HGetAll(ctx, sessionKey).Result()
+		return e
+	})
 
 	if err != nil {
 		return nil, err
@@ -438,4 +450,41 @@ func isRedisErr(err error) bool {
 	return !errors.Is(err, ErrSessionNotFound) &&
 		!errors.Is(err, ErrInvalidRoomCode) &&
 		!errors.Is(err, ErrSessionClosed)
+}
+
+// returns true for transient infrastructure errors worth retrying
+// It excludes application-level sentinels, context cancellation and deadline expiry
+func isRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if errors.Is(err, ErrSessionNotFound) ||
+		errors.Is(err, ErrInvalidRoomCode) ||
+		errors.Is(err, ErrSessionClosed) {
+		return false
+	}
+	return true
+}
+
+func (r *RedisStore) retryRedisOp(ctx context.Context, op func() error) error {
+	var err error
+	for attempt := range r.maxRetries {
+		err = op()
+		if err == nil || !isRetryable(err) {
+			return err
+		}
+		if attempt < r.maxRetries-1 {
+			backoff := r.retryBackOff * (1 << attempt)
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoff):
+			}
+		}
+	}
+	return err
 }
