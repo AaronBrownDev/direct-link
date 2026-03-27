@@ -42,6 +42,12 @@ variable "disk_size_gb" {
   default     = 30
 }
 
+variable "environment" {
+  description = "Environment label for the node pool (e.g. dev, staging, prod)"
+  type        = string
+  default     = "dev"
+}
+
 variable "network" {
   description = "VPC network name"
   type        = string

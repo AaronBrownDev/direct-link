@@ -15,9 +15,9 @@ bool CameraSession::start(const std::string &whipUrl,
         captureConfig.devicePath = "/dev/video0";
         captureConfig.inputFormat = "v4l2";
     #endif
-    captureConfig.width = 1920;
-    captureConfig.height = 1080;
-    captureConfig.framerate = 30;
+    captureConfig.width = 640;
+    captureConfig.height = 480;
+    captureConfig.framerate = 5;
 
     videoCore::encode::EncoderConfig encoderConfig;
     encoderConfig.width = 1920;
@@ -47,6 +47,12 @@ bool CameraSession::start(const std::string &whipUrl,
 
     if (pipelineResult != videoCore::Result::Success) {
         whipPublisher_.stop();
+        return false;
+    }
+
+    auto publisherResult = whipPublisher_.start();
+    if (publisherResult != networking::Result::Success) {
+        pipeline_.stop();
         return false;
     }
 

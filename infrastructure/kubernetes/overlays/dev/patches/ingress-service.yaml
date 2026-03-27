@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress
+  annotations:
+    networking.gke.io/load-balancer-ip-addresses: directlink-dev-ingress
+spec:
+  type: LoadBalancer

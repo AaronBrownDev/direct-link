@@ -8,53 +8,63 @@ It is **not** for local development (use `docker-compose` for that).
 - GKE dev cluster provisioned (see `infrastructure/terraform/`)
 - `kubectl` configured to target the dev cluster
 - Signaling server image pushed to Artifact Registry
-
-## Placeholder Values
-
-Before applying, replace the following placeholders with real values
-
-### `REPLACE_NODE_IP`
-
-The GKE node's external IP address. Find it with:
+- External Secrets Operator installed in the cluster
+- GCP Secret Manager secrets created (`directlink-livekit-api-key`, `directlink-livekit-api-secret`)
+- Workload Identity binding configured for the ESO service account
+- Static IP addresses reserved for LoadBalancer services:
 
 ```bash
-kubectl get nodes -o wide
-# or
-gcloud compute instances list --filter="name~gke"
+gcloud compute addresses create directlink-dev-signaling \
+  --project directlink-dev --region us-south1
+
+gcloud compute addresses create directlink-dev-livekit \
+  --project directlink-dev --region us-south1
+
+gcloud compute addresses create directlink-dev-ingress \
+  --project directlink-dev --region us-south1
 ```
 
-This value appears in three places:
+## Hardcoded IPs
 
-| File                          | Field                  | Purpose                                      |
-|-------------------------------|------------------------|----------------------------------------------|
-| `patches/configmap.yaml`      | `LIVEKIT_EXTERNAL_URL` | WebSocket URL returned to director clients    |
-| `patches/livekit-config.yaml` | `rtc.node_ip`          | IP advertised in WebRTC ICE candidates        |
-| `patches/livekit-config.yaml` | `whip_base_url`        | WHIP endpoint URL returned to camera clients  |
+The following files contain hardcoded static LoadBalancer IPs. If a static IP
+reservation is released and re-created (new address), update these values:
 
-**This IP is not static.** If the GKE node restarts (especially preemptible/spot nodes),
-update all three values and re-apply.
+| File                          | Field                  | IP Source                    | Purpose                                      |
+|-------------------------------|------------------------|------------------------------|----------------------------------------------|
+| `patches/configmap.yaml`      | `LIVEKIT_EXTERNAL_URL` | `directlink-dev-livekit`     | WebSocket URL returned to director clients    |
+| `patches/livekit-config.yaml` | `rtc.node_ip`          | `directlink-dev-livekit`     | IP advertised in WebRTC ICE candidates        |
+| `patches/livekit-config.yaml` | `whip_base_url`        | `directlink-dev-ingress`     | WHIP endpoint URL returned to camera clients  |
 
-### `REPLACE_DEV_SECRET`
+To look up the current addresses:
 
-A LiveKit API secret paired with the `devkey` API key. Generate one or use any
-sufficiently long string. This value must match across three files:
+```bash
+gcloud compute addresses list --project directlink-dev --filter="name~directlink-dev"
+```
 
-| File                          | Field              |
-|-------------------------------|--------------------|
-| `patches/secret.yaml`         | `LIVEKIT_API_SECRET` |
-| `patches/livekit-config.yaml` | `keys.devkey`        |
-| `patches/ingress-config.yaml` | `api_secret`         |
+## Secrets (GCP Secret Manager)
 
-### `PROJECT_ID`
+Secrets are managed by the External Secrets Operator (ESO), which syncs them from
+GCP Secret Manager into a Kubernetes Secret (`directlink-secret`). The following
+secrets must exist in the `directlink-dev` GCP project:
 
-Your GCP project ID. Update the `images` block in `kustomization.yaml`.
+| Secret Manager Name                | K8s Secret Key       | Purpose                          |
+|------------------------------------|----------------------|----------------------------------|
+| `directlink-livekit-api-key`       | `LIVEKIT_API_KEY`    | LiveKit API key                  |
+| `directlink-livekit-api-secret`    | `LIVEKIT_API_SECRET` | LiveKit API secret               |
+
+ESO refreshes secrets every hour. To force an immediate sync:
+
+```bash
+kubectl annotate externalsecret directlink-secret -n directlink-dev \
+  force-sync=$(date +%s) --overwrite
+```
 
 ## Applying
 
 Render and verify before applying:
 
 ```bash
-# Render to stdout — check for placeholder values and errors
+# Render to stdout — check for errors
 kubectl kustomize infrastructure/kubernetes/overlays/dev/
 
 # Dry run against the cluster
@@ -64,10 +74,10 @@ kubectl apply -k infrastructure/kubernetes/overlays/dev/ --dry-run=client
 kubectl apply -k infrastructure/kubernetes/overlays/dev/
 ```
 
-## After a Node IP Change
+## After a Static IP Change
 
-1. Get the new external IP (`kubectl get nodes -o wide`)
-2. Update `REPLACE_NODE_IP` in the three locations listed above
+1. Look up the new addresses: `gcloud compute addresses list --project directlink-dev --filter="name~directlink-dev"`
+2. Update the three locations listed in the Hardcoded IPs table above
 3. Re-apply: `kubectl apply -k infrastructure/kubernetes/overlays/dev/`
 4. Restart affected pods to pick up ConfigMap changes:
 
