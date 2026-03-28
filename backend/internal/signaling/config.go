@@ -29,6 +29,7 @@ type Config struct {
 
 	// Janitor Cleanup
 	JanitorInterval time.Duration
+	JanitorLockTTL  time.Duration
 }
 
 func DefaultConfig() Config {
@@ -54,6 +55,7 @@ func DefaultConfig() Config {
 		LiveKitAPISecret:   "dev-secret-that-is-32-chars-long", // dev default
 
 		JanitorInterval: 1 * time.Minute,
+		JanitorLockTTL:  30 * time.Second,
 	}
 }
 
