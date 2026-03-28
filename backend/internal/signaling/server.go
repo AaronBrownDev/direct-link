@@ -11,7 +11,7 @@ import (
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
-	"github.com/AaronBrownDev/direct-link/internal/janitor"
+
 	"github.com/AaronBrownDev/direct-link/pkg/metrics"
 	"github.com/AaronBrownDev/direct-link/pkg/session"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
@@ -26,12 +26,11 @@ type Server struct {
 	grpcServer      *grpc.Server
 	logger          *slog.Logger
 	ready           atomic.Bool
-	lkClient        *lksdk.RoomServiceClient // TODO: implement delete room logic
+	lkClient        roomClient
 	lkIngressClient ingressClient
 	store           session.Store
 	metrics         *metrics.Metrics
 	srvMetrics      *grpcprom.ServerMetrics
-	janitor         *janitor.Janitor
 	pb.UnimplementedSignalingServiceServer
 }
 
@@ -57,9 +56,6 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 
 	// Initialize LiveKit room service and ingress client
 	s.initLiveKit()
-
-	// Initialize the session expiry Janitor
-	s.initJanitor()
 
 	return s
 }
@@ -158,16 +154,6 @@ func (s *Server) initLiveKit() {
 
 }
 
-func (s *Server) initJanitor() {
-	s.janitor = janitor.New(
-		s.store,
-		s.deleteRoom,
-		s.logger,
-		s.cfg.JanitorInterval,
-		s.metrics,
-	)
-}
-
 func (s *Server) registerRoutes(mux *http.ServeMux) {
 
 	// Kubernetes probes
@@ -181,6 +167,21 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Prometheus metrics
 	mux.Handle("GET /metrics", s.metrics.Handler())
 
+}
+
+// Returns the session store. Used by cmd to wire up janitor with coupling it to Server
+func (s *Server) Store() session.Store {
+	return s.store
+}
+
+// Metrics return the metrics instance. Used by cmd/ to wire up the janitor
+func (s *Server) Metrics() *metrics.Metrics {
+	return s.metrics
+}
+
+// DeleteRoom exposes the deleteRoom helper for use as a janitor.RoomDeleter callback
+func (s *Server) DeleteRoom(ctx context.Context, sessionID string) error {
+	return s.deleteRoom(ctx, sessionID)
 }
 
 // ListenAndServe starts the signaling server through http and gRPC
@@ -206,9 +207,6 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	go func() {
 		errCh <- s.grpcServer.Serve(grpcListener)
 	}()
-
-	// Start session expiry	janitor
-	go s.janitor.Run(ctx)
 
 	// set server as ready to use and log it
 	s.ready.Store(true)
