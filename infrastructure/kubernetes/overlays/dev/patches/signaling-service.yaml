@@ -3,12 +3,7 @@ kind: Service
 metadata:
   name: signaling
   annotations:
-    # References the static IP reserved by:
-    #   gcloud compute addresses create directlink-dev-signaling \
-    #     --project directlink-dev --region us-south1
-    # GKE resolves this address name to the actual IP automatically.
-    # Stable across terraform destroy/apply cycles as long as the
-    # address resource itself is not deleted.
     networking.gke.io/load-balancer-ip-addresses: directlink-dev-signaling
 spec:
   type: LoadBalancer
+  loadBalancerIP: 34.174.71.83

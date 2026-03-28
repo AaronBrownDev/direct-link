@@ -6,3 +6,4 @@ metadata:
     networking.gke.io/load-balancer-ip-addresses: directlink-dev-ingress
 spec:
   type: LoadBalancer
+  loadBalancerIP: 34.174.60.181
