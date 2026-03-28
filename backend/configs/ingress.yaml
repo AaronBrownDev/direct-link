@@ -1,9 +1,11 @@
 log_level: debug
 
-# Blank strings will be overridden by env vars
-api_key: ""
-api_secret: ""
-ws_url: ""
+# Dev credentials — overridden by k8s overlay (patches/ingress-config.yaml) in cluster.
+# livekit/ingress does not map LIVEKIT_API_KEY/LIVEKIT_API_SECRET env vars to these fields,
+# so they must be set explicitly for docker-compose local dev.
+api_key: "devkey"
+api_secret: "dev-secret-that-is-32-chars-long"
+ws_url: "ws://localhost:7880"
 
 redis:
   address: localhost:6379
