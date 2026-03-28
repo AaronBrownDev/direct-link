@@ -2,44 +2,57 @@ package janitor
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
 	"github.com/AaronBrownDev/direct-link/pkg/metrics"
 	"github.com/AaronBrownDev/direct-link/pkg/session"
+	"github.com/redis/go-redis/v9"
+)
+
+const (
+	// Redis key used to elect a single janitor leader. Runs the sweep
+	janitorLockKey = "janitor:lock"
 )
 
 // RoomDeleter is a callback that handles Livekit room and ingress cleanup
 // for a given sessionID. It is called once per expired session during a sweep
-type RoomDeleter func(ctx context.Context, sessionID string)
+type RoomDeleter func(ctx context.Context, sessionID string) error
 
 // Janitor periodically sweeps for sessions whose TTL has elapsed and closes them,
-// inclding LiveKit and ingress cleanup
+// including LiveKit and ingress cleanup
 type Janitor struct {
-	store      session.Store    // used to fetch expired sessions and update their status
-	deleteRoom RoomDeleter      // callback  that handles LiveKit room and ingress cleanup
-	logger     *slog.Logger     // structured logger
-	interval   time.Duration    // how often the janitor sweeps
-	metrics    *metrics.Metrics // Promethius metrics - may be nil, in which case metrics are skipped
+	store       session.Store    // used to fetch expired sessions and update their status
+	redisClient *redis.Client    // used to acquire the distributed sweep lock
+	deleteRoom  RoomDeleter      // callback  that handles LiveKit room and ingress cleanup
+	logger      *slog.Logger     // structured logger
+	interval    time.Duration    // how often the janitor sweeps
+	lockTTL     time.Duration    // how long the distributed lock is held per sweep
+	metrics     *metrics.Metrics // Promethius metrics - may be nil, in which case metrics are skipped
 }
 
 // New creates a new Janitor
 func New(
 	store session.Store,
+	redisClient *redis.Client,
 	deleteRoom RoomDeleter,
 	logger *slog.Logger,
 	interval time.Duration,
+	lockTTL time.Duration,
 	m *metrics.Metrics) *Janitor {
 	return &Janitor{
-		store:      store,
-		deleteRoom: deleteRoom,
-		logger:     logger,
-		interval:   interval,
-		metrics:    m,
+		store:       store,
+		redisClient: redisClient,
+		deleteRoom:  deleteRoom,
+		logger:      logger,
+		interval:    interval,
+		lockTTL:     lockTTL,
+		metrics:     m,
 	}
 }
 
-// Run starts the janitor ticket loop.
+// Run starts the janitor ticker loop.
 func (j *Janitor) Run(ctx context.Context) {
 	j.logger.Info("janitor started", "interval", j.interval)
 
@@ -63,6 +76,18 @@ func (j *Janitor) Run(ctx context.Context) {
 }
 
 func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
+	acquired, err := j.redisClient.SetNX(ctx, janitorLockKey, "1", j.lockTTL).Result()
+	if err != nil {
+		j.logger.Error("janitor failed to acquire sweep lock", "error", err)
+		return
+	}
+
+	if !acquired {
+		// Another replica is already sweeping - skip this tick
+		return
+	}
+	defer j.redisClient.Del(ctx, janitorLockKey)
+
 	expired, err := j.store.GetExpiredSessions(ctx, now)
 	if err != nil {
 		j.logger.Error("janitor failed to fetch expired sessions", "error", err)
@@ -82,10 +107,14 @@ func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
 func (j *Janitor) closeExpiredSession(ctx context.Context, sess session.Session) {
 	log := j.logger.With("session_id", sess.ID)
 
-	j.deleteRoom(ctx, sess.ID)
+	// delete room in grpc does not return anything
+	if err := j.deleteRoom(ctx, sess.ID); err != nil {
+		log.Warn("janitor LiveKit cleanup incomplete", "error", err)
+	}
 
 	if err := j.store.UpdateSessionStatus(ctx, sess.ID, "closed"); err != nil {
 		log.Error("janitor failed to mark session closed", "error", err)
+		return // metrics not incremented
 	}
 
 	if j.metrics != nil {
@@ -94,4 +123,9 @@ func (j *Janitor) closeExpiredSession(ctx context.Context, sess session.Session)
 	}
 	log.Info("janitor closed expired session")
 
+}
+
+// Returns true for transient Redis errors that may resolve on the next sweep.
+func isRetryable(err error) bool {
+	return err != nil && !errors.Is(err, redis.Nil)
 }
