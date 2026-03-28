@@ -11,6 +11,10 @@ pkg_check_modules(GST REQUIRED
     gstreamer-app-1.0
     gstreamer-video-1.0
 )
+pkg_check_modules(FFMPEG REQUIRED
+    libavcodec
+    libavutil
+)
 
 add_library(directlink_networking STATIC)
 
@@ -18,6 +22,7 @@ target_include_directories(directlink_networking
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${GST_INCLUDE_DIRS}
+        ${FFMPEG_INCLUDE_DIRS}
 )
 
 target_link_libraries(directlink_networking
