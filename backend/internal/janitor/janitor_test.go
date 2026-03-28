@@ -11,6 +11,7 @@ import (
 	"github.com/AaronBrownDev/direct-link/pkg/metrics"
 	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -43,10 +44,15 @@ func newTestStore(t *testing.T, mr *miniredis.Miniredis) *session.RedisStore {
 	}
 	return store
 }
+func newLockClient(mr *miniredis.Miniredis) *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+}
 
-func newTestJanitor(store session.Store, deleteRoom janitor.RoomDeleter) *janitor.Janitor {
+func newTestJanitor(store session.Store, redisClient *redis.Client, deleteRoom janitor.RoomDeleter) *janitor.Janitor {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	return janitor.New(store, deleteRoom, logger, time.Minute, metrics.New())
+	return janitor.New(store, redisClient, deleteRoom, logger, time.Minute, time.Minute, metrics.New())
 }
 
 func newSession(id, roomCode, owner string) *session.Session {
@@ -84,8 +90,9 @@ func TestJanitor_NoExpiredSessions(t *testing.T) {
 	}
 
 	deleteRoomCalled := false
-	j := newTestJanitor(store, func(_ context.Context, _ string) {
+	j := newTestJanitor(store, newLockClient(mr), func(_ context.Context, _ string) error {
 		deleteRoomCalled = true
+		return nil
 	})
 
 	// Pass real time — score is now + 7 days, so nothing is expired yet
@@ -109,6 +116,7 @@ func TestJanitor_NoExpiredSessions(t *testing.T) {
 func TestJanitor_ClosesExpiredSession(t *testing.T) {
 	mr := miniredis.RunT(t)
 	store := newTestStore(t, mr)
+
 	defer store.Close()
 
 	ctx := context.Background()
@@ -119,8 +127,9 @@ func TestJanitor_ClosesExpiredSession(t *testing.T) {
 	}
 
 	var deletedSessionID string
-	j := newTestJanitor(store, func(_ context.Context, sessionID string) {
+	j := newTestJanitor(store, newLockClient(mr), func(_ context.Context, sessionID string) error {
 		deletedSessionID = sessionID
+		return nil
 	})
 
 	// expiredNow() is past the sorted set score (now + 7 days) so the janitor
@@ -155,8 +164,9 @@ func TestJanitor_NoIngressIDs(t *testing.T) {
 	}
 
 	deleteRoomCalled := false
-	j := newTestJanitor(store, func(_ context.Context, _ string) {
+	j := newTestJanitor(store, newLockClient(mr), func(_ context.Context, _ string) error {
 		deleteRoomCalled = true
+		return nil
 	})
 
 	j.SweepAt(ctx, expiredNow())
@@ -189,8 +199,9 @@ func TestJanitor_RedisError(t *testing.T) {
 	}
 
 	deleteRoomCalled := false
-	j := newTestJanitor(store, func(_ context.Context, _ string) {
+	j := newTestJanitor(store, newLockClient(mr), func(_ context.Context, _ string) error {
 		deleteRoomCalled = true
+		return nil
 	})
 
 	// Shut down miniredis to simulate a Redis infrastructure failure
@@ -226,8 +237,9 @@ func TestJanitor_MultipleExpiredSessions(t *testing.T) {
 	}
 
 	var deletedIDs []string
-	j := newTestJanitor(store, func(_ context.Context, sessionID string) {
+	j := newTestJanitor(store, newLockClient(mr), func(_ context.Context, sessionID string) error {
 		deletedIDs = append(deletedIDs, sessionID)
+		return nil
 	})
 
 	j.SweepAt(ctx, expiredNow())
