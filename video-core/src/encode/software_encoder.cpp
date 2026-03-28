@@ -47,8 +47,9 @@ Result SoftwareEncoder::initialize(
     codecCtx_->time_base = AVRational{1, config_.framerate};
     codecCtx_->framerate = AVRational{config_.framerate, 1};
     codecCtx_->gop_size = config_.gopSize;
-    codecCtx_->max_b_frames = 0;             // No B-frames for low latency
-    codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P; // Common pixel format
+    codecCtx_->max_b_frames = 0;                               // No B-frames for low latency
+    codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P;                   // Common pixel format
+    codecCtx_->profile = FF_PROFILE_H264_CONSTRAINED_BASELINE; // Required for WebRTC
 
     // Set preset options (e.g., ultrafast, fast, medium, slow)
     AVDictionary *options = nullptr;
