@@ -31,6 +31,7 @@ Window {
 
     property string last_room: ""
     property string pending_close_room: ""
+    property int room_max_cameras: 0
     property string current_operation: ""
 
     visible: true
@@ -161,9 +162,20 @@ Window {
             dl_page_stack.popCurrentItem(StackView.Immediate);
         }
 
-        function onJoinRequested(roomCode) {
+        function onJoinRequested(roomCode, maxCameras) {
             root.current_operation = "joinSession";
             root.last_room = roomCode;
+
+            if (root.user_type === UserRole.director) {
+                // When joining by room code or quick join, a default max camera count of 4 is passed to the session
+                root.room_max_cameras = maxCameras > 0 ? maxCameras : 4;
+            }
+
+            if (maxCameras > 0)
+                root.room_max_cameras = maxCameras;
+            else
+                root.room_max_cameras = 4;
+
             SessionClient.joinSession(roomCode, root.user_id, UserRole.toString(root.user_type));
         }
 
@@ -174,12 +186,17 @@ Window {
                 return;
             }
 
+            if (root.user_type === UserRole.director) {
+                root.room_max_cameras = 4;
+            }
+
             root.current_operation = "joinSession";
             SessionClient.joinSession(root.last_room, root.user_id, UserRole.toString(root.user_type));
         }
 
         function onCreateRequested(maxCameras) {
             root.current_operation = "createSession";
+            root.room_max_cameras = maxCameras;
             SessionClient.createSession(root.user_id, maxCameras);
         }
 
@@ -203,6 +220,7 @@ Window {
             dl_page_stack.pushItem(dl_session_component, {
                 user_type: UserRole.director,
                 room_code: root.last_room,
+                max_camera_count: root.room_max_cameras,
                 livekit_token: token,
                 livekit_url: livekitUrl
             }, StackView.Immediate);

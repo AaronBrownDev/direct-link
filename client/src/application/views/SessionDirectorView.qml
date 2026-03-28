@@ -15,7 +15,7 @@ import ui.controls
 RowLayout {
         id: dl_director_view
 
-        property int maxCameraCount: 4
+        property int max_camera_count: 4
         property int activeCamera: -1
 
         Layout.margins: 15
@@ -29,9 +29,9 @@ RowLayout {
 
             let tracks = DirectorTransport.session.tracks;
             if (activeCamera >= 0 && activeCamera < tracks.length) {
-                dl_active_camera.assignedTrack = tracks[activeCamera];
+                dl_active_camera.assigned_track = tracks[activeCamera];
             } else {
-                dl_active_camera.assignedTrack = null;
+                dl_active_camera.assigned_track = null;
             }
         }
 
@@ -44,8 +44,8 @@ RowLayout {
 
             Layout.alignment: Qt.AlignVCenter
             Layout.fillWidth: true
-            Layout.preferredHeight: width / aspectRatio
-            Layout.minimumHeight: implicitWidth / aspectRatio
+            Layout.preferredHeight: width / aspect_ratio
+            Layout.minimumHeight: implicitWidth / aspect_ratio
             implicitWidth: 500
         }
 
@@ -53,7 +53,7 @@ RowLayout {
             id: dl_camera_list
             Layout.preferredWidth: 300
             Layout.fillHeight: true
-            maxCameraCount: dl_director_view.maxCameraCount
+            max_camera_count: dl_director_view.max_camera_count
             activeCamera: dl_director_view.activeCamera
 
             onCameraSelected: (index) => {
@@ -65,14 +65,14 @@ RowLayout {
             target: DirectorTransport.session
 
             function onTrackAdded(index) {
-                dl_camera_list.allTracks = DirectorTransport.session.tracks;
+                dl_camera_list.all_tracks = DirectorTransport.session.tracks;
                 if (index <= dl_director_view.activeCamera) {
                     dl_director_view.activeCamera++;
                 }
             }
 
             function onTrackRemoved(index) {
-                dl_camera_list.allTracks = DirectorTransport.session.tracks;
+                dl_camera_list.all_tracks = DirectorTransport.session.tracks;
                 if (index === dl_director_view.activeCamera) {
                     dl_director_view.activeCamera = -1;
                 } else if (index < dl_director_view.activeCamera) {
