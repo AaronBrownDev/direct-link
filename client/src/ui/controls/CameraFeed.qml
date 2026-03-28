@@ -21,21 +21,22 @@ import QtMultimedia
 Thumbnail {
     id: dl_camera
     property var assignedTrack: null
-    // TODO: retrieve actual aspect ratio from track
-    // - Track needs an accessible aspectRatio property that it updates based on the frames it pushes
-    // - Add a connection to the assignedTrack that responds to a change in aspect ratio by updating the property
-    property real aspectRatio: 8 / 5
+    property real aspectRatio: assignedTrack ? assignedTrack.aspectRatio : (16 / 9)
     property bool casting: false
 
     state: {
-        if (casting) { return "casting"; }
-        if (assignedTrack !== null) { return "active"; }
+        if (casting) {
+            return "casting";
+        }
+        if (assignedTrack !== null) {
+            return "active";
+        }
         return "inactive";
     }
 
     onAssignedTrackChanged: {
         if (assignedTrack !== null) {
-            assignedTrack.setVideoSink(dl_video_output.videoSink)
+            assignedTrack.setVideoSink(dl_video_output.videoSink);
         }
     }
 
@@ -43,5 +44,13 @@ Thumbnail {
         id: dl_video_output
         visible: true
         anchors.fill: parent
+    }
+
+    Connections {
+        target: assignedTrack
+
+        function onAspectRatioChanged() {
+            dl_camera.aspectRatio = assignedTrack.aspectRatio;
+        }
     }
 }

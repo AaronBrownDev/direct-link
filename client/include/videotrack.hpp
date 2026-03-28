@@ -15,6 +15,7 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QVideoSink>
 #include <livekit/video_stream.h>
+#include <atomic>
 
 #include "framereader.hpp"
 
@@ -24,6 +25,7 @@ class VideoTrack : public QObject {
     QML_UNCREATABLE("VideoTrack is managed by DirectorSession.")
 
     Q_PROPERTY(QVideoSink *videoSink READ videoSink WRITE setVideoSink NOTIFY videoSinkChanged)
+    Q_PROPERTY(qreal aspectRatio READ aspectRatio NOTIFY aspectRatioChanged)
 
     public:
         explicit VideoTrack(QObject *parent = nullptr);
@@ -35,6 +37,7 @@ class VideoTrack : public QObject {
         VideoTrack &operator=(VideoTrack &&) = delete;
 
         [[nodiscard]] QVideoSink *videoSink() const;
+        [[nodiscard]] qreal aspectRatio() const;
         
         void setVideoSink(QVideoSink *sink);
 
@@ -43,11 +46,13 @@ class VideoTrack : public QObject {
 
     signals:
         void videoSinkChanged();
+        void aspectRatioChanged();
 
     private:
         std::unique_ptr<FrameReader> m_frameReader;
         std::shared_ptr<livekit::VideoStream> m_stream;
         QFuture<void> m_readFuture;
+        std::atomic<qreal> m_aspectRatio{16.0 / 9.0};
 
         void startRead();
         void readLoop();

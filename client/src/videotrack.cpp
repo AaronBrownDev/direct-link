@@ -13,6 +13,10 @@ QVideoSink *VideoTrack::videoSink() const {
     return m_frameReader->videoSink();
 }
 
+qreal VideoTrack::aspectRatio() const {
+    return m_aspectRatio.load();
+}
+
 void VideoTrack::setVideoSink(QVideoSink *sink) {
     // Same value cannot be set twice to prevent unnecessary emission
     if (m_frameReader->videoSink() != sink) {
@@ -66,8 +70,19 @@ void VideoTrack::startRead() {
 
 void VideoTrack::readLoop() {
     livekit::VideoFrameEvent event;
+    bool has_ratio = false;
     
     while (m_stream && m_stream->read(event)) {
+        if (!has_ratio) {
+            int w = event.frame.width();
+            int h = event.frame.height();
+            if (h > 0) {
+                m_aspectRatio.store(static_cast<qreal>(w) / h);
+                QMetaObject::invokeMethod(this, &VideoTrack::aspectRatioChanged, Qt::QueuedConnection);
+                has_ratio = true;
+            }
+        }
+
        m_frameReader->pushFrame(std::move(event.frame));
     }
 }
