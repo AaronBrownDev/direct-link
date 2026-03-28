@@ -32,7 +32,9 @@ void DirectorSession::attachTrack(const std::shared_ptr<livekit::Track> &track, 
     }
 
     m_trackMap[trackSid] = std::move(v_track);
-    emit trackAdded();
+    auto inserted = m_trackMap.find(trackSid);
+    auto index = static_cast<qsizetype>(std::distance(m_trackMap.begin(), inserted));
+    emit trackAdded(index);
     emit tracksChanged();
 }
 

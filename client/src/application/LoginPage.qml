@@ -22,6 +22,18 @@ import ui.theme
 Rectangle {
     id: dl_page_bg
 
+    function clearFields() {
+        dl_name_field.clear();
+    }
+
+    function validateLogin() {
+        if (dl_name_field.input.length > 0) {
+            login(dl_name_field.input, dl_director_radio.checked ? UserRole.director : UserRole.camera);
+        } else {
+            dl_name_field.state = "invalid";
+        }
+    }
+
     color: Theme.background
 
     signal login(string userName, int userRole)
@@ -79,7 +91,10 @@ Rectangle {
                     Layout.fillWidth: true
 
                     label: "Username"
+                    emptyText: "Enter Username"
                     maxLength: 24
+
+                    onAccepted: validateLogin()
                 }
 
                 Text {
@@ -128,13 +143,7 @@ Rectangle {
                     button_text: "Log In"
                     button_type: DLButton.ButtonType.Primary
 
-                    onClicked: {
-                        if (dl_name_field.input.length > 0) {
-                            dl_page_bg.login(dl_name_field.input, dl_director_radio.checked ? UserRole.director : UserRole.camera);
-                        } else {
-                            dl_name_field.state = "invalid";
-                        }
-                    }
+                    onClicked: validateLogin()
                 }
 
             }

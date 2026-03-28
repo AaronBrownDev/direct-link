@@ -21,7 +21,7 @@ import ui.controls
 
         user_type:int - Reflects the user's role and manages either DirectorTransport for directors or CameraSessionController 
             for operators based on the value
-        max_camera_count:int - Determines how many thumbnails the thumbnail list contains
+        maxCameraCount:int - Determines how many thumbnails the thumbnail list contains
         room_code:string - Determines what room code is displayed
         livekit_token:string - Determines the LiveKit token that will be passed when DirectorTransport is creating a room
         livekit_url:string - Determines the LiveKit URL that will be passed when DirectorTransport is creating a room
@@ -38,7 +38,8 @@ ColumnLayout {
     id: dl_root_layout
 
     property int user_type: UserRole.director
-    property int max_camera_count: 4
+    // TODO: Get max camera count from the selected session
+    property int maxCameraCount: 4
     property string room_code: "XXXX-XXXX"
 
     property string livekit_token: ""
@@ -62,7 +63,7 @@ ColumnLayout {
 
     SessionDirectorView {
         id: dl_director_view
-        max_camera_count: dl_root_layout.max_camera_count
+        maxCameraCount: dl_root_layout.maxCameraCount
     }
 
     Footer {
@@ -96,14 +97,5 @@ ColumnLayout {
             } else {
                 CameraSessionController.stop();
             }
-    }
-
-    Connections {
-        target: DirectorTransport
-
-        function onConnected() {
-            let session = DirectorTransport.session;
-            dl_director_view.session = session;
-        }
     }
 }

@@ -23,6 +23,10 @@ import ui.theme
     FUNCTIONS
 
         clear() - Sets the field input to an empty string
+
+    SIGNALS
+
+        accepted() - Fires when enter/return is pressed on the field
         
  */
 ColumnLayout {
@@ -52,6 +56,8 @@ ColumnLayout {
                 }
             }
         ]
+
+    signal accepted()
 
     Text {
             id: dl_field_label
@@ -109,6 +115,8 @@ ColumnLayout {
                         text = clean;
                 }
             }
+
+            onAccepted: dl_field.accepted()
         }
     }
 }

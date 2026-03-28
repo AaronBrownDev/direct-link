@@ -155,12 +155,6 @@ Window {
             dl_page_stack.pushItem(dl_dashboard_component, {
                 user_type: userRole
             }, StackView.Immediate);
-
-            if (!root.connected || userRole !== UserRole.director)
-                    return;
-            
-            root.current_operation = "getSessions";
-            SessionClient.getMySessions(root.user_id);
         }
 
         function onClosePage() {
@@ -316,7 +310,11 @@ Window {
 
     Component {
         id: dl_login_component
-        LoginPage {}
+        LoginPage {
+            StackView.onDeactivated: {
+                clearFields();
+            }
+        }
     }
 
     Component {
@@ -324,9 +322,15 @@ Window {
         DashboardPage {
             can_quick_join: root.last_room.length === 11
 
-            StackView.onStatusChanged: {
-                if (StackView.status === StackView.Inactive)
-                    clearFields();
+            StackView.onDeactivated: {
+                clearFields();
+            }
+
+            StackView.onActivated: {
+                if (!root.connected || user_type !== UserRole.director)
+                    return;
+                root.current_operation = "getSessions";
+                SessionClient.getMySessions(root.user_id);
             }
         }
     }

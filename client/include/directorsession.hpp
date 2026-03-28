@@ -41,7 +41,7 @@ class DirectorSession : public QObject {
 
     signals:
         void tracksChanged();
-        void trackAdded();
+        void trackAdded(qsizetype index);
         void trackRemoved(qsizetype index);
 
     private:
