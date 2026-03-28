@@ -20,6 +20,9 @@ const (
 	userSessionsPrefix   = "user:"
 	activeSessionsKey    = "sessions:active"
 	defaultSessionTTL    = 24 * time.Hour
+
+	// Prevents silent mismatches from bare comparisons
+	statusClosed = "closed"
 )
 
 // RedisStore implements the Store interface using redis
@@ -85,10 +88,6 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) (err e
 		"max_cameras": session.MaxCameras,
 		"status":      session.Status,
 	}
-
-	// Prune expired session IDs from active set
-	r.client.ZRemRangeByScore(ctx, activeSessionsKey, "-inf",
-		fmt.Sprintf("%d", time.Now().Unix()))
 
 	// Use pipeline for atomic operations
 	pipe := r.client.Pipeline()
@@ -208,7 +207,7 @@ func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, 
 	}
 
 	// If closing, remove from active sessions
-	if status == "closed" {
+	if status == statusClosed {
 		r.client.ZRem(ctx, activeSessionsKey, sessionID)
 	}
 
@@ -273,12 +272,11 @@ func (r *RedisStore) GetExpiredSessions(ctx context.Context, now time.Time) (ses
 		if err != nil {
 			// If session not found, it may have already been cleaned up. Just skip it.
 			if errors.Is(err, ErrSessionNotFound) {
-				r.client.ZRem(ctx, activeSessionsKey, sessionID)
 				continue
 			}
 			return nil, fmt.Errorf("failed to get expired session %s: %w", sessionID, err)
 		}
-		if session.Status == "closed" {
+		if session.Status == statusClosed {
 			r.client.ZRem(ctx, activeSessionsKey, sessionID)
 			continue
 		}
