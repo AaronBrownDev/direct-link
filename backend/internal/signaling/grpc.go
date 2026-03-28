@@ -2,7 +2,6 @@ package signaling
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	pb "github.com/AaronBrownDev/direct-link/gen/proto/signaling"
@@ -38,18 +37,12 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.FailedPrecondition, "session is closed")
 	}
 
-	// Auto-grant access for valid room code join
-	if err := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); err != nil {
-		//TODO: handle orphaned session in redis
-		s.logger.Error("failed to grant access", "error", err)
-		return nil, status.Error(codes.Internal, "failed to grant access")
-	}
-
+	// Handles GrantAccess
 	switch req.Role {
 	case "camera":
 		return s.joinAsCamera(ctx, req, sess)
 	case "director":
-		return s.joinAsDirector(req, sess)
+		return s.joinAsDirector(ctx, req, sess)
 	default:
 		return nil, status.Error(codes.InvalidArgument, "role must be 'camera' or 'director'")
 	}
@@ -69,6 +62,15 @@ func (s *Server) joinAsCamera(ctx context.Context, req *pb.JoinRequest, sess *se
 		return nil, status.Error(codes.Internal, "failed to create ingress")
 	}
 
+	if err := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); err != nil {
+		s.logger.Error("failed to grant access, rolling back ingress", "session_id", sess.ID, "user_id", req.UserId, "ingress_id", info.IngressId, "error", err)
+		if _, delErr := s.lkIngressClient.DeleteIngress(ctx, &livekit.DeleteIngressRequest{
+			IngressId: info.IngressId}); delErr != nil {
+			s.logger.Warn("rollback failed: could not delete ingress", "ingress_id", info.IngressId, "error", err)
+		}
+		return nil, status.Error(codes.Internal, "failed to grant access")
+	}
+
 	if err := s.store.AddIngressID(ctx, sess.ID, info.IngressId); err != nil {
 		s.logger.Warn("failed to store ingress ID", "ingress_id", info.IngressId, "error", err)
 	}
@@ -82,8 +84,14 @@ func (s *Server) joinAsCamera(ctx context.Context, req *pb.JoinRequest, sess *se
 	}, nil
 }
 
-func (s *Server) joinAsDirector(req *pb.JoinRequest, sess *session.Session) (*pb.JoinReply, error) {
+func (s *Server) joinAsDirector(ctx context.Context, req *pb.JoinRequest, sess *session.Session) (*pb.JoinReply, error) {
 	canPublish, canSubscribe := false, true
+
+	// Grant Access before generating token
+	if err := s.store.GrantAccess(ctx, sess.ID, req.UserId, req.Role); err != nil {
+		s.logger.Error("failed to grant access", "error", err)
+		return nil, status.Error(codes.Internal, "failed to grant access ")
+	}
 
 	at := auth.NewAccessToken(s.cfg.LiveKitAPIKey, s.cfg.LiveKitAPISecret)
 	grant := &auth.VideoGrant{
@@ -107,33 +115,6 @@ func (s *Server) joinAsDirector(req *pb.JoinRequest, sess *session.Session) (*pb
 		Token:      token,
 		LivekitUrl: s.cfg.LiveKitExternalURL,
 	}, nil
-}
-
-// DeleteRoom handles cleanup when a session is closed or expires, including deleting the LiveKit room and any associated ingresses.
-func (s *Server) deleteRoom(ctx context.Context, sessionID string) {
-	ingressIDs, err := s.store.GetIngressIDs(ctx, sessionID)
-
-	if err != nil {
-		s.logger.Warn("failed to get ingressIDs for cleanup", "session_ID", sessionID, "error", err)
-	} else {
-		for _, id := range ingressIDs {
-			_, delErr := s.lkIngressClient.DeleteIngress(ctx, &livekit.DeleteIngressRequest{IngressId: id})
-			if delErr != nil {
-				s.logger.Warn("failed to delete ingressID", "error", delErr)
-			} else {
-				s.logger.Info("deleted ingress", "ingress_id", id, "session_id", sessionID)
-			}
-		}
-	}
-
-	// Delete the Livekit room itself (room name == sessionID)
-	_, err = s.lkClient.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: sessionID})
-	if err != nil {
-		s.logger.Warn("failed  to delete LiveKit room", "session_id", sessionID, "error", err,
-			slog.String("hint", "room may have already been destroyed by LiveKit"))
-		return
-	}
-	s.logger.Info("deleted LiveKit room", "session_id", sessionID)
 }
 
 // CreateSession creates a new production session and returns a room code
@@ -219,18 +200,8 @@ func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) 
 	}
 
 	// Cleanup ingress
-	ingressIDs, err := s.store.GetIngressIDs(ctx, sess.ID)
-	if err != nil {
-		s.logger.Warn("failed to fetch ingress IDs for cleanup", "session_id", sess.ID, "error", err)
-	} else {
-		for _, id := range ingressIDs {
-			_, delErr := s.lkIngressClient.DeleteIngress(ctx, &livekit.DeleteIngressRequest{IngressId: id})
-			if delErr != nil {
-				s.logger.Warn("failed to delete ingress", "ingress_id", id, "error", delErr)
-			} else {
-				s.logger.Info("deleted ingress", "ingress_id", id, "session_id", sess.ID)
-			}
-		}
+	if err := s.deleteRoom(ctx, sess.ID); err != nil {
+		s.logger.Warn("Livekit cleanup incomplete during CloseSession", "session_id", sess.ID, "error", err)
 	}
 
 	// Update session status to closed
