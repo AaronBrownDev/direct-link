@@ -36,9 +36,22 @@ func (m *mockIngressClient) DeleteIngress(_ context.Context, req *livekit.Delete
 	return &livekit.IngressInfo{IngressId: req.IngressId}, nil
 }
 
+type mockRoomClient struct {
+	deleteFunc func(*livekit.DeleteRoomRequest) (*livekit.DeleteRoomResponse, error)
+	deletedIDs []string
+}
+
+func (m *mockRoomClient) DeleteRoom(_ context.Context, req *livekit.DeleteRoomRequest) (*livekit.DeleteRoomResponse, error) {
+	m.deletedIDs = append(m.deletedIDs, req.Room)
+	if m.deleteFunc != nil {
+		return m.deleteFunc(req)
+	}
+	return &livekit.DeleteRoomResponse{}, nil
+}
+
 // --- Helpers ---
 
-func newUnitTestServer(t *testing.T, mock *mockIngressClient) *Server {
+func newUnitTestServer(t *testing.T, mockIngress *mockIngressClient, mockRoom *mockRoomClient) *Server {
 	t.Helper()
 
 	mr := miniredis.RunT(t)
@@ -55,7 +68,8 @@ func newUnitTestServer(t *testing.T, mock *mockIngressClient) *Server {
 		cfg:             DefaultConfig(),
 		store:           store,
 		logger:          slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
-		lkIngressClient: mock,
+		lkIngressClient: mockIngress,
+		lkClient:        mockRoom,
 		metrics:         metrics.New(),
 	}
 }
@@ -82,6 +96,10 @@ func defaultMockIngress() *mockIngressClient {
 			}, nil
 		},
 	}
+}
+
+func defaultMockRoom() *mockRoomClient {
+	return &mockRoomClient{}
 }
 
 // --- JoinSession tests ---
@@ -124,14 +142,15 @@ func TestJoinSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := defaultMockIngress()
+			mockIngress := defaultMockIngress()
+			mockRoom := defaultMockRoom()
 			if tt.ingressErr != nil {
-				mock.createFunc = func(_ *livekit.CreateIngressRequest) (*livekit.IngressInfo, error) {
+				mockIngress.createFunc = func(_ *livekit.CreateIngressRequest) (*livekit.IngressInfo, error) {
 					return nil, tt.ingressErr
 				}
 			}
 
-			srv := newUnitTestServer(t, mock)
+			srv := newUnitTestServer(t, mockIngress, mockRoom)
 			seedSession(t, srv.store)
 
 			reply, err := srv.JoinSession(context.Background(), &pb.JoinRequest{
@@ -172,7 +191,7 @@ func TestJoinSession(t *testing.T) {
 // --- Ingress ID storage test ---
 
 func TestJoinSession_CameraRole_StoresIngressID(t *testing.T) {
-	srv := newUnitTestServer(t, defaultMockIngress())
+	srv := newUnitTestServer(t, defaultMockIngress(), defaultMockRoom())
 	sess := seedSession(t, srv.store)
 
 	_, err := srv.JoinSession(context.Background(), &pb.JoinRequest{
@@ -215,8 +234,9 @@ func TestCloseSession_IngressCleanup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := defaultMockIngress()
-			srv := newUnitTestServer(t, mock)
+			mockIngress := defaultMockIngress()
+			mockRoom := defaultMockRoom()
+			srv := newUnitTestServer(t, mockIngress, mockRoom)
 			sess := seedSession(t, srv.store)
 
 			for _, id := range tt.ingressIDs {
@@ -233,8 +253,8 @@ func TestCloseSession_IngressCleanup(t *testing.T) {
 				t.Fatalf("CloseSession: %v", err)
 			}
 
-			if len(mock.deletedIDs) != tt.wantDeleteCount {
-				t.Errorf("expected %d DeleteIngress calls, got %d", tt.wantDeleteCount, len(mock.deletedIDs))
+			if len(mockIngress.deletedIDs) != tt.wantDeleteCount {
+				t.Errorf("expected %d DeleteIngress calls, got %d", tt.wantDeleteCount, len(mockIngress.deletedIDs))
 			}
 		})
 	}
