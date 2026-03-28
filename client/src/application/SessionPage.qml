@@ -82,6 +82,16 @@ ColumnLayout {
         }
     }
 
+    Connections {
+        target: DirectorTransport
+
+        function onDisconnected() {
+            if (dl_root_layout.user_type === UserRole.director) {
+                dl_root_layout.closePage();
+            }
+        }
+    }
+
     Component.onCompleted: {
         if (dl_root_layout.user_type === UserRole.director) {
             DirectorTransport.connectToRoom(dl_root_layout.livekit_token, dl_root_layout.livekit_url);

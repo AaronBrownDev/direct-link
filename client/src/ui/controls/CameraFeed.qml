@@ -20,6 +20,7 @@ import QtMultimedia
  */
 Thumbnail {
     id: dl_camera
+    readonly property alias video_sink: dl_video_output.videoSink
     property var assigned_track: null
     property real aspect_ratio: assigned_track ? assigned_track.aspectRatio : (16 / 9)
     property bool casting: false
