@@ -44,6 +44,10 @@ qt_add_executable(test_livekit_room
     tests/test_livekit_room.cpp
 )
 
+qt_add_executable(test_operator_session
+    tests/test_operator_session.cpp
+)
+
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
@@ -67,8 +71,8 @@ qt_add_grpc(signaling_grpc CLIENT
 
 target_link_libraries(signaling_grpc PRIVATE signaling_proto)
 
-# LiveKit SDK (pre-built in container)
-set(LIVEKIT_DIR /home/vscode/livekit-cpp)
+# LiveKit SDK — override with -DLIVEKIT_DIR=<path> at configure time
+set(LIVEKIT_DIR "/home/vscode/livekit-cpp" CACHE PATH "Path to livekit-cpp SDK directory")
 
 add_library(livekit SHARED IMPORTED)
 set_target_properties(livekit PROPERTIES
@@ -110,6 +114,15 @@ target_include_directories(test_livekit_room PRIVATE
     ${CMAKE_BINARY_DIR}
 )
 
+target_include_directories(test_operator_session PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/session
+    ${CMAKE_BINARY_DIR}
+    ${GST_INCLUDE_DIRS}
+    ${FFMPEG_INCLUDE_DIRS}
+)
+
 target_link_libraries(direct-link PRIVATE
     Qt6::Core
     Qt6::Quick
@@ -123,6 +136,7 @@ target_link_libraries(direct-link PRIVATE
     signaling_grpc
     livekit
     livekit_ffi
+    fmt
     directlink_appplugin
     directlink_uiplugin
     directlink_ui_controlsplugin
@@ -156,6 +170,18 @@ target_link_libraries(test_livekit_room PRIVATE
     directlink_networkplugin
     directlink_appplugin
     video_core
+)
+
+target_link_libraries(test_operator_session PRIVATE
+    Qt6::Core
+    Qt6::Qml
+    Qt6::Concurrent
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
+    directlink_networkplugin
+    directlink_sessionplugin
 )
 
 if(Qt6_VERSION VERSION_LESS 6.1.0)
