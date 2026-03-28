@@ -6,3 +6,4 @@ metadata:
     networking.gke.io/load-balancer-ip-addresses: directlink-dev-livekit
 spec:
   type: LoadBalancer
+  loadBalancerIP: 34.174.171.158
