@@ -3,6 +3,7 @@
 #include <iostream>
 #include <gstreamer-1.0/gst/app/gstappsrc.h>
 #include <gstreamer-1.0/gst/gst.h>
+#include <gstreamer-1.0/gst/video/video.h>
 
 namespace networking {
 WHIPPublisher::~WHIPPublisher() {
@@ -129,6 +130,26 @@ WHIPPublisher::initialize(const std::string &whip_url,
         },
         this);
     gst_object_unref(bus);
+
+    // Intercept GstForceKeyUnitEvent travelling upstream from webrtcbin (inside
+    // whipsink) when the remote decoder sends an RTCP PLI or FIR.  Calling
+    // forceKeyframeCallback_ asks the encoder to emit an IDR on the next frame
+    // so the decoder can recover immediately rather than waiting for the next
+    // scheduled GOP boundary.
+    GstPad *appsrc_src = gst_element_get_static_pad(appsrc_, "src");
+    gst_pad_add_probe(appsrc_src,
+        GST_PAD_PROBE_TYPE_EVENT_UPSTREAM,
+        [](GstPad *, GstPadProbeInfo *info, gpointer data) -> GstPadProbeReturn {
+            auto *self = static_cast<WHIPPublisher *>(data);
+            GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+            if (gst_video_event_is_force_key_unit(event) &&
+                    self->forceKeyframeCallback_) {
+                self->forceKeyframeCallback_();
+            }
+            return GST_PAD_PROBE_OK;
+        },
+        this, nullptr);
+    gst_object_unref(appsrc_src);
 
     return Result::Success;
 }

@@ -14,15 +14,18 @@ bool CameraSession::start(const std::string &whipUrl,
     #else
         captureConfig.devicePath = "/dev/video0";
         captureConfig.inputFormat = "v4l2";
+        // Most USB cameras can only sustain 30 fps at 720p in MJPEG; raw
+        // formats (YUYV, NV12) typically cap out at 10 fps at this resolution.
+        captureConfig.pixelFormat = "mjpeg";
     #endif
-    captureConfig.width = 640;
-    captureConfig.height = 480;
+    captureConfig.width = 1280;
+    captureConfig.height = 720;
     captureConfig.framerate = 30;
 
     videoCore::encode::EncoderConfig encoderConfig;
-    encoderConfig.width = 1920;
-    encoderConfig.height = 1080;
-    encoderConfig.framerate = 30;
+    encoderConfig.width = captureConfig.width;
+    encoderConfig.height = captureConfig.height;
+    encoderConfig.framerate = captureConfig.framerate;
     encoderConfig.bitrate = 4000000;
     encoderConfig.preset = videoCore::encode::EncoderConfig::Preset::UltraFast;
 
@@ -41,6 +44,13 @@ bool CameraSession::start(const std::string &whipUrl,
         std::cerr << "[CameraSession] Failed to initialize WHIP publisher\n";
         return false;
     }
+
+    // When the remote decoder detects packet loss it sends an RTCP PLI/FIR.
+    // The publisher intercepts that event and calls back here to request an
+    // IDR from the encoder so the decoder can recover immediately.
+    whipPublisher_.setKeyframeRequestCallback([this]() {
+        pipeline_.requestKeyframe();
+    });
 
     // Start the WHIP publisher first so it completes the ICE/DTLS handshake
     // and sets running_ = true before any frames are produced.  If the

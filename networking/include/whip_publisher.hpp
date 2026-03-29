@@ -27,12 +27,20 @@ public:
     void pushPacket(std::unique_ptr<videoCore::Packet> packet);
     [[nodiscard]] bool isRunning() const noexcept { return running_; }
 
+    // Register a callback invoked when the remote decoder sends a RTCP PLI or
+    // FIR (via GstForceKeyUnitEvent).  The callback should request an IDR from
+    // the encoder.  Must be called before start().
+    void setKeyframeRequestCallback(std::function<void()> cb) noexcept {
+        forceKeyframeCallback_ = std::move(cb);
+    }
+
 private:
     void logBusError();
 
     std::string whipUrl_;
     std::string streamKey_;
     std::function<void(std::string)> onErrorCallback_;
+    std::function<void()> forceKeyframeCallback_;
     bool running_ = false;
     GstElement *pipeline_ = nullptr;
     GstElement *appsrc_ = nullptr;
