@@ -29,6 +29,9 @@ public:
     [[nodiscard]] Result
     start(std::function<void(std::unique_ptr<Packet>)> packetCallback);
     [[nodiscard]] Result stop();
+    // Forward a keyframe request to the encoder (called from the RTCP PLI/FIR
+    // path in WHIPPublisher).  Thread-safe.
+    void requestKeyframe() noexcept;
 
     // Statistics getters
     [[nodiscard]] int getCurrentFramerate() const noexcept {

@@ -71,6 +71,12 @@ Result VideoPipeline::start(
     return Result::Success;
 }
 
+void VideoPipeline::requestKeyframe() noexcept {
+    if (encoder_) {
+        encoder_->requestKeyframe();
+    }
+}
+
 Result VideoPipeline::stop() {
     if (captureDevice_ && captureDevice_->isRunning()) {
         captureDevice_->stop();
@@ -85,6 +91,19 @@ Result VideoPipeline::stop() {
 }
 
 void VideoPipeline::encodeLoop(const std::stop_token &stopToken) {
+    // Assign sequential PTS values based on a frame counter instead of
+    // forwarding the camera's own timestamps.  v4l2 timestamps are in the
+    // device's stream timebase (typically microseconds), while
+    // SoftwareEncoder::encodeFrame() expects nanoseconds.  With some cameras
+    // (e.g. MJPEG sources) the decoded frame PTS may not advance at all,
+    // causing every packet to get the same GStreamer buffer timestamp and
+    // triggering a resource error in webrtcbin.
+    int64_t frameIndex = 0;
+    const int64_t nsPerFrame =
+        (encoderConfig_.framerate > 0)
+            ? (1000000000LL / encoderConfig_.framerate)
+            : (1000000000LL / 30);
+
     while (!stopToken.stop_requested()) {
         std::unique_ptr<Frame> frame;
         {
@@ -99,6 +118,8 @@ void VideoPipeline::encodeLoop(const std::stop_token &stopToken) {
             frameQueue_.pop();
         }
         if (frame) {
+            frame->frame->pts = frameIndex * nsPerFrame;
+            ++frameIndex;
             encoder_->encodeFrame(frame->frame.get());
         }
     }
