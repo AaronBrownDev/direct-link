@@ -76,14 +76,17 @@ func (j *Janitor) Run(ctx context.Context) {
 }
 
 func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
-	acquired, err := j.redisClient.SetNX(ctx, janitorLockKey, "1", j.lockTTL).Result()
-	if err != nil {
+	result, err := j.redisClient.SetArgs(ctx, janitorLockKey, "1", redis.SetArgs{
+		TTL:  j.lockTTL,
+		Mode: "NX",
+	}).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
 		j.logger.Error("janitor failed to acquire sweep lock", "error", err)
 		return
 	}
-
-	if !acquired {
-		// Another replica is already sweeping - skip this tick
+	// SetArgs with NX returns "OK" when the lock is acquired, redis.Nil when
+	// the key already exists (another replica holds the lock).
+	if result != "OK" {
 		return
 	}
 	defer j.redisClient.Del(ctx, janitorLockKey)
@@ -123,9 +126,4 @@ func (j *Janitor) closeExpiredSession(ctx context.Context, sess session.Session)
 	}
 	log.Info("janitor closed expired session")
 
-}
-
-// Returns true for transient Redis errors that may resolve on the next sweep.
-func isRetryable(err error) bool {
-	return err != nil && !errors.Is(err, redis.Nil)
 }
