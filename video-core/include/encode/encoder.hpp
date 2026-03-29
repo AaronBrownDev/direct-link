@@ -20,6 +20,11 @@ public:
                std::function<void(std::unique_ptr<Packet>)> packetCallback);
     [[nodiscard]] virtual Result encodeFrame(AVFrame *frame) = 0;
     virtual void stop() = 0;
+    // Request that the next encoded frame be an IDR (instantaneous decoder
+    // refresh).  Called from the WebRTC RTCP feedback path (PLI/FIR) to let
+    // the remote decoder recover after packet loss without waiting for the next
+    // scheduled keyframe.  Thread-safe; may be called from any thread.
+    virtual void requestKeyframe() noexcept {}
 
     [[nodiscard]] virtual bool isRunning() const { return running_; };
 

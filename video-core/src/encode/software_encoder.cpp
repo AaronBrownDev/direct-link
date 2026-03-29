@@ -48,8 +48,9 @@ Result SoftwareEncoder::initialize(
     codecCtx_->framerate = AVRational{config_.framerate, 1};
     codecCtx_->gop_size = config_.gopSize;
     codecCtx_->max_b_frames = 0;                               // No B-frames for low latency
-    codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P;                   // Common pixel format
-    codecCtx_->profile = FF_PROFILE_H264_CONSTRAINED_BASELINE; // Required for WebRTC
+    codecCtx_->pix_fmt     = AV_PIX_FMT_YUV420P;
+    codecCtx_->color_range = AVCOL_RANGE_MPEG; // limited range (16-235/16-240)
+    codecCtx_->profile     = FF_PROFILE_H264_CONSTRAINED_BASELINE; // Required for WebRTC
 
     // Set preset options (e.g., ultrafast, fast, medium, slow)
     AVDictionary *options = nullptr;
@@ -81,37 +82,74 @@ Result SoftwareEncoder::initialize(
     return Result::Success;
 }
 
+void SoftwareEncoder::requestKeyframe() noexcept {
+    forceKeyframe_.store(true, std::memory_order_release);
+}
+
 Result SoftwareEncoder::encodeFrame(AVFrame *frame) {
     if (!running_) {
         return Result::ErrorEncodeFailed; // Not initialized
     }
 
-    // Convert frame to YUV420P with proper stride if needed
+    // The MJPEG decoder emits YUVJ420P (and related formats), which are
+    // deprecated aliases for their YUV equivalents with JPEG (full) color
+    // range.  Normalize them so swscale does not warn, and record whether we
+    // need to rescale the luma/chroma values from full (0-255) to H.264
+    // limited range (16-235 / 16-240).
+    AVPixelFormat srcFmt = static_cast<AVPixelFormat>(frame->format);
+    bool srcFullRange = (frame->color_range == AVCOL_RANGE_JPEG);
+    switch (srcFmt) {
+        case AV_PIX_FMT_YUVJ420P: srcFmt = AV_PIX_FMT_YUV420P; srcFullRange = true; break;
+        case AV_PIX_FMT_YUVJ422P: srcFmt = AV_PIX_FMT_YUV422P; srcFullRange = true; break;
+        case AV_PIX_FMT_YUVJ444P: srcFmt = AV_PIX_FMT_YUV444P; srcFullRange = true; break;
+        default: break;
+    }
+
+    // Convert frame to YUV420P limited-range if needed
     AVFrame *input_frame = frame;
     AVFrame *converted_frame = nullptr;
 
-    if (frame->format != AV_PIX_FMT_YUV420P || frame->linesize[0] == 0) {
+    if (srcFmt != AV_PIX_FMT_YUV420P ||
+        srcFullRange ||
+        frame->width != codecCtx_->width ||
+        frame->height != codecCtx_->height ||
+        frame->linesize[0] == 0) {
         converted_frame = av_frame_alloc();
         converted_frame->width = codecCtx_->width;
         converted_frame->height = codecCtx_->height;
         converted_frame->format = AV_PIX_FMT_YUV420P;
         av_frame_get_buffer(converted_frame, 32);
 
-        // Convert to YUV420P if needed
         SwsContext *sws_ctx = sws_getContext(
-            frame->width, frame->height,
-            static_cast<AVPixelFormat>(frame->format), codecCtx_->width,
-            codecCtx_->height, AV_PIX_FMT_YUV420P, SWS_BILINEAR, nullptr,
-            nullptr, nullptr);
+            frame->width, frame->height, srcFmt,
+            codecCtx_->width, codecCtx_->height, AV_PIX_FMT_YUV420P,
+            SWS_BILINEAR, nullptr, nullptr, nullptr);
 
-        // Perform conversion if swsCtx is valid
         if (sws_ctx != nullptr) {
+            if (srcFullRange) {
+                // Map JPEG full-range (0-255) luma/chroma to H.264 limited-range
+                // (16-235 / 16-240) so colors are not washed out at the decoder.
+                sws_setColorspaceDetails(sws_ctx,
+                    sws_getCoefficients(SWS_CS_DEFAULT), 1,  // src: full range
+                    sws_getCoefficients(SWS_CS_DEFAULT), 0,  // dst: limited range
+                    0, 1 << 16, 1 << 16);
+            }
             sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height,
                       converted_frame->data, converted_frame->linesize);
             sws_freeContext(sws_ctx);
             converted_frame->pts = frame->pts;
             input_frame = converted_frame;
         }
+    }
+
+    // Honor a pending keyframe request (e.g. from RTCP PLI/FIR).  Setting
+    // AV_PICTURE_TYPE_I forces libx264 to emit an IDR on this frame so the
+    // remote decoder can recover without waiting for the next scheduled GOP.
+    if (forceKeyframe_.exchange(false, std::memory_order_acq_rel)) {
+        // Setting pict_type to I is enough: libx264 sets the key_frame flag on
+        // the output packet automatically.  AVFrame::key_frame is write-only
+        // for encoders and deprecated in FFmpeg 7+.
+        input_frame->pict_type = AV_PICTURE_TYPE_I;
     }
 
     // Convert PTS from nanoseconds to encoder timebase
