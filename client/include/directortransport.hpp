@@ -15,8 +15,9 @@
 #include <QJSEngine>
 #include <QtConcurrent/QtConcurrent>
 #include <QFutureWatcher>
+#include <livekit/room_delegate.h>
+#include <gsl/pointers>
 
-#include "livekit/livekit.h"
 #include "directorsession.hpp"
 
 class DirectorTransport : public QObject, public livekit::RoomDelegate {
@@ -31,32 +32,37 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         explicit DirectorTransport(QObject *parent = nullptr);
         ~DirectorTransport() override;
 
-        static DirectorTransport *create(QQmlEngine *engine, QJSEngine *) {
+        DirectorTransport(const DirectorTransport &) = delete;
+        DirectorTransport &operator=(const DirectorTransport &) = delete;
+        DirectorTransport(DirectorTransport &&) = delete;
+        DirectorTransport &operator=(DirectorTransport &&) = delete;
+
+        static gsl::owner<DirectorTransport *>create(QQmlEngine *engine, QJSEngine * /*unused*/) {
             return new DirectorTransport(engine);
         }
 
         void onParticipantConnected(
-            livekit::Room &,
+            livekit::Room & /*unused*/,
             const livekit::ParticipantConnectedEvent &event) override;
 
         void onTrackSubscribed(
-            livekit::Room &,
+            livekit::Room & /*unused*/,
             const livekit::TrackSubscribedEvent &event) override;
 
         void onTrackSubscriptionFailed(
-            livekit::Room &,
+            livekit::Room & /*unused*/,
             const livekit::TrackSubscriptionFailedEvent &event) override;
 
         void onTrackUnsubscribed(
-            livekit::Room &,
+            livekit::Room & /*unused*/,
             const livekit::TrackUnsubscribedEvent &event) override;
 
         void onConnectionStateChanged(
-            livekit::Room &,
+            livekit::Room & /*unused*/,
             const livekit::ConnectionStateChangedEvent &event) override;
 
         void onDisconnected(
-            livekit::Room &,
+            livekit::Room & /*unused*/,
             const livekit::DisconnectedEvent &event) override;
 
         [[nodiscard]] QString connectionState() const;
@@ -76,5 +82,5 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         std::unique_ptr<livekit::Room> m_room;
         QString m_connection_state = "disconnected";
         std::unique_ptr<DirectorSession> m_session;
-        QFutureWatcher<bool> *m_connectWatcher = nullptr;
+        gsl::owner<QFutureWatcher<bool> *> m_connectWatcher = nullptr;
 };

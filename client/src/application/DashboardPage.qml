@@ -44,7 +44,7 @@ ColumnLayout {
         dl_dash_view_loader.item.clearFields();
     }
 
-    signal joinRequested(string roomCode)
+    signal joinRequested(string roomCode, int maxCameras)
     signal quickJoinRequested
     signal createRequested(int maxCameras)
     signal sessionFetchRequested
@@ -82,7 +82,7 @@ ColumnLayout {
             visible: dl_root_layout.user_type === UserRole.director
 
             onSessionSelected: (roomCode, maxCameras) => {
-                dl_root_layout.joinRequested(roomCode);
+                dl_root_layout.joinRequested(roomCode, maxCameras);
             }
 
             onRefreshClicked: () => {
@@ -97,7 +97,7 @@ ColumnLayout {
             can_quick_join: dl_root_layout.can_quick_join
 
             onJoinClicked: roomCode => {
-                dl_root_layout.joinRequested(roomCode);
+                dl_root_layout.joinRequested(roomCode, 0);
             }
 
             onQuickJoinClicked: () => {
@@ -116,7 +116,7 @@ ColumnLayout {
             can_quick_join: dl_root_layout.can_quick_join
 
             onJoinClicked: (roomCode, cameraName) => {
-                dl_root_layout.joinRequested(roomCode);
+                dl_root_layout.joinRequested(roomCode, 0);
             }
 
             onQuickJoinClicked: () => {

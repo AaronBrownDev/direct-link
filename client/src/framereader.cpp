@@ -54,7 +54,7 @@ void FrameReader::pushFrame(livekit::VideoFrame frame) {
     const uint8_t *src = frame.data();
     const std::size_t size = frame.dataSize();
 
-    if (!src || size == 0) {
+    if ((src == nullptr) || size == 0) {
         qWarning() << "[FrameReader] Received empty frame. Pushing placeholder frame.";
         pushFrame();
         return;

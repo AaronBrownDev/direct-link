@@ -85,6 +85,7 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libdbus-1-3 \
     libfontconfig1 \
+    libmsgsl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 ENV QT_VERSION=6.10.2
