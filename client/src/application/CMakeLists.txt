@@ -15,6 +15,7 @@ target_link_libraries(directlink_app PRIVATE
     Qt6::QuickControls2
     Qt6::Multimedia
     Qt6::Concurrent
+    Microsoft.GSL::GSL
     ${FFMPEG_LIBRARIES}
     livekit
     livekit_ffi
@@ -32,11 +33,15 @@ qt_add_qml_module(directlink_app
         views/DashboardDirectorView.qml
         views/DashboardOperatorView.qml
         views/JoinSessionView.qml
+        views/SessionDirectorView.qml
+        views/SessionOperatorView.qml
     SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/framereader.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/directortransport.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include/directorsession.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include/videotrack.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../framereader.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../directortransport.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/../directorsession.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/../videotrack.cpp
 )

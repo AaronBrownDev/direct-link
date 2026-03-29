@@ -17,9 +17,8 @@
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
 #include <QDebug>
+#include <livekit/video_frame.h>
 #include <span>
-
-#include "livekit/livekit.h"
 
 class FrameReader : public QObject
 {

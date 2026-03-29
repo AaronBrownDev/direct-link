@@ -10,6 +10,14 @@ import QtQuick
 import QtQuick.Layouts
 import ui.theme
 
+/*
+    PROPERTIES
+
+        states - Control the appearance of the chip
+            "disconnected" - The indicator and text are grayed out; the text is "Offline"
+            "connecting" - The indicator is yellow; the text is "Connecting"
+            "connected" - The indicator is green; the text is "Connected"
+ */
 Rectangle {
     id: dl_chip
 

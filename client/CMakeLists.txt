@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia Concurrent Protobuf Grpc)
 find_package(PkgConfig REQUIRED)
+find_package(Microsoft.GSL CONFIG REQUIRED)
 pkg_check_modules(FFMPEG REQUIRED
     libavcodec
     libavutil

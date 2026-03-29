@@ -1,6 +1,9 @@
 #include "directortransport.hpp"
 
 #include <QDebug>
+#include <livekit/remote_participant.h>
+#include <livekit/remote_track_publication.h>
+#include <livekit/room.h>
 
 static std::string_view disconnectReasonToString(livekit::DisconnectReason reason) {
     switch (reason) {
@@ -30,15 +33,15 @@ DirectorTransport::~DirectorTransport() {
     shutdown();
 }
 
-void DirectorTransport::onParticipantConnected(livekit::Room &, const livekit::ParticipantConnectedEvent &event) {
+void DirectorTransport::onParticipantConnected(livekit::Room & /*unused*/, const livekit::ParticipantConnectedEvent &event) {
     qDebug() << "[DirectorTransport] Participant connected.\n\tidentity="
                 << event.participant->identity()
                 << "\n\tname="
                 << event.participant->name() << "\n";
 }
 
-void DirectorTransport::onTrackSubscribed(livekit::Room &, const livekit::TrackSubscribedEvent &event) {
-    const char *participant_id = event.participant ? event.participant->identity().c_str() : "<unknown>";
+void DirectorTransport::onTrackSubscribed(livekit::Room & /*unused*/, const livekit::TrackSubscribedEvent &event) {
+    const char *participant_id = (event.participant != nullptr) ? event.participant->identity().c_str() : "<unknown>";
     const std::string track_sid = event.publication ? event.publication->sid() : "<unknown>";
     const std::string track_name = event.publication ? event.publication->name() : "<unknown>";
 
@@ -54,13 +57,11 @@ void DirectorTransport::onTrackSubscribed(livekit::Room &, const livekit::TrackS
         qDebug() << "source=" << static_cast<int>(event.publication->source());
     }
 
-    qDebug() << "\n";
-
     if (event.track && event.track->kind() == livekit::TrackKind::KIND_VIDEO) {
         auto track = event.track;
-        QMetaObject::invokeMethod(this, [this, track]() {
+        QMetaObject::invokeMethod(this, [this, track, track_sid]() {
         if (m_session) {
-            m_session->attachTrack(track);
+            m_session->attachTrack(track, track_sid);
         }
         }, Qt::QueuedConnection);
         
@@ -68,8 +69,8 @@ void DirectorTransport::onTrackSubscribed(livekit::Room &, const livekit::TrackS
 
 }
 
-void DirectorTransport::onTrackSubscriptionFailed(livekit::Room &, const livekit::TrackSubscriptionFailedEvent &event) {
-    const char *participant_id = event.participant ? event.participant->identity().c_str() : "<unknown>";
+void DirectorTransport::onTrackSubscriptionFailed(livekit::Room & /*unused*/, const livekit::TrackSubscriptionFailedEvent &event) {
+    const char *participant_id = (event.participant != nullptr) ? event.participant->identity().c_str() : "<unknown>";
     const std::string msg = event.error;
     const std::string track_sid = event.track_sid;
 
@@ -77,10 +78,16 @@ void DirectorTransport::onTrackSubscriptionFailed(livekit::Room &, const livekit
              << "\n\tparticipant_id=" << participant_id
              << "\n\ttrack_sid=" << track_sid
              << "\n\terror=" << msg;
+
+    QMetaObject::invokeMethod(this, [this, track_sid]() {
+        if (m_session) {
+            m_session->detachTrack(track_sid);
+        }
+    }, Qt::QueuedConnection);
 }
 
-void DirectorTransport::onTrackUnsubscribed(livekit::Room &, const livekit::TrackUnsubscribedEvent &event) {
-    const char *participant_id = event.participant ? event.participant->identity().c_str() : "<unknown>";
+void DirectorTransport::onTrackUnsubscribed(livekit::Room & /*unused*/, const livekit::TrackUnsubscribedEvent &event) {
+    const char *participant_id = (event.participant != nullptr) ? event.participant->identity().c_str() : "<unknown>";
     const std::string track_sid = event.publication ? event.publication->sid() : "<unknown>";
     const std::string track_name = event.publication ? event.publication->name() : "<unknown>";
     
@@ -96,17 +103,14 @@ void DirectorTransport::onTrackUnsubscribed(livekit::Room &, const livekit::Trac
         qDebug() << "source=" << static_cast<int>(event.publication->source());
     }
 
-    qDebug() << "\n";
-
-    QMetaObject::invokeMethod(this, [this]() {
+    QMetaObject::invokeMethod(this, [this, track_sid]() {
         if (m_session) {
-            // Currently takes no args and detaches the track last attached.
-            m_session->detachTrack();
+            m_session->detachTrack(track_sid);
         }
     }, Qt::QueuedConnection);
 }
 
-void DirectorTransport::onConnectionStateChanged(livekit::Room &, const livekit::ConnectionStateChangedEvent &event) {
+void DirectorTransport::onConnectionStateChanged(livekit::Room & /*unused*/, const livekit::ConnectionStateChangedEvent &event) {
     livekit::ConnectionState state = event.state;
 
     QMetaObject::invokeMethod(this, [this, state]() {
@@ -126,7 +130,7 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room &, const livekit:
             break;
     }
 
-    if (m_connection_state == new_state) return;
+    if (m_connection_state == new_state) { return; }
 
     m_connection_state = new_state;
     qDebug() << "[DirectorTransport] Connection status changed.\n\tstatus=" << m_connection_state;
@@ -135,7 +139,7 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room &, const livekit:
 
 }
 
-void DirectorTransport::onDisconnected(livekit::Room &, const livekit::DisconnectedEvent &event) {
+void DirectorTransport::onDisconnected(livekit::Room & /*unused*/, const livekit::DisconnectedEvent &event) {
     livekit::DisconnectReason reason = event.reason;
 
     qDebug() << "[DirectorTransport] Disconnected from room."
@@ -158,8 +162,8 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
     }
 
     livekit::RoomOptions opts;
-    std::string stdUrl = url.toStdString();
-    std::string stdToken = token.toStdString();
+    std::string std_url = url.toStdString();
+    std::string std_token = token.toStdString();
 
     m_connection_state = "connecting";
     emit connectionStateChanged(m_connection_state);    
@@ -200,17 +204,16 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
         }
     });
 
-    QFuture<bool> future = QtConcurrent::run([this, stdUrl, stdToken, opts]() mutable {
-        return m_room->Connect(stdUrl, stdToken, opts);
+    QFuture<bool> future = QtConcurrent::run([this, std_url, std_token, opts]() mutable {
+        return m_room->Connect(std_url, std_token, opts);
     });
     
     m_connectWatcher->setFuture(future);
 }
 
 void DirectorTransport::disconnectFromRoom() {
-    if (m_connection_state == "disconnected") return;
-    m_session.reset();
-    m_room.reset();
+    if (m_connection_state == "disconnected") { return; }
+    shutdown();
     m_connection_state = "disconnected";
     qDebug() << "[DirectorTransport] Disconnected.";
     emit connectionStateChanged(m_connection_state);

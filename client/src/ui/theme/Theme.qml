@@ -23,14 +23,16 @@ QtObject {
     readonly property color fieldPressed: "#283548"
 
     readonly property color neutral: "#D9D9D9"
-    readonly property color neutralHover: '#f7f7f7'
-    readonly property color neutralPressed: '#c5c5c5'
+    readonly property color neutralHover: "#f7f7f7"
+    readonly property color neutralPressed: "#c5c5c5"
+
+    readonly property color cameraCasting: "#1089b9"
 
     // Connection Status
 
     readonly property color statusConnected: "#10B981"
     readonly property color statusConnecting: "#ffcc26"
-    readonly property color statusDisconnected: '#475569'
+    readonly property color statusDisconnected: "#475569"
 
     // Text
     readonly property color textWhite: "#ffffff"
