@@ -350,3 +350,357 @@ for local `docker-compose` testing:
 - Added `captureConfig.framerate = 30` (was 5; the v4l2 driver was silently
   overriding to 30 anyway, causing a `[v4l2] The driver changed the time per
   frame from 1/5 to 1/30` warning).
+
+---
+
+## Bug 7 — Capture/encoder dimension mismatch → H.264 bitstream corruption
+
+**Files:** `client/src/session/camera_session.cpp`, `video-core/src/encode/software_encoder.cpp`
+
+### Symptom
+
+Director saw a central black-and-white camera feed with four semi-transparent
+green/magenta duplicates offset in a quadrant pattern (chromatic aberration /
+RGB channel separation effect).  Director logs showed repeated:
+
+```
+[h264 @ 0x...] Frame num change from X to Y
+```
+
+### Root cause
+
+`camera_session.cpp` hardcoded the encoder to 1920×1080 while the capture
+config was 640×480.  `software_encoder.cpp::encodeFrame()` only triggered
+`sws_scale` when `frame->format != AV_PIX_FMT_YUV420P`.  USB cameras decode
+MJPEG to YUV420P, so the condition was never true — a 640×480 frame was fed
+directly to a 1920×1080 `AVCodecContext`.  The encoder read beyond the frame
+buffer boundaries, producing a corrupt bitstream with wrong stride arithmetic.
+
+### Fix
+
+1. Derive encoder dimensions from the capture config:
+   ```cpp
+   encoderConfig.width  = captureConfig.width;
+   encoderConfig.height = captureConfig.height;
+   ```
+2. Also check dimension mismatch in the `sws_scale` trigger:
+   ```cpp
+   if (frame->format != AV_PIX_FMT_YUV420P ||
+       frame->width  != codecCtx_->width    ||
+       frame->height != codecCtx_->height   ||
+       frame->linesize[0] == 0) { /* scale */ }
+   ```
+3. Changed capture to 1280×720 to match the 16:9 UI border.
+
+---
+
+## Bug 8 — v4l2 driver downgrades frame rate from 30 fps to 10 fps
+
+**Files:** `video-core/include/capture/capture_config.hpp`,
+`video-core/src/capture/camera_capture.cpp`,
+`client/src/session/camera_session.cpp`
+
+### Symptom
+
+```
+[video4linux2,v4l2 @ 0x...] The driver changed the time per frame from 1/30 to 1/10
+```
+
+Video was choppy — the encoder was configured for 30 fps but only receiving
+10 fps from the camera.
+
+### Root cause
+
+v4l2 defaults to a raw pixel format (YUYV/NV12) when none is specified.  Most
+USB cameras cannot sustain 30 fps at 1280×720 in raw format — the bandwidth
+exceeds USB 2.0 limits — so the driver silently reduces the frame rate.
+
+### Fix
+
+Add a `pixelFormat` field to `CaptureConfig` and pass it as the `input_format`
+v4l2 option when non-empty.  Set it to `"mjpeg"` in `camera_session.cpp`; MJPEG
+is compressed and most cameras support 30 fps at 720p in this mode.
+
+```cpp
+// capture_config.hpp
+std::string pixelFormat;  // e.g. "mjpeg", "yuyv422"
+
+// camera_capture.cpp — setupDevice()
+if (!config_.pixelFormat.empty()) {
+    av_dict_set(&options, "input_format", config_.pixelFormat.c_str(), 0);
+}
+
+// camera_session.cpp
+captureConfig.pixelFormat = "mjpeg";
+```
+
+---
+
+## Bug 9 — swscaler warns about deprecated YUVJ pixel format
+
+**File:** `video-core/src/encode/software_encoder.cpp`
+
+### Symptom
+
+```
+[swscaler @ 0x...] deprecated pixel format used, make sure you did set range correctly
+```
+
+Repeated multiple times per frame.
+
+### Root cause
+
+The MJPEG decoder outputs `AV_PIX_FMT_YUVJ420P` — a deprecated alias for
+`AV_PIX_FMT_YUV420P` with JPEG (full) color range.  Passing the deprecated
+format directly to `sws_getContext` triggers the warning and silently skips the
+full→limited range conversion, washing out colors in the encoded stream.
+
+### Fix
+
+Normalize deprecated `YUVJ*` formats before calling swscale and call
+`sws_setColorspaceDetails` to rescale luma/chroma from full range (0–255) to
+H.264 limited range (16–235 / 16–240):
+
+```cpp
+AVPixelFormat srcFmt = static_cast<AVPixelFormat>(frame->format);
+bool srcFullRange = (frame->color_range == AVCOL_RANGE_JPEG);
+switch (srcFmt) {
+    case AV_PIX_FMT_YUVJ420P: srcFmt = AV_PIX_FMT_YUV420P; srcFullRange = true; break;
+    case AV_PIX_FMT_YUVJ422P: srcFmt = AV_PIX_FMT_YUV422P; srcFullRange = true; break;
+    case AV_PIX_FMT_YUVJ444P: srcFmt = AV_PIX_FMT_YUV444P; srcFullRange = true; break;
+    default: break;
+}
+// ... sws_getContext with normalized srcFmt ...
+if (srcFullRange) {
+    sws_setColorspaceDetails(sws_ctx,
+        sws_getCoefficients(SWS_CS_DEFAULT), 1,   // src: full range
+        sws_getCoefficients(SWS_CS_DEFAULT), 0,   // dst: limited range
+        0, 1 << 16, 1 << 16);
+}
+```
+
+Also extend the conversion trigger to include `srcFullRange`:
+
+```cpp
+if (srcFmt != AV_PIX_FMT_YUV420P || srcFullRange || frame->width != ... )
+```
+
+---
+
+## Bug 10 — Decoder cannot recover from RTP packet loss (frame_num change)
+
+**Files:** `video-core/include/encode/encoder.hpp`,
+`video-core/include/encode/software_encoder.hpp`,
+`video-core/src/encode/software_encoder.cpp`,
+`video-core/include/pipeline/video_pipeline.hpp`,
+`video-core/src/pipeline/video_pipeline.cpp`,
+`networking/include/whip_publisher.hpp`,
+`networking/src/whip_publisher.cpp`,
+`client/src/session/camera_session.cpp`
+
+### Symptom
+
+```
+[h264 @ 0x...] Frame num change from 5 to 12
+```
+
+Video freezes for up to 1 second after any RTP packet loss event.
+
+### Root cause
+
+H.264 `frame_num` increments by 1 for each non-IDR frame.  When UDP packets
+are dropped, the remote decoder observes a gap (e.g., 5 → 12) and sends an
+RTCP PLI (Picture Loss Indication) or FIR (Full Intra Request) asking for a new
+IDR frame.  The GStreamer `webrtcbin` (inside `whipsink`) translates the PLI/FIR
+into a `GstForceKeyUnitEvent` travelling upstream.  Previously nothing handled
+this event, so the decoder had to wait for the next scheduled GOP boundary
+(up to `kGopSize / kFramerate` = 1 second).
+
+### Fix
+
+Three-layer change:
+
+1. **Encoder** — add `requestKeyframe()` to the `Encoder` base class and
+   implement it in `SoftwareEncoder` using an `std::atomic<bool> forceKeyframe_`
+   flag.  In `encodeFrame()`, if the flag is set, force an IDR by setting
+   `input_frame->pict_type = AV_PICTURE_TYPE_I` before `avcodec_send_frame`.
+
+2. **Pipeline** — forward `requestKeyframe()` on `VideoPipeline` to the
+   internal encoder.
+
+3. **Publisher** — install a `GST_PAD_PROBE_TYPE_EVENT_UPSTREAM` probe on the
+   `appsrc` src pad in `WHIPPublisher::initialize()`.  When
+   `gst_video_event_is_force_key_unit()` returns true, invoke a registered
+   `forceKeyframeCallback_`.  `CameraSession` wires this callback to
+   `pipeline_.requestKeyframe()`.
+
+```cpp
+// camera_session.cpp
+whipPublisher_.setKeyframeRequestCallback([this]() {
+    pipeline_.requestKeyframe();
+});
+```
+
+The decoder can now recover within a single frame interval (≤ 33 ms at 30 fps)
+instead of up to 1 second.
+
+---
+
+## `test_stream_lifecycle` — end-to-end lifecycle test
+
+**File:** `client/tests/test_stream_lifecycle.cpp`
+
+Automated test that exercises the full operator → LiveKit → director pipeline
+without manual interaction.  Uses the real camera rather than synthetic frames
+to catch camera-specific issues (pixel format, frame rate, color range).
+
+Requires:
+- Docker stack running: `docker compose -f docker-compose.prod.yaml up -d`
+- V4L2 camera at `/dev/video0` supporting MJPEG at 1280×720@30 fps
+
+```bash
+./build/test_stream_lifecycle [signaling_url]
+# Default: http://localhost:50051
+```
+
+**Stats logged every 5 seconds:**
+```
+[lifecycle] --- t= 5 s ---  encoded= 150  keyframes= 5  received= 29  dropped= 0  publisherError= false
+```
+
+**Final report:**
+```
+[lifecycle] ===== Final Report =====
+  Frames encoded  : 594 (expected ~ 600)
+  Keyframes       : 20  (expected ~ 20)
+  Frames dropped  : 0   (queue overflow)
+  Frames received : 471
+  Receive ratio   : 0.785 | < 0.5 suggests transport or ingress issues
+  RESULT: PASS (frames flowing end-to-end)
+```
+
+Exit 0 = frames received end-to-end.  Exit 1 = no frames received.
+
+---
+
+## Known non-issues
+
+### swscaler "deprecated pixel format" warnings
+
+```
+[swscaler @ 0x...] deprecated pixel format used, make sure you did set range correctly
+```
+
+These come from the **LiveKit C++ SDK's** internal `frame.convert(RGBA)` call,
+not from the encoder or `software_encoder.cpp`.  The SDK uses swscale with
+`YUVJ420P` as the source format regardless of the encoder's output color range.
+They are cosmetic and do not affect correctness.  Adding `AVCOL_RANGE_MPEG` to
+the encoder context (`software_encoder.cpp`) embeds the color range in the H.264
+VUI for spec compliance but does not suppress the SDK-side warnings.
+
+### Camera running at 10fps instead of 30fps
+
+Some USB webcams only support MJPEG at 10fps at 1280×720 due to USB 2.0
+bandwidth constraints.  The MJPEG fix (`input_format=mjpeg` in v4l2) is
+correct — it eliminates the `[v4l2] driver changed the time per frame` warning —
+but the camera's hardware limit is 10fps at this resolution.
+
+Workaround: use a lower resolution (e.g. 640×480) or a camera with a USB 3.0
+interface.  The test receive ratio is computed against actual encoded frames
+(not a theoretical 30fps baseline) to give a meaningful transport quality metric
+regardless of capture framerate.
+
+### Camera PTS not advancing (v4l2 MJPEG)
+
+The FFmpeg MJPEG decoder may output frames with non-advancing or stream-timebase
+PTS values rather than nanoseconds.  `VideoPipeline::encodeLoop()` now assigns
+sequential PTS values from a frame counter (`frameIndex × nsPerFrame`) instead
+of forwarding camera timestamps.  This prevents GStreamer from receiving buffers
+with identical timestamps, which previously caused a
+`"GStreamer encountered a general resource error"` from `webrtcbin`.
+
+---
+
+## Ongoing issue — director display shows 4-quadrant magenta/green artifact
+
+### Symptom
+
+The director's camera feed displays the image as a 2×2 grid of identical
+sub-images.  The top two quadrants have a strong magenta tint; the bottom two
+have a green tint.  Flashing a bright light at the camera causes the top and
+bottom halves to swap colors (top becomes green, bottom becomes magenta).
+
+### What we've confirmed
+
+**Diagnostic logging added to `test_stream_lifecycle` and `FrameReader`.**
+
+The test's `QVideoSink::videoFrameChanged` callback and `FrameReader::pushFrame`
+both show the incoming LiveKit frame is correctly formed at the Qt layer:
+
+```
+[FrameReader] incoming: type=0 dataSize=3686400 dims=1280x720
+[FrameReader] stride OK: 5120
+[lifecycle] Qt frame #1: Format_RGBA8888  bytesPerLine(0)=5120  mappedBytes(0)=3686400
+```
+
+- `type=0` → RGBA (SDK confirmed it)
+- `dataSize=3686400` = `1280 × 720 × 4` (correct for packed RGBA)
+- `bytesPerLine(0)=5120` = `1280 × 4` (no stride padding)
+- Sampled pixel values: `R=G=B` everywhere sampled — correct grayscale, `A=255`
+- PPM frame dump to `/tmp/frame_dump.ppm` confirmed no 4-quadrant structure in raw bytes
+- Quadrant comparison: top-left vs top-right match rate ≈ 8% (random) — image is NOT tiled in memory
+
+The raw `QVideoFrame` data is correct. The visual artifact is introduced downstream in
+Qt's rendering pipeline (VideoOutput → QSGVideoNode → GPU texture).
+
+### What we tried that did not fix it
+
+1. **Switched from `VideoBufferType::RGBA` to `VideoBufferType::I420`** in
+   `DirectorSession::attachTrack` and rewrote `FrameReader::pushFrame` to copy
+   the three I420 planes into a `Format_YUV420P` QVideoFrame, bypassing the
+   SDK-side I420→RGBA conversion entirely.
+
+   Result: test passes (69% receive ratio, EXIT 0).  Visual artifact unchanged.
+   The I420 path is committed and left in place as it is structurally cleaner,
+   but it did not resolve the display issue.
+
+### Leading theory
+
+The bug is in Qt's rendering of `QVideoFrame` inside `VideoOutput` on this
+platform.  Either:
+
+- Qt's multimedia backend is re-encoding the frame into a GPU texture format
+  that does not match the declared `QVideoFrameFormat`, OR
+- The `VideoOutput` scenegraph node is applying wrong texture coordinates or
+  an incorrect shader for the delivered pixel format.
+
+The artifact (4 copies, top/bottom color inversion) is geometrically consistent
+with the chroma (U/V) planes being placed at wrong vertical offsets in the
+texture — which would be a backend-side I420/NV12 re-interpretation of the
+frame even after we deliver it in the requested format.
+
+### Where to go next
+
+**Isolate whether the encoding/streaming pipeline is the source, or Qt's rendering.**
+
+The best first step is to add a live camera preview on the **operator side**
+before the video enters the WHIP pipeline.  This gives us a split view:
+
+- The operator preview uses Qt Multimedia (`CameraDevice` / `QVideoSink`) to
+  display the raw camera feed directly — no encoding, no streaming.
+- The director feed goes through H.264 encode → WHIP → LiveKit → decode → display.
+
+If both look the same (same 4-quadrant artifact), the problem is in Qt's
+`VideoOutput` rendering on this machine, independent of streaming.
+
+If only the director feed has the artifact, the problem is introduced somewhere
+in the encode → stream → decode path.
+
+**Operator preview implementation sketch:**
+
+Add a `QCamera` + `QVideoSink` in `CameraSessionController` (or a new
+`CameraPreview` component) that feeds the raw frames into the same
+`FrameReader` / `VideoOutput` path as the director, but sourced directly from
+the camera capture before encoding.  A separate `VideoOutput` in the
+`SessionPage` for the camera role would display it alongside or instead of a
+placeholder.
