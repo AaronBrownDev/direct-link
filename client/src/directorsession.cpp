@@ -23,7 +23,7 @@ void DirectorSession::attachTrack(const std::shared_ptr<livekit::Track> &track, 
         qWarning() << "[DirectorSession] Track already attached.\n\tsid=" << trackSid;
         return;
     }
-    
+
     auto v_track = std::make_unique<VideoTrack>(this);
     if (!v_track->setTrack(track)) {
         qWarning() << "[DirectorSession] Failed to attach track.\n\tsid=" << trackSid;
@@ -41,7 +41,7 @@ void DirectorSession::attachTrack(const std::shared_ptr<livekit::Track> &track, 
 void DirectorSession::detachTrack(const std::string &trackSid) {
     auto it = m_trackMap.find(trackSid);
     if (it == m_trackMap.end()) { return; }
-    
+
     auto index = static_cast<qsizetype>(std::distance(m_trackMap.begin(), it));
     m_trackMap.erase(it);
     emit trackRemoved(index);

@@ -29,7 +29,11 @@ bool VideoTrack::setTrack(const std::shared_ptr<livekit::Track> &track) {
     unsetTrack();
 
     livekit::VideoStream::Options opts;
-    opts.format = livekit::VideoBufferType::RGBA;
+    // Request I420 (native H.264 decoder output) instead of RGBA.
+    // Pushing I420 directly as QVideoFrameFormat::Format_YUV420P lets Qt's
+    // VideoOutput use its native YUV shader path, which is more reliable than
+    // the SDK-side I420→RGBA conversion that was producing color artifacts.
+    opts.format = livekit::VideoBufferType::I420;
 
     m_stream = livekit::VideoStream::fromTrack(track, opts);
     if (!m_stream) {
