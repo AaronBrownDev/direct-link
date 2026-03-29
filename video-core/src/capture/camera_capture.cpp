@@ -95,6 +95,12 @@ Result CameraCapture::setupDevice() {
         av_dict_set(&options, "framerate",
                     std::to_string(config_.framerate).c_str(), 0);
     }
+    // Request a specific pixel format from the device driver.  Without this,
+    // v4l2 picks a raw format (e.g. YUYV) that most USB cameras can only
+    // deliver at 10 fps at 720p, regardless of the framerate option above.
+    if (!config_.pixelFormat.empty()) {
+        av_dict_set(&options, "input_format", config_.pixelFormat.c_str(), 0);
+    }
 
     formatCtx_ = avformat_alloc_context();
     if (avformat_open_input(&formatCtx_, config_.devicePath.c_str(), input_fmt,
