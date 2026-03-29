@@ -6,12 +6,36 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.13"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.30"
+    }
   }
 }
 
 provider "google" {
   project = var.project_id
   region  = var.region
+}
+
+data "google_client_config" "default" {}
+
+provider "kubernetes" {
+  host                   = "https://${module.gke_cluster.cluster_endpoint}"
+  token                  = data.google_client_config.default.access_token
+  cluster_ca_certificate = base64decode(module.gke_cluster.cluster_ca_certificate)
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = "https://${module.gke_cluster.cluster_endpoint}"
+    token                  = data.google_client_config.default.access_token
+    cluster_ca_certificate = base64decode(module.gke_cluster.cluster_ca_certificate)
+  }
 }
 
 module "gke_cluster" {
@@ -26,4 +50,40 @@ module "gke_cluster" {
   spot         = var.spot
   disk_size_gb = var.disk_size_gb
   network      = var.network
+}
+
+#--------------------------------
+# EXTERNAL SECRETS OPERATOR (ESO)
+#--------------------------------
+resource "kubernetes_namespace" "external_secrets" {
+  metadata {
+    name = "external-secrets"
+  }
+
+  depends_on = [module.gke_cluster]
+}
+
+import {
+  to = kubernetes_namespace.external_secrets
+  id = "external-secrets"
+}
+
+resource "helm_release" "external_secrets" {
+  name       = "external-secrets"
+  repository = "https://charts.external-secrets.io"
+  chart      = "external-secrets"
+  version    = "2.2.0"
+  namespace  = kubernetes_namespace.external_secrets.metadata[0].name
+
+  set {
+    name  = "installCRDs"
+    value = "true"
+  }
+
+  depends_on = [kubernetes_namespace.external_secrets]
+}
+
+import {
+  to = helm_release.external_secrets
+  id = "external-secrets/external-secrets"
 }
