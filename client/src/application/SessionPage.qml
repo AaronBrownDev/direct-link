@@ -47,6 +47,8 @@ ColumnLayout {
     property string whip_url: ""
     property string stream_key: ""
 
+    property bool isClosing: false
+
     spacing: 15
 
     signal sessionCloseRequested(string roomCode)
@@ -95,6 +97,7 @@ ColumnLayout {
         showCloseButton: dl_root_layout.user_type === UserRole.director
 
         onLeavePage: () => {
+            dl_root_layout.isClosing = true;
             dl_root_layout.closePage();
         }
 
@@ -108,6 +111,9 @@ ColumnLayout {
 
         function onDisconnected() {
             if (dl_root_layout.user_type === UserRole.director) {
+                if (dl_root_layout.isClosing) {
+                    return;
+                }
                 dl_root_layout.closePage();
             }
         }
