@@ -52,6 +52,22 @@ ColumnLayout {
     signal sessionCloseRequested(string roomCode)
     signal closePage()
 
+    Component.onCompleted: {
+        if (dl_root_layout.user_type === UserRole.director) {
+            DirectorTransport.connectToRoom(dl_root_layout.livekit_token, dl_root_layout.livekit_url);
+        } else {
+            CameraSessionController.start(dl_root_layout.whip_url, dl_root_layout.stream_key);
+        }
+    }
+
+    Component.onDestruction: {
+        if (dl_root_layout.user_type === UserRole.director) {
+                DirectorTransport.disconnectFromRoom();
+            } else {
+                CameraSessionController.stop();
+            }
+    }
+
     SessionInfo {
         id: dl_session_details
 
@@ -60,9 +76,14 @@ ColumnLayout {
         room_code: dl_root_layout.room_code
     }
 
-    SessionDirectorView {
-        id: dl_director_view
-        max_camera_count: dl_root_layout.max_camera_count
+    Loader {
+        id: dl_session_view_loader
+
+        Layout.margins: 15
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+
+        sourceComponent: (dl_root_layout.user_type === UserRole.director) ? dl_session_director_view : dl_session_operator_view
     }
 
     Footer {
@@ -92,19 +113,17 @@ ColumnLayout {
         }
     }
 
-    Component.onCompleted: {
-        if (dl_root_layout.user_type === UserRole.director) {
-            DirectorTransport.connectToRoom(dl_root_layout.livekit_token, dl_root_layout.livekit_url);
-        } else {
-            CameraSessionController.start(dl_root_layout.whip_url, dl_root_layout.stream_key);
+    Component {
+        id: dl_session_director_view
+        SessionDirectorView {
+            max_camera_count: dl_root_layout.max_camera_count
         }
     }
 
-    Component.onDestruction: {
-        if (dl_root_layout.user_type === UserRole.director) {
-                DirectorTransport.disconnectFromRoom();
-            } else {
-                CameraSessionController.stop();
-            }
+    Component {
+        id: dl_session_operator_view
+        SessionOperatorView {
+
+        }
     }
 }

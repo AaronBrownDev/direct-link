@@ -1,5 +1,5 @@
 /*
- * File: DashboardDirectorView.qml
+ * File: SessionDirectorView.qml
  * Author: Justin Williams
  * Date: 3/27/26
  * File Description: The qml file that contains the camera displays for the director. As operators
@@ -17,8 +17,6 @@ RowLayout {
 
         property int max_camera_count: 4
         property int activeCamera: -1
-
-        Layout.margins: 15
 
         spacing: 15
 
@@ -46,6 +44,8 @@ RowLayout {
             Layout.fillWidth: true
             Layout.preferredHeight: width / aspect_ratio
             Layout.minimumHeight: implicitWidth / aspect_ratio
+            
+            Layout.maximumWidth: dl_operator_view.height * aspect_ratio
             implicitWidth: 500
         }
 
