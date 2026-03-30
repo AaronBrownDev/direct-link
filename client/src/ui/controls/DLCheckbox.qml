@@ -79,6 +79,7 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         enabled: dl_checkbox.active
+        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
 
         onClicked: dl_checkbox.checked = !dl_checkbox.checked
     }

@@ -7,7 +7,6 @@
 
 import QtQuick
 import QtQuick.Layouts
-import QtQuick.Controls
 import ui.theme
 
 /*
@@ -117,6 +116,13 @@ ColumnLayout {
             }
 
             onAccepted: dl_field.accepted()
+
+            // Changes cursor when hovering over field
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.IBeamCursor
+                acceptedButtons: Qt.NoButton
+            }
         }
     }
 }

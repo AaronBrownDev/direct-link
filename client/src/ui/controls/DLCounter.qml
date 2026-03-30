@@ -27,6 +27,7 @@ Rectangle {
     property int maximum: 10
     property int step: 1
     property string label: ""
+    property bool active: true
 
     radius: 15
     color: Theme.fieldBackground
@@ -71,7 +72,9 @@ Rectangle {
             id: dl_decrement
 
             anchors.fill: parent
+            enabled: dl_counter_bg.active && !(dl_counter_bg.value <= dl_counter_bg.minimum)
             hoverEnabled: true
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
 
             onClicked: {
                 if (dl_counter_bg.value > dl_counter_bg.minimum)
@@ -110,7 +113,9 @@ Rectangle {
             id: dl_increment
 
             anchors.fill: parent
+            enabled: dl_counter_bg.active && !(dl_counter_bg.value >= dl_counter_bg.maximum)
             hoverEnabled: true
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
 
             onClicked: {
                 if (dl_counter_bg.value < dl_counter_bg.maximum)

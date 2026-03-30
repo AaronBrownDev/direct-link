@@ -7,6 +7,8 @@
  * session.
  */
 
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Layouts
 import network
@@ -120,6 +122,13 @@ ColumnLayout {
             }
 
             delegate: Rectangle {
+                id: dl_delegate
+
+                required property string roomCode
+                required property string roomStatus
+                required property string createdAt
+                required property int maxCameras
+
                 width: ListView.view.width
                 height: 60
                 color: dl_session_list_area.containsMouse ? Theme.innerSurface : Theme.surface
@@ -131,13 +140,13 @@ ColumnLayout {
                     spacing: 5
                     Text {
                         Layout.alignment: Qt.AlignLeft
-                        text: roomCode
-                        color: roomStatus === "active" ? Theme.textWhite : Theme.textMuted
+                        text: dl_delegate.roomCode
+                        color: dl_delegate.roomStatus === "active" ? Theme.textWhite : Theme.textMuted
                         font.pointSize: 12
                     }
                     Text {
                         Layout.alignment: Qt.AlignLeft
-                        text: "Created " + createdAt + " - " + roomStatus.charAt(0).toUpperCase() + roomStatus.slice(1) + " - " + maxCameras + " Cameras"
+                        text: "Created " + dl_delegate.createdAt + " - " + dl_delegate.roomStatus.charAt(0).toUpperCase() + dl_delegate.roomStatus.slice(1) + " - " + dl_delegate.maxCameras + " Cameras"
                         color: Theme.textMuted
                         font.pointSize: 10
                     }
@@ -147,7 +156,8 @@ ColumnLayout {
                     id: dl_session_list_area
                     anchors.fill: parent
                     hoverEnabled: true
-                    onClicked: dl_session_list_layout.sessionSelected(roomCode, maxCameras)
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: dl_session_list_layout.sessionSelected(dl_delegate.roomCode, dl_delegate.maxCameras)
                 }
             }
         }

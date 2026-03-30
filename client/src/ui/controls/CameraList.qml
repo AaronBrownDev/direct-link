@@ -7,9 +7,9 @@
  * list will emit a signal with the index selected.
  */
 
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Layouts
-import application
 import ui.controls
 import ui.theme
 
@@ -51,8 +51,8 @@ Rectangle {
 
         model: {
             let slots = [];
-            for (let i = 0; i < max_camera_count; i++) {
-                slots.push(i < all_tracks.length ? all_tracks[i] : null)
+            for (let i = 0; i < dl_camera_list_bg.max_camera_count; i++) {
+                slots.push(i < dl_camera_list_bg.all_tracks.length ? dl_camera_list_bg.all_tracks[i] : null)
             }
             return slots;
         }
@@ -67,8 +67,9 @@ Rectangle {
 
             MouseArea {
                 anchors.fill: parent
-                enabled: modelData !== null
-                onClicked: cameraSelected(index)
+                enabled: parent.assigned_track !== null
+                onClicked: dl_camera_list_bg.cameraSelected(parent.index)
+                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             }
         }
     }

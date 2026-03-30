@@ -82,6 +82,7 @@ Rectangle {
         anchors.fill: parent
         enabled: dl_button_bg.active
         hoverEnabled: true
+        cursorShape: dl_button_bg.active ? Qt.PointingHandCursor : Qt.ArrowCursor
         onClicked: {
             dl_button_bg.clicked();
         }

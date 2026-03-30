@@ -68,6 +68,7 @@ Rectangle {
                 id: dl_logo_area
 
                 anchors.fill: parent
+                cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
 
                 onClicked: dl_header.homeClicked()
             }
