@@ -12,7 +12,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia Concurrent Protobuf Grpc)
 find_package(PkgConfig REQUIRED)
-find_package(Microsoft.GSL CONFIG REQUIRED)
+find_package(Microsoft.GSL CONFIG)
+if(NOT Microsoft.GSL_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        microsoft_gsl
+        URL https://github.com/microsoft/GSL/archive/refs/tags/v4.2.0.tar.gz
+        URL_HASH SHA256=2c717545a073649126cb99ebd493fa2ae23120077968795d2c69cbab821e4ac6
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(microsoft_gsl)
+endif()
 pkg_check_modules(FFMPEG REQUIRED
     libavcodec
     libavutil
@@ -125,6 +135,7 @@ target_include_directories(test_operator_session PRIVATE
     ${CMAKE_BINARY_DIR}
     ${GST_INCLUDE_DIRS}
     ${FFMPEG_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../video-core/include
 )
 
 target_include_directories(test_stream_lifecycle PRIVATE
@@ -186,18 +197,21 @@ target_link_libraries(test_livekit_room PRIVATE
     directlink_networkplugin
     directlink_appplugin
     video_core
+    Microsoft.GSL::GSL
 )
 
 target_link_libraries(test_operator_session PRIVATE
     Qt6::Core
     Qt6::Qml
     Qt6::Concurrent
+    Qt6::Multimedia
     Qt6::Protobuf
     Qt6::Grpc
     signaling_proto
     signaling_grpc
     directlink_networkplugin
     directlink_sessionplugin
+    video_core
 )
 
 target_link_libraries(test_stream_lifecycle PRIVATE
@@ -216,6 +230,7 @@ target_link_libraries(test_stream_lifecycle PRIVATE
     directlink_appplugin
     directlink_networking
     video_core
+    Microsoft.GSL::GSL
     ${GST_LIBRARIES}
     ${FFMPEG_LIBRARIES}
 )

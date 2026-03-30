@@ -11,6 +11,7 @@ target_link_libraries(directlink_session PRIVATE
     Qt6::Core
     Qt6::Qml
     Qt6::Concurrent
+    Qt6::Multimedia
     video_core
     directlink_networking
 )

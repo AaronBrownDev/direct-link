@@ -1,8 +1,9 @@
 #pragma once
-#include <QObject>
-#include <QQmlEngine>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QObject>
+#include <QQmlEngine>
+#include <QVideoSink>
 #include <memory>
 #include "camera_session.hpp"
 
@@ -10,6 +11,9 @@ class CameraSessionController : public QObject {
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
+
+    Q_PROPERTY(QVideoSink *previewSink READ previewSink WRITE setPreviewSink
+                   NOTIFY previewSinkChanged)
 
 public:
     explicit CameraSessionController(QObject *parent = nullptr);
@@ -22,13 +26,18 @@ public:
     Q_INVOKABLE void start(const QString &whipUrl, const QString &streamKey);
     Q_INVOKABLE void stop();
 
+    QVideoSink *previewSink() const { return previewSink_; }
+    void setPreviewSink(QVideoSink *sink);
+
 signals:
     void sessionStarted();
     void sessionStopped();
     void errorOccurred(const QString &message);
+    void previewSinkChanged();
 
 private:
     std::shared_ptr<CameraSession> session_;
     QFuture<bool> m_startFuture;
     QFutureWatcher<bool> *m_startWatcher = nullptr;
+    QVideoSink *previewSink_ = nullptr;
 };

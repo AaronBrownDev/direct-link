@@ -32,6 +32,9 @@ public:
     // Forward a keyframe request to the encoder (called from the RTCP PLI/FIR
     // path in WHIPPublisher).  Thread-safe.
     void requestKeyframe() noexcept;
+    // Optional callback receiving each raw frame before it enters the encode
+    // queue.  Called from the capture thread — must be set before start().
+    void setPreviewCallback(std::function<void(const Frame &)> previewCallback);
 
     // Statistics getters
     [[nodiscard]] int getCurrentFramerate() const noexcept {
@@ -73,6 +76,7 @@ private:
     std::unique_ptr<capture::CameraCapture> captureDevice_;
     std::unique_ptr<encode::Encoder> encoder_;
     std::function<void(std::unique_ptr<Packet>)> packetCallback_;
+    std::function<void(const Frame &)> previewCallback_;
 
     // Frame queue  between capture and encode threads
     std::queue<std::unique_ptr<Frame>> frameQueue_;

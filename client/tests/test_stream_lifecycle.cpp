@@ -42,6 +42,8 @@
 #include "livekit/livekit.h"
 
 #include "directortransport.hpp"
+#include "directorsession.hpp"
+#include "videotrack.hpp"
 #include "sessionclient.hpp"
 
 #include "capture/capture_config.hpp"
@@ -225,7 +227,19 @@ int main(int argc, char *argv[]) {
         QObject::connect(&transport, &DirectorTransport::connected, &loop, [&]() {
             connected = true;
             if (transport.session() != nullptr) {
-                transport.session()->setVideoSink(&directorSink);
+                // Tracks are not yet attached at connect time — the operator
+                // starts publishing after the director joins. Wire up the sink
+                // when the first track arrives. Use &app as context so this
+                // connection outlives the inner event loop.
+                QObject::connect(transport.session(), &DirectorSession::trackAdded,
+                                 &app, [&](qsizetype index) {
+                    const QList<QObject *> tracks = transport.session()->tracks();
+                    if (index < tracks.size()) {
+                        if (auto *vt = qobject_cast<VideoTrack *>(tracks.at(index))) {
+                            vt->setVideoSink(&directorSink);
+                        }
+                    }
+                });
             }
             loop.quit();
         });

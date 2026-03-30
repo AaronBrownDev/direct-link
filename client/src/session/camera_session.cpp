@@ -1,4 +1,5 @@
 #include "camera_session.hpp"
+#include "../../../video-core/include/common/types.hpp"
 #include <iostream>
 
 bool CameraSession::start(const std::string &whipUrl,
@@ -31,7 +32,13 @@ bool CameraSession::start(const std::string &whipUrl,
 
     auto startResult = pipeline_.initialize(captureConfig, encoderConfig);
     if (startResult != videoCore::Result::Success) {
-        std::cerr << "[CameraSession] Failed to initialize video pipeline\n";
+        std::cerr << "[CameraSession] Failed to initialize video pipeline: "
+                  << videoCore::resultToString(startResult)
+                  << " (device=" << captureConfig.devicePath
+                  << ", format=" << captureConfig.inputFormat
+                  << ", pixel_format=" << captureConfig.pixelFormat
+                  << ", " << captureConfig.width << "x" << captureConfig.height
+                  << "@" << captureConfig.framerate << "fps)\n";
         return false;
     }
 
@@ -41,7 +48,8 @@ bool CameraSession::start(const std::string &whipUrl,
             std::cerr << "[CameraSession] WHIPPublisher error: " << err << "\n";
         });
     if (whipPublisherResult != networking::Result::Success) {
-        std::cerr << "[CameraSession] Failed to initialize WHIP publisher\n";
+        std::cerr << "[CameraSession] Failed to initialize WHIP publisher"
+                     " (url=" << whipUrl << ")\n";
         return false;
     }
 
@@ -70,7 +78,8 @@ bool CameraSession::start(const std::string &whipUrl,
         });
 
     if (pipelineResult != videoCore::Result::Success) {
-        std::cerr << "[CameraSession] Failed to start video pipeline\n";
+        std::cerr << "[CameraSession] Failed to start video pipeline: "
+                  << videoCore::resultToString(pipelineResult) << "\n";
         whipPublisher_.stop();
         return false;
     }
@@ -79,11 +88,20 @@ bool CameraSession::start(const std::string &whipUrl,
     return true;
 }
 
+void CameraSession::setPreviewCallback(
+    std::function<void(const videoCore::Frame &)> cb) {
+    pipeline_.setPreviewCallback(std::move(cb));
+}
+
 void CameraSession::stop() {
     if (!isRunning_) {
         return; // Not running
     }
-    pipeline_.stop();
+    const auto stopResult = pipeline_.stop();
+    if (stopResult != videoCore::Result::Success) {
+        std::cerr << "[CameraSession] Pipeline stop returned an error: "
+                  << videoCore::resultToString(stopResult) << "\n";
+    }
     whipPublisher_.stop();
     isRunning_ = false;
 }
