@@ -16,6 +16,69 @@ import (
 	"github.com/livekit/protocol/livekit"
 )
 
+// --- Stub Store ---
+
+// stubStore implements session.Store with overridable function fields.
+// Unset fields return zero values; only the methods exercised by a given test
+// need to be populated.
+type stubStore struct {
+	getSessionByRoomCodeFunc func(ctx context.Context, code string) (*session.Session, error)
+	grantAccessFunc          func(ctx context.Context, sessionID, userID, role string) error
+	addIngressIDFunc         func(ctx context.Context, sessionID, ingressID string) error
+	getIngressIDsFunc        func(ctx context.Context, sessionID string) ([]string, error)
+	updateSessionStatusFunc  func(ctx context.Context, sessionID, status string) error
+}
+
+func (s *stubStore) GetSessionByRoomCode(ctx context.Context, code string) (*session.Session, error) {
+	if s.getSessionByRoomCodeFunc != nil {
+		return s.getSessionByRoomCodeFunc(ctx, code)
+	}
+	return nil, session.ErrSessionNotFound
+}
+
+func (s *stubStore) GrantAccess(ctx context.Context, sessionID, userID, role string) error {
+	if s.grantAccessFunc != nil {
+		return s.grantAccessFunc(ctx, sessionID, userID, role)
+	}
+	return nil
+}
+
+func (s *stubStore) AddIngressID(ctx context.Context, sessionID, ingressID string) error {
+	if s.addIngressIDFunc != nil {
+		return s.addIngressIDFunc(ctx, sessionID, ingressID)
+	}
+	return nil
+}
+
+func (s *stubStore) GetIngressIDs(ctx context.Context, sessionID string) ([]string, error) {
+	if s.getIngressIDsFunc != nil {
+		return s.getIngressIDsFunc(ctx, sessionID)
+	}
+	return nil, nil
+}
+
+func (s *stubStore) UpdateSessionStatus(ctx context.Context, sessionID, status string) error {
+	if s.updateSessionStatusFunc != nil {
+		return s.updateSessionStatusFunc(ctx, sessionID, status)
+	}
+	return nil
+}
+
+func (s *stubStore) CreateSession(_ context.Context, _ *session.Session) error        { return nil }
+func (s *stubStore) GetSession(_ context.Context, _ string) (*session.Session, error)  { return nil, nil }
+func (s *stubStore) DeleteSession(_ context.Context, _ string) error                  { return nil }
+func (s *stubStore) GetExpiredSessions(_ context.Context, _ time.Time) ([]session.Session, error) {
+	return nil, nil
+}
+func (s *stubStore) GetRole(_ context.Context, _, _ string) (string, error)          { return "", nil }
+func (s *stubStore) RevokeAccess(_ context.Context, _, _ string) error               { return nil }
+func (s *stubStore) HasAccess(_ context.Context, _, _ string) (bool, error)          { return false, nil }
+func (s *stubStore) GetUserSessions(_ context.Context, _ string) ([]session.Session, error) {
+	return nil, nil
+}
+func (s *stubStore) Ping(_ context.Context) error { return nil }
+func (s *stubStore) Close() error                 { return nil }
+
 // --- Mock ingress client ---
 
 type mockIngressClient struct {
@@ -215,14 +278,19 @@ func TestJoinSession_CameraRole_StoresIngressID(t *testing.T) {
 // Verifies that if GrantAccess fails after a successful CreateIngress, the ingress is deleted
 // and no partial state is left in Redis.
 func TestJoinSession_CameraRole_RollsBackIngressOnGrantAccessFailure(t *testing.T) {
-	mr := miniredis.RunT(t)
-	store, err := session.NewRedisStore(
-		mr.Addr(), "", 0, 10, 2,
-		time.Second, time.Second, time.Second,
-		24*time.Hour,
-	)
-	if err != nil {
-		t.Fatalf("failed to create store: %v", err)
+	seededSession := &session.Session{
+		ID: "test-session-id", RoomCode: "ROOM-TEST", CreatedBy: "director-1",
+		CreatedAt: time.Now().UTC(), MaxCameras: 4, Status: "active",
+	}
+	grantErr := errors.New("simulated GrantAccess failure")
+
+	store := &stubStore{
+		getSessionByRoomCodeFunc: func(_ context.Context, _ string) (*session.Session, error) {
+			return seededSession, nil
+		},
+		grantAccessFunc: func(_ context.Context, _, _, _ string) error {
+			return grantErr
+		},
 	}
 
 	mockIngress := defaultMockIngress()
@@ -235,13 +303,8 @@ func TestJoinSession_CameraRole_RollsBackIngressOnGrantAccessFailure(t *testing.
 		metrics:         metrics.New(),
 	}
 
-	// Seed the session then close miniredis to make GrantAccess fail with a
-	// Redis infrastructure error after CreateIngress has already succeeded.
-	sess := seedSession(t, store)
-	mr.Close()
-
-	_, err = srv.JoinSession(context.Background(), &pb.JoinRequest{
-		RoomCode: sess.RoomCode,
+	_, err := srv.JoinSession(context.Background(), &pb.JoinRequest{
+		RoomCode: seededSession.RoomCode,
 		UserId:   "camera-rollback",
 		Role:     "camera",
 	})

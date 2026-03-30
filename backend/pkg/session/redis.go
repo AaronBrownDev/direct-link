@@ -66,6 +66,7 @@ func NewRedisStore(addr string,
 	return &RedisStore{
 		client:     client,
 		sessionTTL: sessionTTL,
+		logger:     slog.Default(),
 	}, nil
 
 }
@@ -211,7 +212,7 @@ func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, 
 	// If closing, remove from active sessions
 	if status == statusClosed {
 		if zErr := r.client.ZRem(ctx, activeSessionsKey, sessionID); zErr != nil {
-			r.logger.Warn("failed to remove session from active set", "session_id", sessionID, "error", err)
+			r.logger.Warn("failed to remove session from active set", "session_id", sessionID, "error", zErr)
 		}
 	}
 
