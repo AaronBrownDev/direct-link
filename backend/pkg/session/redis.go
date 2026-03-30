@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -30,6 +31,7 @@ type RedisStore struct {
 	client     *redis.Client
 	sessionTTL time.Duration
 	metrics    *metrics.Metrics
+	logger     *slog.Logger
 }
 
 // NewRedisStore creates a new Redis-backed store
@@ -208,7 +210,9 @@ func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, 
 
 	// If closing, remove from active sessions
 	if status == statusClosed {
-		r.client.ZRem(ctx, activeSessionsKey, sessionID)
+		if zErr := r.client.ZRem(ctx, activeSessionsKey, sessionID); zErr != nil {
+			r.logger.Warn("failed to remove session from active set", "session_id", sessionID, "error", err)
+		}
 	}
 
 	return nil

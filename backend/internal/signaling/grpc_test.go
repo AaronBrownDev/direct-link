@@ -212,6 +212,50 @@ func TestJoinSession_CameraRole_StoresIngressID(t *testing.T) {
 	}
 }
 
+// Verifies that if GrantAccess fails after a successful CreateIngress, the ingress is deleted
+// and no partial state is left in Redis.
+func TestJoinSession_CameraRole_RollsBackIngressOnGrantAccessFailure(t *testing.T) {
+	mr := miniredis.RunT(t)
+	store, err := session.NewRedisStore(
+		mr.Addr(), "", 0, 10, 2,
+		time.Second, time.Second, time.Second,
+		24*time.Hour,
+	)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+
+	mockIngress := defaultMockIngress()
+	srv := &Server{
+		cfg:             Config{LiveKitHost: "http://localhost:7880", LiveKitExternalURL: "ws://localhost:7880", LiveKitAPIKey: "devkey", LiveKitAPISecret: "secret"},
+		store:           store,
+		logger:          slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		lkIngressClient: mockIngress,
+		lkClient:        defaultMockRoom(),
+		metrics:         metrics.New(),
+	}
+
+	// Seed the session then close miniredis to make GrantAccess fail with a
+	// Redis infrastructure error after CreateIngress has already succeeded.
+	sess := seedSession(t, store)
+	mr.Close()
+
+	_, err = srv.JoinSession(context.Background(), &pb.JoinRequest{
+		RoomCode: sess.RoomCode,
+		UserId:   "camera-rollback",
+		Role:     "camera",
+	})
+
+	if err == nil {
+		t.Fatal("expected error when GrantAccess fails")
+	}
+
+	// The ingress should have been rolled back via DeleteIngress
+	if len(mockIngress.deletedIDs) != 1 || mockIngress.deletedIDs[0] != "ingress-abc" {
+		t.Errorf("expected ingress-abc to be rolled back, got deletedIDs=%v", mockIngress.deletedIDs)
+	}
+}
+
 // --- CloseSession ingress cleanup tests ---
 
 func TestCloseSession_IngressCleanup(t *testing.T) {
@@ -255,6 +299,11 @@ func TestCloseSession_IngressCleanup(t *testing.T) {
 
 			if len(mockIngress.deletedIDs) != tt.wantDeleteCount {
 				t.Errorf("expected %d DeleteIngress calls, got %d", tt.wantDeleteCount, len(mockIngress.deletedIDs))
+			}
+
+			// Verify the LiveKit room was also deleted
+			if len(mockRoom.deletedIDs) != 1 || mockRoom.deletedIDs[0] != sess.ID {
+				t.Errorf("expected DeleteRoom called with %q, got %v", sess.ID, mockRoom.deletedIDs)
 			}
 		})
 	}

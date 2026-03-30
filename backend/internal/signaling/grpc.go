@@ -37,7 +37,6 @@ func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.Join
 		return nil, status.Error(codes.FailedPrecondition, "session is closed")
 	}
 
-	// Handles GrantAccess
 	switch req.Role {
 	case "camera":
 		return s.joinAsCamera(ctx, req, sess)

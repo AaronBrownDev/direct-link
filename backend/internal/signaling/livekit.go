@@ -18,8 +18,6 @@ type roomClient interface {
 	DeleteRoom(ctx context.Context, req *livekit.DeleteRoomRequest) (*livekit.DeleteRoomResponse, error)
 }
 
-// Check if i am to move this form gprc
-
 // DeleteRoom handles cleanup when a session is closed or expires, including deleting the LiveKit room and any associated ingresses.
 func (s *Server) deleteRoom(ctx context.Context, sessionID string) error {
 	var errs []error
@@ -48,8 +46,9 @@ func (s *Server) deleteRoom(ctx context.Context, sessionID string) error {
 		s.logger.Warn("failed  to delete LiveKit room", "session_id", sessionID, "error", err,
 			slog.String("hint", "room may have already been destroyed by LiveKit"))
 		errs = append(errs, fmt.Errorf("delete room: %w", err))
+	} else {
+		s.logger.Info("deleted LiveKit room", "session_id", sessionID)
 	}
-	s.logger.Info("deleted LiveKit room", "session_id", sessionID)
 
 	return errors.Join(errs...)
 }

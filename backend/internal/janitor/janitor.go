@@ -16,6 +16,13 @@ const (
 	janitorLockKey = "janitor:lock"
 )
 
+var releaseLockScript = redis.NewScript(`
+	if redis.call("GET", KEYS[1]) == ARGV[1] then
+		return redis.call("DEL", KEYS[1])
+	end
+	return 0
+`)
+
 // RoomDeleter is a callback that handles Livekit room and ingress cleanup
 // for a given sessionID. It is called once per expired session during a sweep
 type RoomDeleter func(ctx context.Context, sessionID string) error
@@ -29,6 +36,7 @@ type Janitor struct {
 	logger      *slog.Logger     // structured logger
 	interval    time.Duration    // how often the janitor sweeps
 	lockTTL     time.Duration    // how long the distributed lock is held per sweep
+	instanceID  string           // unique per-process ID used as the lock value
 	metrics     *metrics.Metrics // Promethius metrics - may be nil, in which case metrics are skipped
 }
 
@@ -89,7 +97,12 @@ func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
 	if result != "OK" {
 		return
 	}
-	defer j.redisClient.Del(ctx, janitorLockKey)
+
+	defer func() {
+		if err := releaseLockScript.Run(ctx, j.redisClient, []string{janitorLockKey}, j.instanceID).Err(); err != nil && !errors.Is(err, redis.Nil) {
+			j.logger.Warn("janitor failed to release sweep lock", "error", err)
+		}
+	}()
 
 	expired, err := j.store.GetExpiredSessions(ctx, now)
 	if err != nil {
@@ -110,7 +123,6 @@ func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
 func (j *Janitor) closeExpiredSession(ctx context.Context, sess session.Session) {
 	log := j.logger.With("session_id", sess.ID)
 
-	// delete room in grpc does not return anything
 	if err := j.deleteRoom(ctx, sess.ID); err != nil {
 		log.Warn("janitor LiveKit cleanup incomplete", "error", err)
 	}

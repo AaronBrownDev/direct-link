@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/AaronBrownDev/direct-link/internal/janitor"
@@ -41,14 +42,21 @@ func run() int {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// Starts Janitor as a standalone goroutine alongside the server.
-	// It stops cleanly when ctx is cancelled on shutdown
-	go j.Run(ctx)
+	// Ensure the janitor go routine has fully exited before we close lock client
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		j.Run(ctx)
+	}()
 
 	if err := server.ListenAndServe(ctx); err != nil {
 		logger.Error("server exited with error", "error", err)
 		return 1
 	}
+
+	wg.Wait()
 
 	// Close the janitor's dedicated lock client on shutdown
 	if err := lockClient.Close(); err != nil {

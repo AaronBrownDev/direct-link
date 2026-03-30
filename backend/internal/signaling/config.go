@@ -55,7 +55,7 @@ func DefaultConfig() Config {
 		LiveKitAPISecret:   "dev-secret-that-is-32-chars-long", // dev default
 
 		JanitorInterval: 1 * time.Minute,
-		JanitorLockTTL:  30 * time.Second,
+		JanitorLockTTL:  2 * time.Minute,
 	}
 }
 
