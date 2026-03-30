@@ -64,15 +64,17 @@ func (s *stubStore) UpdateSessionStatus(ctx context.Context, sessionID, status s
 	return nil
 }
 
-func (s *stubStore) CreateSession(_ context.Context, _ *session.Session) error        { return nil }
-func (s *stubStore) GetSession(_ context.Context, _ string) (*session.Session, error)  { return nil, nil }
-func (s *stubStore) DeleteSession(_ context.Context, _ string) error                  { return nil }
+func (s *stubStore) CreateSession(_ context.Context, _ *session.Session) error { return nil }
+func (s *stubStore) GetSession(_ context.Context, _ string) (*session.Session, error) {
+	return nil, nil
+}
+func (s *stubStore) DeleteSession(_ context.Context, _ string) error { return nil }
 func (s *stubStore) GetExpiredSessions(_ context.Context, _ time.Time) ([]session.Session, error) {
 	return nil, nil
 }
-func (s *stubStore) GetRole(_ context.Context, _, _ string) (string, error)          { return "", nil }
-func (s *stubStore) RevokeAccess(_ context.Context, _, _ string) error               { return nil }
-func (s *stubStore) HasAccess(_ context.Context, _, _ string) (bool, error)          { return false, nil }
+func (s *stubStore) GetRole(_ context.Context, _, _ string) (string, error) { return "", nil }
+func (s *stubStore) RevokeAccess(_ context.Context, _, _ string) error      { return nil }
+func (s *stubStore) HasAccess(_ context.Context, _, _ string) (bool, error) { return false, nil }
 func (s *stubStore) GetUserSessions(_ context.Context, _ string) ([]session.Session, error) {
 	return nil, nil
 }
