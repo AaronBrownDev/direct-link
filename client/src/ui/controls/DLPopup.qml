@@ -61,7 +61,11 @@ Popup {
             font.pointSize: 14
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+<<<<<<< HEAD
             wrapMode: Text.WordWrap
+=======
+            wrapMode: Text.Wrap
+>>>>>>> affbfa4 (feat(app): allow onAccepted signal to submit session code on dashboard)
         }
 
         RowLayout {

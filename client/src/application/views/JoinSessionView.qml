@@ -20,6 +20,8 @@ import ui.theme
     FUNCTIONS
 
         clearFields() - Clears the contents of the session code and camera name fields
+        validateInput() - Ensures a full-length session code was entered before emitting a 
+            joinClicked signal
 
     SIGNALS
 
@@ -37,6 +39,14 @@ Rectangle {
     function clearFields() {
         dl_session_code_field.clear();
         dl_camera_name_field.clear();
+    }
+
+    function validateInput() {
+        if (dl_session_code_field.input.length === 11)
+            dl_join_session_bg.joinClicked(dl_session_code_field.input, dl_camera_name_field.input);
+        else {
+            dl_session_code_field.state = "invalid";
+        }
     }
 
     Layout.fillWidth: true
@@ -73,6 +83,8 @@ Rectangle {
             emptyText: "Enter code (XXXX-XXXXXX)"
             maxLength: 11
             isCode: true
+
+            onAccepted: dl_join_session_bg.validateInput()
         }
 
         Text {
@@ -107,13 +119,7 @@ Rectangle {
             button_type: DLButton.ButtonType.Primary
             button_text: "Join Session"
 
-            onClicked: {
-                if (dl_session_code_field.input.length === 11)
-                    dl_join_session_bg.joinClicked(dl_session_code_field.input, dl_camera_name_field.input);
-                else {
-                    dl_session_code_field.state = "invalid";
-                }
-            }
+            onClicked: dl_join_session_bg.validateInput()
         }
 
         DLButton {
