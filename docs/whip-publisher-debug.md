@@ -621,86 +621,33 @@ with identical timestamps, which previously caused a
 
 ---
 
-## Ongoing issue — director display shows 4-quadrant magenta/green artifact
+## Resolved — director display showed 4-quadrant magenta/green artifact
 
 ### Symptom
 
-The director's camera feed displays the image as a 2×2 grid of identical
-sub-images.  The top two quadrants have a strong magenta tint; the bottom two
-have a green tint.  Flashing a bright light at the camera causes the top and
-bottom halves to swap colors (top becomes green, bottom becomes magenta).
+The director's camera feed displayed the image as a 2×2 grid of identical
+sub-images.  The top two quadrants had a strong magenta tint; the bottom two
+had a green tint.  The main underlying image was black and white — only color
+was wrong, luminance was correct.
 
-### What we've confirmed
+### Root cause
 
-**Diagnostic logging added to `test_stream_lifecycle` and `FrameReader`.**
+**NVENCEncoder pixel format mismatch** in
+`video-core/src/encode/nvenc_encoder.cpp`.
 
-The test's `QVideoSink::videoFrameChanged` callback and `FrameReader::pushFrame`
-both show the incoming LiveKit frame is correctly formed at the Qt layer:
+`createEncoder()` auto-upgrades to NVENC when `h264_nvenc` is available.
+NVENC was configured with `codecCtx_->pix_fmt = AV_PIX_FMT_NV12` but the
+camera capture produces YUV420P (I420). The `encodeFrame()` method only
+converted when input was NOT YUV420P, so I420 data was sent directly to
+NVENC which interpreted it as NV12. Both formats share the same Y plane
+but have different chroma layouts (I420: separate U/V at stride W/2;
+NV12: interleaved UV at stride W), causing NVENC to read chroma at half
+the expected stride — producing the 2×2 tiling artifact.
 
-```
-[FrameReader] incoming: type=0 dataSize=3686400 dims=1280x720
-[FrameReader] stride OK: 5120
-[lifecycle] Qt frame #1: Format_RGBA8888  bytesPerLine(0)=5120  mappedBytes(0)=3686400
-```
+### Fix
 
-- `type=0` → RGBA (SDK confirmed it)
-- `dataSize=3686400` = `1280 × 720 × 4` (correct for packed RGBA)
-- `bytesPerLine(0)=5120` = `1280 × 4` (no stride padding)
-- Sampled pixel values: `R=G=B` everywhere sampled — correct grayscale, `A=255`
-- PPM frame dump to `/tmp/frame_dump.ppm` confirmed no 4-quadrant structure in raw bytes
-- Quadrant comparison: top-left vs top-right match rate ≈ 8% (random) — image is NOT tiled in memory
+Changed `codecCtx_->pix_fmt` from `AV_PIX_FMT_NV12` to
+`AV_PIX_FMT_YUV420P` and fixed the conversion check to compare against
+`codecCtx_->pix_fmt` instead of hardcoding YUV420P.
 
-The raw `QVideoFrame` data is correct. The visual artifact is introduced downstream in
-Qt's rendering pipeline (VideoOutput → QSGVideoNode → GPU texture).
-
-### What we tried that did not fix it
-
-1. **Switched from `VideoBufferType::RGBA` to `VideoBufferType::I420`** in
-   `DirectorSession::attachTrack` and rewrote `FrameReader::pushFrame` to copy
-   the three I420 planes into a `Format_YUV420P` QVideoFrame, bypassing the
-   SDK-side I420→RGBA conversion entirely.
-
-   Result: test passes (69% receive ratio, EXIT 0).  Visual artifact unchanged.
-   The I420 path is committed and left in place as it is structurally cleaner,
-   but it did not resolve the display issue.
-
-### Leading theory
-
-The bug is in Qt's rendering of `QVideoFrame` inside `VideoOutput` on this
-platform.  Either:
-
-- Qt's multimedia backend is re-encoding the frame into a GPU texture format
-  that does not match the declared `QVideoFrameFormat`, OR
-- The `VideoOutput` scenegraph node is applying wrong texture coordinates or
-  an incorrect shader for the delivered pixel format.
-
-The artifact (4 copies, top/bottom color inversion) is geometrically consistent
-with the chroma (U/V) planes being placed at wrong vertical offsets in the
-texture — which would be a backend-side I420/NV12 re-interpretation of the
-frame even after we deliver it in the requested format.
-
-### Where to go next
-
-**Isolate whether the encoding/streaming pipeline is the source, or Qt's rendering.**
-
-The best first step is to add a live camera preview on the **operator side**
-before the video enters the WHIP pipeline.  This gives us a split view:
-
-- The operator preview uses Qt Multimedia (`CameraDevice` / `QVideoSink`) to
-  display the raw camera feed directly — no encoding, no streaming.
-- The director feed goes through H.264 encode → WHIP → LiveKit → decode → display.
-
-If both look the same (same 4-quadrant artifact), the problem is in Qt's
-`VideoOutput` rendering on this machine, independent of streaming.
-
-If only the director feed has the artifact, the problem is introduced somewhere
-in the encode → stream → decode path.
-
-**Operator preview implementation sketch:**
-
-Add a `QCamera` + `QVideoSink` in `CameraSessionController` (or a new
-`CameraPreview` component) that feeds the raw frames into the same
-`FrameReader` / `VideoOutput` path as the director, but sourced directly from
-the camera capture before encoding.  A separate `VideoOutput` in the
-`SessionPage` for the camera role would display it alongside or instead of a
-placeholder.
+See `docs/videooutput-artifact-debug.md` for the full investigation log.
