@@ -71,6 +71,10 @@ Result SoftwareEncoder::initialize(
     // tune — always set for live streaming regardless of preset
     // disables encoder features that add latency (e.g., B-frames, lookahead)
     av_dict_set(&options, "tune", "zerolatency", 0);
+    // Profile must be set via AVDictionary — codecCtx_->profile is ignored
+    // by FFmpeg's libx264 wrapper. Constrained Baseline is required for
+    // WebRTC compatibility (no CABAC, no B-frames).
+    av_dict_set(&options, "profile", "baseline", 0);
 
     if (avcodec_open2(codecCtx_, encoder, &options) < 0) {
         av_dict_free(&options);
