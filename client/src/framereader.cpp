@@ -68,55 +68,69 @@ void FrameReader::pushFrame(livekit::VideoFrame frame) {
         return;
     }
 
-    qDebug() << "[FrameReader] incoming:"
-             << "type=" << static_cast<int>(frame.type())
-             << "dataSize=" << static_cast<int>(frame.dataSize())
-             << "dims=" << frame.width() << "x" << frame.height();
-
-    // I420 is the native H.264 decoder output. Push it directly as YUV420P so
-    // Qt's VideoOutput can use its native YUV shader, bypassing the SDK-side
-    // I420→RGBA conversion that was producing the 4-quadrant color artifact.
+    // I420 is the native H.264 decoder output. Deliver directly to Qt as
+    // YUV420P via planeInfos() for correct plane pointers/strides.
     if (frame.type() == livekit::VideoBufferType::I420) {
         if (m_videoSink == nullptr) {
             qWarning() << "[FrameReader] Video sink not set. Skipping frame.";
             return;
         }
 
-        const int w      = frame.width();
-        const int h      = frame.height();
-        const int y_size = w * h;
-        const int uv_size = (w / 2) * (h / 2);
+        const int w = frame.width();
+        const int h = frame.height();
 
-        QVideoFrameFormat fmt(dimensions, QVideoFrameFormat::Format_YUV420P);
-        QVideoFrame vf(fmt);
+        auto planes = frame.planeInfos();
+        if (planes.size() < 3) {
+            qWarning() << "[FrameReader] I420 frame has" << planes.size()
+                       << "planes, expected 3. Falling back to SDK convert.";
+            // Fall through to the SDK RGBA conversion path below.
+        } else {
+            const auto *y_plane = reinterpret_cast<const uint8_t *>(planes[0].data_ptr);
+            const auto *u_plane = reinterpret_cast<const uint8_t *>(planes[1].data_ptr);
+            const auto *v_plane = reinterpret_cast<const uint8_t *>(planes[2].data_ptr);
+            const int y_stride = static_cast<int>(planes[0].stride);
+            const int u_stride = static_cast<int>(planes[1].stride);
+            const int v_stride = static_cast<int>(planes[2].stride);
 
-        if (!vf.map(QVideoFrame::WriteOnly)) {
-            qWarning() << "[FrameReader] Failed to map YUV420P frame. Pushing placeholder.";
-            pushFrame();
+            QVideoFrameFormat fmt(QSize(w, h), QVideoFrameFormat::Format_YUV420P);
+            QVideoFrame vf(fmt);
+
+            if (!vf.map(QVideoFrame::WriteOnly)) {
+                qWarning() << "[FrameReader] Failed to map YUV420P frame.";
+                return;
+            }
+
+            // Copy Y plane
+            const int dst_y_stride = vf.bytesPerLine(0);
+            auto *dst_y = vf.bits(0);
+            for (int row = 0; row < h; ++row) {
+                std::memcpy(dst_y + row * dst_y_stride,
+                            y_plane + row * y_stride,
+                            static_cast<size_t>(w));
+            }
+
+            // Copy U plane
+            const int dst_u_stride = vf.bytesPerLine(1);
+            auto *dst_u = vf.bits(1);
+            for (int row = 0; row < h / 2; ++row) {
+                std::memcpy(dst_u + row * dst_u_stride,
+                            u_plane + row * u_stride,
+                            static_cast<size_t>(w / 2));
+            }
+
+            // Copy V plane
+            const int dst_v_stride = vf.bytesPerLine(2);
+            auto *dst_v = vf.bits(2);
+            for (int row = 0; row < h / 2; ++row) {
+                std::memcpy(dst_v + row * dst_v_stride,
+                            v_plane + row * v_stride,
+                            static_cast<size_t>(w / 2));
+            }
+
+            vf.unmap();
+            m_videoSink->setVideoFrame(vf);
             return;
         }
-
-        // Copy each plane row-by-row to respect Qt's internal stride padding.
-        const uint8_t *y_src = src;
-        const uint8_t *u_src = src + y_size;
-        const uint8_t *v_src = src + y_size + uv_size;
-
-        for (int row = 0; row < h; ++row) {
-            const auto dst_y  = static_cast<ptrdiff_t>(row) * vf.bytesPerLine(0);
-            const auto src_y  = static_cast<ptrdiff_t>(row) * w;
-            std::memcpy(vf.bits(0) + dst_y, y_src + src_y, static_cast<std::size_t>(w));
-        }
-        for (int row = 0; row < h / 2; ++row) {
-            const auto dst_u  = static_cast<ptrdiff_t>(row) * vf.bytesPerLine(1);
-            const auto dst_v  = static_cast<ptrdiff_t>(row) * vf.bytesPerLine(2);
-            const auto src_uv = static_cast<ptrdiff_t>(row) * (w / 2);
-            std::memcpy(vf.bits(1) + dst_u, u_src + src_uv, static_cast<std::size_t>(w / 2));
-            std::memcpy(vf.bits(2) + dst_v, v_src + src_uv, static_cast<std::size_t>(w / 2));
-        }
-
-        vf.unmap();
-        m_videoSink->setVideoFrame(vf);
-        return;
     }
 
     // Fallback: convert to RGBA and push as RGBA8888.
@@ -134,6 +148,7 @@ void FrameReader::pushFrame(livekit::VideoFrame frame) {
     }
 
     std::span<const uint8_t> data(frame.data(), frame.dataSize());
+
     bool success = pushSpan(data, dimensions, QVideoFrameFormat::Format_RGBA8888);
 
     if (!success) {
