@@ -20,7 +20,7 @@ func NewSessionID() string {
 // Creates human readable room code
 func NewRoomCode(ctx context.Context, store Store) (string, error) {
 	for range maxRoomAttempts {
-		n, err := rand.Int(rand.Reader, big.NewInt(10000))
+		n, err := rand.Int(rand.Reader, big.NewInt(1_00_00_00)) // six digits
 		code := fmt.Sprintf("ROOM-%06d", n.Int64())
 		if err != nil {
 			return "", err
