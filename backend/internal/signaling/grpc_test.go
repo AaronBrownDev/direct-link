@@ -16,6 +16,71 @@ import (
 	"github.com/livekit/protocol/livekit"
 )
 
+// --- Stub Store ---
+
+// stubStore implements session.Store with overridable function fields.
+// Unset fields return zero values; only the methods exercised by a given test
+// need to be populated.
+type stubStore struct {
+	getSessionByRoomCodeFunc func(ctx context.Context, code string) (*session.Session, error)
+	grantAccessFunc          func(ctx context.Context, sessionID, userID, role string) error
+	addIngressIDFunc         func(ctx context.Context, sessionID, ingressID string) error
+	getIngressIDsFunc        func(ctx context.Context, sessionID string) ([]string, error)
+	updateSessionStatusFunc  func(ctx context.Context, sessionID, status string) error
+}
+
+func (s *stubStore) GetSessionByRoomCode(ctx context.Context, code string) (*session.Session, error) {
+	if s.getSessionByRoomCodeFunc != nil {
+		return s.getSessionByRoomCodeFunc(ctx, code)
+	}
+	return nil, session.ErrSessionNotFound
+}
+
+func (s *stubStore) GrantAccess(ctx context.Context, sessionID, userID, role string) error {
+	if s.grantAccessFunc != nil {
+		return s.grantAccessFunc(ctx, sessionID, userID, role)
+	}
+	return nil
+}
+
+func (s *stubStore) AddIngressID(ctx context.Context, sessionID, ingressID string) error {
+	if s.addIngressIDFunc != nil {
+		return s.addIngressIDFunc(ctx, sessionID, ingressID)
+	}
+	return nil
+}
+
+func (s *stubStore) GetIngressIDs(ctx context.Context, sessionID string) ([]string, error) {
+	if s.getIngressIDsFunc != nil {
+		return s.getIngressIDsFunc(ctx, sessionID)
+	}
+	return nil, nil
+}
+
+func (s *stubStore) UpdateSessionStatus(ctx context.Context, sessionID, status string) error {
+	if s.updateSessionStatusFunc != nil {
+		return s.updateSessionStatusFunc(ctx, sessionID, status)
+	}
+	return nil
+}
+
+func (s *stubStore) CreateSession(_ context.Context, _ *session.Session) error { return nil }
+func (s *stubStore) GetSession(_ context.Context, _ string) (*session.Session, error) {
+	return nil, nil
+}
+func (s *stubStore) DeleteSession(_ context.Context, _ string) error { return nil }
+func (s *stubStore) GetExpiredSessions(_ context.Context, _ time.Time) ([]session.Session, error) {
+	return nil, nil
+}
+func (s *stubStore) GetRole(_ context.Context, _, _ string) (string, error) { return "", nil }
+func (s *stubStore) RevokeAccess(_ context.Context, _, _ string) error      { return nil }
+func (s *stubStore) HasAccess(_ context.Context, _, _ string) (bool, error) { return false, nil }
+func (s *stubStore) GetUserSessions(_ context.Context, _ string) ([]session.Session, error) {
+	return nil, nil
+}
+func (s *stubStore) Ping(_ context.Context) error { return nil }
+func (s *stubStore) Close() error                 { return nil }
+
 // --- Mock ingress client ---
 
 type mockIngressClient struct {
@@ -36,9 +101,22 @@ func (m *mockIngressClient) DeleteIngress(_ context.Context, req *livekit.Delete
 	return &livekit.IngressInfo{IngressId: req.IngressId}, nil
 }
 
+type mockRoomClient struct {
+	deleteFunc func(*livekit.DeleteRoomRequest) (*livekit.DeleteRoomResponse, error)
+	deletedIDs []string
+}
+
+func (m *mockRoomClient) DeleteRoom(_ context.Context, req *livekit.DeleteRoomRequest) (*livekit.DeleteRoomResponse, error) {
+	m.deletedIDs = append(m.deletedIDs, req.Room)
+	if m.deleteFunc != nil {
+		return m.deleteFunc(req)
+	}
+	return &livekit.DeleteRoomResponse{}, nil
+}
+
 // --- Helpers ---
 
-func newUnitTestServer(t *testing.T, mock *mockIngressClient) *Server {
+func newUnitTestServer(t *testing.T, mockIngress *mockIngressClient, mockRoom *mockRoomClient) *Server {
 	t.Helper()
 
 	mr := miniredis.RunT(t)
@@ -56,7 +134,8 @@ func newUnitTestServer(t *testing.T, mock *mockIngressClient) *Server {
 		cfg:             DefaultConfig(),
 		store:           store,
 		logger:          slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
-		lkIngressClient: mock,
+		lkIngressClient: mockIngress,
+		lkClient:        mockRoom,
 		metrics:         metrics.New(),
 	}
 }
@@ -83,6 +162,10 @@ func defaultMockIngress() *mockIngressClient {
 			}, nil
 		},
 	}
+}
+
+func defaultMockRoom() *mockRoomClient {
+	return &mockRoomClient{}
 }
 
 // --- JoinSession tests ---
@@ -125,14 +208,15 @@ func TestJoinSession(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := defaultMockIngress()
+			mockIngress := defaultMockIngress()
+			mockRoom := defaultMockRoom()
 			if tt.ingressErr != nil {
-				mock.createFunc = func(_ *livekit.CreateIngressRequest) (*livekit.IngressInfo, error) {
+				mockIngress.createFunc = func(_ *livekit.CreateIngressRequest) (*livekit.IngressInfo, error) {
 					return nil, tt.ingressErr
 				}
 			}
 
-			srv := newUnitTestServer(t, mock)
+			srv := newUnitTestServer(t, mockIngress, mockRoom)
 			seedSession(t, srv.store)
 
 			reply, err := srv.JoinSession(context.Background(), &pb.JoinRequest{
@@ -173,7 +257,7 @@ func TestJoinSession(t *testing.T) {
 // --- Ingress ID storage test ---
 
 func TestJoinSession_CameraRole_StoresIngressID(t *testing.T) {
-	srv := newUnitTestServer(t, defaultMockIngress())
+	srv := newUnitTestServer(t, defaultMockIngress(), defaultMockRoom())
 	sess := seedSession(t, srv.store)
 
 	_, err := srv.JoinSession(context.Background(), &pb.JoinRequest{
@@ -191,6 +275,50 @@ func TestJoinSession_CameraRole_StoresIngressID(t *testing.T) {
 	}
 	if len(ids) != 1 || ids[0] != "ingress-abc" {
 		t.Errorf("expected [ingress-abc] in Redis, got %v", ids)
+	}
+}
+
+// Verifies that if GrantAccess fails after a successful CreateIngress, the ingress is deleted
+// and no partial state is left in Redis.
+func TestJoinSession_CameraRole_RollsBackIngressOnGrantAccessFailure(t *testing.T) {
+	seededSession := &session.Session{
+		ID: "test-session-id", RoomCode: "ROOM-TEST", CreatedBy: "director-1",
+		CreatedAt: time.Now().UTC(), MaxCameras: 4, Status: "active",
+	}
+	grantErr := errors.New("simulated GrantAccess failure")
+
+	store := &stubStore{
+		getSessionByRoomCodeFunc: func(_ context.Context, _ string) (*session.Session, error) {
+			return seededSession, nil
+		},
+		grantAccessFunc: func(_ context.Context, _, _, _ string) error {
+			return grantErr
+		},
+	}
+
+	mockIngress := defaultMockIngress()
+	srv := &Server{
+		cfg:             Config{LiveKitHost: "http://localhost:7880", LiveKitExternalURL: "ws://localhost:7880", LiveKitAPIKey: "devkey", LiveKitAPISecret: "secret"},
+		store:           store,
+		logger:          slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		lkIngressClient: mockIngress,
+		lkClient:        defaultMockRoom(),
+		metrics:         metrics.New(),
+	}
+
+	_, err := srv.JoinSession(context.Background(), &pb.JoinRequest{
+		RoomCode: seededSession.RoomCode,
+		UserId:   "camera-rollback",
+		Role:     "camera",
+	})
+
+	if err == nil {
+		t.Fatal("expected error when GrantAccess fails")
+	}
+
+	// The ingress should have been rolled back via DeleteIngress
+	if len(mockIngress.deletedIDs) != 1 || mockIngress.deletedIDs[0] != "ingress-abc" {
+		t.Errorf("expected ingress-abc to be rolled back, got deletedIDs=%v", mockIngress.deletedIDs)
 	}
 }
 
@@ -216,8 +344,9 @@ func TestCloseSession_IngressCleanup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := defaultMockIngress()
-			srv := newUnitTestServer(t, mock)
+			mockIngress := defaultMockIngress()
+			mockRoom := defaultMockRoom()
+			srv := newUnitTestServer(t, mockIngress, mockRoom)
 			sess := seedSession(t, srv.store)
 
 			for _, id := range tt.ingressIDs {
@@ -234,8 +363,13 @@ func TestCloseSession_IngressCleanup(t *testing.T) {
 				t.Fatalf("CloseSession: %v", err)
 			}
 
-			if len(mock.deletedIDs) != tt.wantDeleteCount {
-				t.Errorf("expected %d DeleteIngress calls, got %d", tt.wantDeleteCount, len(mock.deletedIDs))
+			if len(mockIngress.deletedIDs) != tt.wantDeleteCount {
+				t.Errorf("expected %d DeleteIngress calls, got %d", tt.wantDeleteCount, len(mockIngress.deletedIDs))
+			}
+
+			// Verify the LiveKit room was also deleted
+			if len(mockRoom.deletedIDs) != 1 || mockRoom.deletedIDs[0] != sess.ID {
+				t.Errorf("expected DeleteRoom called with %q, got %v", sess.ID, mockRoom.deletedIDs)
 			}
 		})
 	}

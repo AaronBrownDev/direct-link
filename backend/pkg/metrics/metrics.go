@@ -16,6 +16,7 @@ type Metrics struct {
 	// Business metrics
 	SessionsActive        prometheus.Gauge
 	SessionsCreatedTotal  prometheus.Counter
+	SessionsExpiredTotal  prometheus.Counter
 	TokenGenerationsTotal *prometheus.CounterVec
 
 	// Redis metrics
@@ -41,6 +42,12 @@ func New() *Metrics {
 			Namespace: "directlink",
 			Name:      "sessions_created_total",
 			Help:      "Total number of sessions created.",
+		}),
+
+		SessionsExpiredTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "directlink",
+			Name:      "sessions_expired_total",
+			Help:      "Total number of sessions expired by the janitor, due to TTL expiry.",
 		}),
 
 		TokenGenerationsTotal: prometheus.NewCounterVec(
