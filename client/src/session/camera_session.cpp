@@ -40,6 +40,15 @@ bool CameraSession::start(const std::string &whipUrl,
         return false; // Failed to initialize WHIP publisher
     }
 
+    // The WHIP publisher is started first to set running_ to true 
+    // before producing frames to avoid dropping frames during
+    // publisher startup.
+    auto publisherResult = whipPublisher_.start();
+    if (publisherResult != networking::Result::Success) {
+        pipeline_.stop();
+        return false;
+    }
+
     auto pipelineResult =
         pipeline_.start([this](std::unique_ptr<videoCore::Packet> pkt) {
             whipPublisher_.pushPacket(std::move(pkt));
@@ -50,11 +59,7 @@ bool CameraSession::start(const std::string &whipUrl,
         return false;
     }
 
-    auto publisherResult = whipPublisher_.start();
-    if (publisherResult != networking::Result::Success) {
-        pipeline_.stop();
-        return false;
-    }
+    
 
     isRunning_ = true;
     return true;
