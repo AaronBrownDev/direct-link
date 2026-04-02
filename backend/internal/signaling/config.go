@@ -26,6 +26,10 @@ type Config struct {
 	LiveKitExternalURL string
 	LiveKitAPIKey      string
 	LiveKitAPISecret   string
+
+	// Janitor Cleanup
+	JanitorInterval time.Duration
+	JanitorLockTTL  time.Duration
 }
 
 func DefaultConfig() Config {
@@ -49,6 +53,9 @@ func DefaultConfig() Config {
 		LiveKitExternalURL: "ws://localhost:7880",
 		LiveKitAPIKey:      "devkey",                           // dev default
 		LiveKitAPISecret:   "dev-secret-that-is-32-chars-long", // dev default
+
+		JanitorInterval: 1 * time.Minute,
+		JanitorLockTTL:  5 * time.Minute,
 	}
 }
 
@@ -77,6 +84,18 @@ func LoadConfig() Config {
 
 	if secret := os.Getenv("LIVEKIT_API_SECRET"); secret != "" {
 		cfg.LiveKitAPISecret = secret
+	}
+
+	if interval := os.Getenv("JANITOR_INTERVAL"); interval != "" {
+		if d, err := time.ParseDuration(interval); err == nil {
+			cfg.JanitorInterval = d
+		}
+	}
+
+	if lockTTL := os.Getenv("JANITOR_LOCK_TTL"); lockTTL != "" {
+		if d, err := time.ParseDuration(lockTTL); err == nil {
+			cfg.JanitorLockTTL = d
+		}
 	}
 
 	return cfg
