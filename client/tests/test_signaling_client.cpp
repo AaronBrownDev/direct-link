@@ -24,7 +24,7 @@ int main(int argc, char *argv[]) {
     QEventLoop c_join_loop;
     QEventLoop close_loop;
 
-    client.connectToServer(QUrl("http://localhost:50051"));
+    client.connectToServer(QUrl("http://34.174.71.83:50051"));
 
     // ------------------------------------
     // ERROR HANDLER
