@@ -12,7 +12,28 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia Concurrent Protobuf Grpc)
 find_package(PkgConfig REQUIRED)
-find_package(Microsoft.GSL CONFIG REQUIRED)
+find_package(Microsoft.GSL CONFIG)
+find_package(fmt CONFIG)
+if(NOT fmt_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        fmt
+        URL https://github.com/fmtlib/fmt/archive/refs/tags/11.1.4.tar.gz
+        URL_HASH SHA256=b888d55b0caf8f2f213a94f2b7d58bf2e2630ff0b0c87f8c5c74e2ab1b770289
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(fmt)
+endif()
+if(NOT Microsoft.GSL_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        microsoft_gsl
+        URL https://github.com/microsoft/GSL/archive/refs/tags/v4.2.0.tar.gz
+        URL_HASH SHA256=2c717545a073649126cb99ebd493fa2ae23120077968795d2c69cbab821e4ac6
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(microsoft_gsl)
+endif()
 pkg_check_modules(FFMPEG REQUIRED
     libavcodec
     libavutil
@@ -67,8 +88,8 @@ qt_add_grpc(signaling_grpc CLIENT
 
 target_link_libraries(signaling_grpc PRIVATE signaling_proto)
 
-# LiveKit SDK (pre-built in container)
-set(LIVEKIT_DIR /home/vscode/livekit-cpp)
+# LiveKit SDK — can be overriden with -DLIVEKIT_DIR=<path> at configure time
+set(LIVEKIT_DIR "/home/vscode/livekit-cpp" CACHE PATH "Path to livekit-cpp SDK directory")
 
 add_library(livekit SHARED IMPORTED)
 set_target_properties(livekit PROPERTIES
@@ -123,6 +144,7 @@ target_link_libraries(direct-link PRIVATE
     signaling_grpc
     livekit
     livekit_ffi
+    fmt
     directlink_appplugin
     directlink_uiplugin
     directlink_ui_controlsplugin
