@@ -65,7 +65,7 @@ func (s *Server) joinAsCamera(ctx context.Context, req *pb.JoinRequest, sess *se
 		s.logger.Error("failed to grant access, rolling back ingress", "session_id", sess.ID, "user_id", req.UserId, "ingress_id", info.IngressId, "error", err)
 		if _, delErr := s.lkIngressClient.DeleteIngress(ctx, &livekit.DeleteIngressRequest{
 			IngressId: info.IngressId}); delErr != nil {
-			s.logger.Warn("rollback failed: could not delete ingress", "ingress_id", info.IngressId, "error", err)
+			s.logger.Warn("rollback failed: could not delete ingress", "ingress_id", info.IngressId, "error", delErr)
 		}
 		return nil, status.Error(codes.Internal, "failed to grant access")
 	}

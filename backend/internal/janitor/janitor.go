@@ -8,12 +8,14 @@ import (
 
 	"github.com/AaronBrownDev/direct-link/pkg/metrics"
 	"github.com/AaronBrownDev/direct-link/pkg/session"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
 const (
 	// Redis key used to elect a single janitor leader. Runs the sweep
 	janitorLockKey = "janitor:lock"
+	sessionClosed  = "closed"
 )
 
 var releaseLockScript = redis.NewScript(`
@@ -56,6 +58,7 @@ func New(
 		logger:      logger,
 		interval:    interval,
 		lockTTL:     lockTTL,
+		instanceID:  uuid.New().String(),
 		metrics:     m,
 	}
 }
@@ -84,7 +87,7 @@ func (j *Janitor) Run(ctx context.Context) {
 }
 
 func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
-	result, err := j.redisClient.SetArgs(ctx, janitorLockKey, "1", redis.SetArgs{
+	result, err := j.redisClient.SetArgs(ctx, janitorLockKey, j.instanceID, redis.SetArgs{
 		TTL:  j.lockTTL,
 		Mode: "NX",
 	}).Result()
@@ -99,7 +102,9 @@ func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
 	}
 
 	defer func() {
-		if err := releaseLockScript.Run(ctx, j.redisClient, []string{janitorLockKey}, j.instanceID).Err(); err != nil && !errors.Is(err, redis.Nil) {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := releaseLockScript.Run(releaseCtx, j.redisClient, []string{janitorLockKey}, j.instanceID).Err(); err != nil && !errors.Is(err, redis.Nil) {
 			j.logger.Warn("janitor failed to release sweep lock", "error", err)
 		}
 	}()
@@ -127,7 +132,7 @@ func (j *Janitor) closeExpiredSession(ctx context.Context, sess session.Session)
 		log.Warn("janitor LiveKit cleanup incomplete", "error", err)
 	}
 
-	if err := j.store.UpdateSessionStatus(ctx, sess.ID, "closed"); err != nil {
+	if err := j.store.UpdateSessionStatus(ctx, sess.ID, sessionClosed); err != nil {
 		log.Error("janitor failed to mark session closed", "error", err)
 		return // metrics not incremented
 	}

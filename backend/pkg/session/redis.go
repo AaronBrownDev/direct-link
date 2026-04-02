@@ -282,7 +282,9 @@ func (r *RedisStore) GetExpiredSessions(ctx context.Context, now time.Time) (ses
 			return nil, fmt.Errorf("failed to get expired session %s: %w", sessionID, err)
 		}
 		if session.Status == statusClosed {
-			r.client.ZRem(ctx, activeSessionsKey, sessionID)
+			if zErr := r.client.ZRem(ctx, activeSessionsKey, sessionID); zErr != nil {
+				r.logger.Warn("failed to remove expired session", "session_id", session.ID, "error", zErr)
+			}
 			continue
 		}
 		sessions = append(sessions, *session)

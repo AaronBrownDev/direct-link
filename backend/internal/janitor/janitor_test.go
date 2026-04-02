@@ -2,6 +2,7 @@ package janitor_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"testing"
@@ -26,6 +27,14 @@ const (
 
 	sessionIsClosed = "closed"
 )
+
+type getExpiredSessionsFailure struct {
+	session.Store
+}
+
+func (s *getExpiredSessionsFailure) GetExpiredSessions(_ context.Context, _ time.Time) ([]session.Session, error) {
+	return nil, errors.New("simulated GetExpiredSessions failure")
+}
 
 // --- Helpers ---
 
@@ -193,13 +202,10 @@ func TestJanitor_RedisError(t *testing.T) {
 
 	ctx := context.Background()
 
-	sess := newSession("sess-4", "ROOM-000004", "director-4")
-	if err := store.CreateSession(ctx, sess); err != nil {
-		t.Fatalf("CreateSession: %v", err)
-	}
+	failStore := &getExpiredSessionsFailure{Store: store}
 
 	deleteRoomCalled := false
-	j := newTestJanitor(store, newLockClient(mr), func(_ context.Context, _ string) error {
+	j := newTestJanitor(failStore, newLockClient(mr), func(_ context.Context, _ string) error {
 		deleteRoomCalled = true
 		return nil
 	})
