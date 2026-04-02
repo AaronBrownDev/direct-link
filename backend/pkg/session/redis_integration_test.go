@@ -61,16 +61,19 @@ func TestRedisConnection(t *testing.T) {
 }
 
 func TestRedisStoreIntegration(t *testing.T) {
-	store, err := session.NewRedisStore(
-		redisAddr(),
-		"",
-		0,
-		10,
-		2,
-		5*time.Second,
-		3*time.Second,
-		3*time.Second,
-		24*time.Hour)
+	store, err := session.NewRedisStore(session.RedisConfig{
+		Addr:         redisAddr(),
+		Password:     "",
+		Db:           0,
+		PoolSize:     10,
+		MinIdleConns: 2,
+		DialTimeout:  time.Second,
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+		SessionTTL:   24 * time.Hour,
+		MaxRetries:   3,
+		RetryBackoff: 100 * time.Millisecond,
+	})
 
 	if err != nil {
 		t.Fatalf("Failed to connect to Redis: %v", err)

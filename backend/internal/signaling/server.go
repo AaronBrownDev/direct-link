@@ -62,17 +62,20 @@ func NewServer(cfg Config, logger *slog.Logger) *Server {
 
 func (s *Server) initStore() {
 
-	store, err := session.NewRedisStore(
-		s.cfg.RedisAddr,
-		s.cfg.RedisPassword,
-		s.cfg.RedisDB,
-		s.cfg.RedisPoolSize,
-		s.cfg.RedisMinIdle,
-		s.cfg.RedisDialTimeout,
-		s.cfg.RedisReadTimeout,
-		s.cfg.RedisWriteTimeout,
-		s.cfg.SessionTTL,
-	)
+	store, err := session.NewRedisStore(session.RedisConfig{
+		Addr:         s.cfg.RedisAddr,
+		Password:     s.cfg.RedisPassword,
+		Db:           s.cfg.RedisDB,
+		PoolSize:     s.cfg.RedisPoolSize,
+		MinIdleConns: s.cfg.RedisMinIdle,
+		DialTimeout:  s.cfg.RedisDialTimeout,
+		ReadTimeout:  s.cfg.RedisReadTimeout,
+		WriteTimeout: s.cfg.RedisWriteTimeout,
+		SessionTTL:   s.cfg.SessionTTL,
+		MaxRetries:   s.cfg.RedisMaxRetries,
+		RetryBackoff: s.cfg.RedisRetryBackoff,
+	})
+
 	if err != nil {
 		s.logger.Error("failed to create Redis store", "error", err)
 		os.Exit(1) // TODO: look into if this exit is safe
