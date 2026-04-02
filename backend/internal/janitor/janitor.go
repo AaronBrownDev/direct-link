@@ -102,10 +102,10 @@ func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
 	}
 
 	defer func() { //nolint:contextcheck // ctx may be cancelled on shutdown; a fresh context is required to release the lock
-		j.logger.Warn("janitor failed to release sweep lock", "error", err)
 		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := releaseLockScript.Run(releaseCtx, j.redisClient, []string{janitorLockKey}, j.instanceID).Err(); err != nil && !errors.Is(err, redis.Nil) {
+			j.logger.Warn("janitor failed to release sweep lock", "error", err)
 		}
 	}()
 
