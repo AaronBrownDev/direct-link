@@ -182,12 +182,16 @@ func (r *RedisStore) GetSessionByRoomCode(ctx context.Context, code string) (ses
 	}()
 
 	roomCodeKey := roomCodePrefix + code
-
-	// Get session ID from room code
-	sessionID, err := r.client.Get(ctx, roomCodeKey).Result()
-	if errors.Is(err, redis.Nil) {
-		return nil, ErrInvalidRoomCode
-	}
+	var sessionID string
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		// Get session ID from room code
+		sessionID, e = r.client.Get(ctx, roomCodeKey).Result()
+		if errors.Is(e, redis.Nil) {
+			return ErrInvalidRoomCode
+		}
+		return e
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +226,7 @@ func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, 
 	// If closing, remove from active sessions
 	if status == statusClosed {
 		if zErr := r.client.ZRem(ctx, activeSessionsKey, sessionID); zErr != nil {
-			slog.Warn("failed to remove session from active set", "session_id", sessionID, "error", zErr)
+			slog.Info("failed to remove session from active set", "session_id", sessionID, "error", zErr)
 		}
 	}
 
@@ -489,6 +493,9 @@ func isRedisErr(err error) bool {
 	if err == nil {
 		return false
 	}
+	if errors.Is(err, redis.Nil) {
+		return false
+	}
 	return !errors.Is(err, ErrSessionNotFound) &&
 		!errors.Is(err, ErrInvalidRoomCode) &&
 		!errors.Is(err, ErrSessionClosed)
@@ -501,6 +508,9 @@ func isRetryable(err error) bool {
 		return false
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if errors.Is(err, redis.Nil) {
 		return false
 	}
 	if errors.Is(err, ErrSessionNotFound) ||
