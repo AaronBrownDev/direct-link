@@ -26,6 +26,20 @@ const (
 	statusClosed = "closed"
 )
 
+type RedisConfig struct {
+	Addr         string
+	Password     string
+	Db           int
+	PoolSize     int
+	MinIdleConns int
+	DialTimeout  time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	SessionTTL   time.Duration
+	MaxRetries   int
+	RetryBackoff time.Duration
+}
+
 // RedisStore implements the Store interface using redis
 type RedisStore struct {
 	client       *redis.Client
@@ -36,29 +50,18 @@ type RedisStore struct {
 }
 
 // NewRedisStore creates a new Redis-backed store
-func NewRedisStore(addr string,
-	password string,
-	db int,
-	poolSize int,
-	minIdleConns int,
-	dialTimeout time.Duration,
-	readTimeout time.Duration,
-	writeTimeout time.Duration,
-	sessionTTL time.Duration,
-	maxRetries int,
-	backoff time.Duration) (*RedisStore, error) {
+func NewRedisStore(cfg RedisConfig) (*RedisStore, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:         addr,
-		Password:     password,
-		DB:           db,
-		PoolSize:     poolSize,
-		MinIdleConns: minIdleConns,
-		DialTimeout:  dialTimeout,
-		ReadTimeout:  readTimeout,
-		WriteTimeout: writeTimeout,
+		Addr:         cfg.Addr,
+		Password:     cfg.Password,
+		DB:           cfg.Db,
+		PoolSize:     cfg.PoolSize,
+		MinIdleConns: cfg.MinIdleConns,
+		DialTimeout:  cfg.DialTimeout,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
 	})
 
-	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -68,11 +71,10 @@ func NewRedisStore(addr string,
 
 	return &RedisStore{
 		client:       client,
-		sessionTTL:   sessionTTL,
-		maxRetries:   maxRetries,
-		retryBackOff: backoff,
+		sessionTTL:   cfg.SessionTTL,
+		maxRetries:   cfg.MaxRetries,
+		retryBackOff: cfg.RetryBackoff,
 	}, nil
-
 }
 
 // CreateSession stores a new session in Redis

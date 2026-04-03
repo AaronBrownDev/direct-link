@@ -15,8 +15,6 @@ func newSessionTestStore(t *testing.T) (session.Store, *miniredis.Miniredis) {
 
 	store, err := session.NewRedisStore(session.RedisConfig{
 		Addr:         mr.Addr(),
-		Password:     "",
-		Db:           0,
 		PoolSize:     10,
 		MinIdleConns: 2,
 		DialTimeout:  time.Second,

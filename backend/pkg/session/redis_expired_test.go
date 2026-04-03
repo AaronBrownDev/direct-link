@@ -22,11 +22,19 @@ const (
 // miniredis evicting the session hash keys.
 func newExpiredSessionTestStore(t *testing.T, mr *miniredis.Miniredis) *session.RedisStore {
 	t.Helper()
-	store, err := session.NewRedisStore(
-		mr.Addr(), "", 0, 10, 2,
-		time.Second, time.Second, time.Second,
-		expiredTestSessionTTL,
-	)
+	store, err := session.NewRedisStore(session.RedisConfig{
+		Addr:         redisAddr(),
+		Password:     "",
+		Db:           0,
+		PoolSize:     10,
+		MinIdleConns: 2,
+		DialTimeout:  time.Second,
+		ReadTimeout:  time.Second,
+		WriteTimeout: time.Second,
+		SessionTTL:   24 * time.Hour,
+		MaxRetries:   3,
+		RetryBackoff: 100 * time.Millisecond,
+	})
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
