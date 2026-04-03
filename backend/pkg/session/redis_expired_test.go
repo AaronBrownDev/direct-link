@@ -23,7 +23,7 @@ const (
 func newExpiredSessionTestStore(t *testing.T, mr *miniredis.Miniredis) *session.RedisStore {
 	t.Helper()
 	store, err := session.NewRedisStore(session.RedisConfig{
-		Addr:         redisAddr(),
+		Addr:         mr.Addr(),
 		Password:     "",
 		Db:           0,
 		PoolSize:     10,
