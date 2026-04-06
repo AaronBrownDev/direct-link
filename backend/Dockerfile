@@ -2,7 +2,7 @@
 FROM golang:1.26-bookworm AS builder
 
 # Pin versions for reproducibility
-ARG PROTOC_VERSION=34.0
+ARG PROTOC_VERSION=34.1
 ARG TARGETOS=linux
 ARG TARGETARCH=amd64
 
