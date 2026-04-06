@@ -30,9 +30,3 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
-
-# proto files
-gen/
-*.pb.go
-*_grpc.pb.go
-
