@@ -171,6 +171,45 @@ func TestMetrics_TokenGenerationsTotal(t *testing.T) {
 	}
 }
 
+func TestMetrics_LatencyRequestsTotal(t *testing.T) {
+	tests := []struct {
+		name     string
+		incCount int
+		expected float64
+	}{
+		{
+			name:     "starts at zero",
+			incCount: 0,
+			expected: 0,
+		},
+		{
+			name:     "single request",
+			incCount: 1,
+			expected: 1,
+		},
+		{
+			name:     "multiple requests",
+			incCount: 5,
+			expected: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := metrics.New()
+
+			for range tt.incCount {
+				m.LatencyRequestsTotal.Inc()
+			}
+
+			got := testutil.ToFloat64(m.LatencyRequestsTotal)
+			if got != tt.expected {
+				t.Errorf("latency_time_requests_total = %f, want %f", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestMetrics_RedisErrorsTotal(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -239,6 +278,7 @@ func TestMetrics_RegistryContainsAllMetrics(t *testing.T) {
 		{"sessions active gauge", "directlink_sessions_active"},
 		{"sessions created counter", "directlink_sessions_created_total"},
 		{"token generations counter vec", "directlink_token_generations_total"},
+		{"latency requests counter", "directlink_latency_time_requests_total"},
 		{"redis operation duration histogram", "directlink_redis_operation_duration_seconds"},
 		{"redis errors counter vec", "directlink_redis_errors_total"},
 		{"go goroutines collector", "go_goroutines"},

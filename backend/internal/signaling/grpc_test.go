@@ -14,6 +14,7 @@ import (
 	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/livekit/protocol/livekit"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // --- Stub Store ---
@@ -318,6 +319,65 @@ func TestJoinSession_CameraRole_RollsBackIngressOnGrantAccessFailure(t *testing.
 	// The ingress should have been rolled back via DeleteIngress
 	if len(mockIngress.deletedIDs) != 1 || mockIngress.deletedIDs[0] != "ingress-abc" {
 		t.Errorf("expected ingress-abc to be rolled back, got deletedIDs=%v", mockIngress.deletedIDs)
+	}
+}
+
+// --- GetServerTime tests ---
+
+func TestGetServerTime(t *testing.T) {
+	tests := []struct {
+		name      string
+		callCount int
+	}{
+		{
+			name:      "returns non-zero timestamp",
+			callCount: 1,
+		},
+		{
+			name:      "timestamp within 1ms of call time",
+			callCount: 1,
+		},
+		{
+			name:      "increments counter on each call",
+			callCount: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newUnitTestServer(t, defaultMockIngress(), defaultMockRoom())
+
+			var reply *pb.GetServerTimeReply
+			var err error
+			before := time.Now()
+			for range tt.callCount {
+				reply, err = srv.GetServerTime(context.Background(), &pb.GetServerTimeRequest{})
+			}
+			after := time.Now()
+
+			if err != nil {
+				t.Fatalf("GetServerTime() unexpected error: %v", err)
+			}
+			if reply == nil {
+				t.Fatal("GetServerTime() returned nil reply")
+			}
+
+			gotNs := reply.ServerTimeNs
+			if gotNs == 0 {
+				t.Error("ServerTimeNs is zero, expected a real Unix timestamp")
+			}
+
+			const toleranceNs = int64(time.Millisecond)
+			if gotNs < before.UnixNano()-toleranceNs || gotNs > after.UnixNano()+toleranceNs {
+				t.Errorf("ServerTimeNs %d is outside [%d, %d] (±1ms window around call)",
+					gotNs, before.UnixNano(), after.UnixNano())
+			}
+
+			got := testutil.ToFloat64(srv.metrics.LatencyRequestsTotal)
+			if got != float64(tt.callCount) {
+				t.Errorf("latency_time_requests_total = %f, want %f", got, float64(tt.callCount))
+			}
+		})
 	}
 }
 

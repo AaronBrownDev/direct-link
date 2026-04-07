@@ -18,6 +18,7 @@ type Metrics struct {
 	SessionsCreatedTotal  prometheus.Counter
 	SessionsExpiredTotal  prometheus.Counter
 	TokenGenerationsTotal *prometheus.CounterVec
+	LatencyRequestsTotal  prometheus.Counter
 
 	// Redis metrics
 	RedisOperationDuration *prometheus.HistogramVec
@@ -59,6 +60,12 @@ func New() *Metrics {
 			[]string{"role"}, // "camera" or "director"
 		),
 
+		LatencyRequestsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "directlink",
+			Name:      "latency_time_requests_total",
+			Help:      "Total number of GetServerTime RPC calls received.",
+		}),
+
 		RedisOperationDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
 				Namespace: "directlink",
@@ -90,6 +97,7 @@ func New() *Metrics {
 		m.SessionsActive,
 		m.SessionsCreatedTotal,
 		m.TokenGenerationsTotal,
+		m.LatencyRequestsTotal,
 		m.RedisOperationDuration,
 		m.RedisErrorsTotal,
 	)
