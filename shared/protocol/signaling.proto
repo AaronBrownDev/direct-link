@@ -15,7 +15,8 @@ service SignalingService {
     rpc CloseSession(CloseSessionRequest) returns (CloseSessionReply);
     // GetMySessions returns all sessions creates by the requesting user
     rpc GetMySessions(GetMySessionsRequest) returns (GetMySessionsReply);
-
+    // GetServerTime returns the server time in nanoseconds
+    rpc GetServerTime(GetServerTimeRequest) returns (GetServerTimeReply);
 }
 
 // JoinRequest initiates joining a session
@@ -70,6 +71,14 @@ message SessionInfo{
     string session_id = 1; // Internal UUID, informational only
     string room_code = 2; // Primary identifier
     string status = 3; // "active" or "closed"
-    int32 max_cameras = 4;
+    int32 max_cameras = 4; // Max cameras allowed
     string created_at = 5; // RFC3339 formatted timestamp
+}
+
+// GetServerTimeRequest is an empty request
+message GetServerTimeRequest {}
+
+// GetServerTimeReply returns the server's current wall clock time for client clock offset calculation 
+message GetServerTimeReply {
+    int64 server_time_ns = 1; // Current server time as Unix timestamp in nanoseconds
 }

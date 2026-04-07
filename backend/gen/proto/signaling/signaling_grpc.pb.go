@@ -23,6 +23,7 @@ const (
 	SignalingService_CreateSession_FullMethodName = "/directlink.signaling.SignalingService/CreateSession"
 	SignalingService_CloseSession_FullMethodName  = "/directlink.signaling.SignalingService/CloseSession"
 	SignalingService_GetMySessions_FullMethodName = "/directlink.signaling.SignalingService/GetMySessions"
+	SignalingService_GetServerTime_FullMethodName = "/directlink.signaling.SignalingService/GetServerTime"
 )
 
 // SignalingServiceClient is the client API for SignalingService service.
@@ -39,6 +40,8 @@ type SignalingServiceClient interface {
 	CloseSession(ctx context.Context, in *CloseSessionRequest, opts ...grpc.CallOption) (*CloseSessionReply, error)
 	// GetMySessions returns all sessions creates by the requesting user
 	GetMySessions(ctx context.Context, in *GetMySessionsRequest, opts ...grpc.CallOption) (*GetMySessionsReply, error)
+	// GetServerTime returns the server time in nanoseconds
+	GetServerTime(ctx context.Context, in *GetServerTimeRequest, opts ...grpc.CallOption) (*GetServerTimeReply, error)
 }
 
 type signalingServiceClient struct {
@@ -89,6 +92,16 @@ func (c *signalingServiceClient) GetMySessions(ctx context.Context, in *GetMySes
 	return out, nil
 }
 
+func (c *signalingServiceClient) GetServerTime(ctx context.Context, in *GetServerTimeRequest, opts ...grpc.CallOption) (*GetServerTimeReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetServerTimeReply)
+	err := c.cc.Invoke(ctx, SignalingService_GetServerTime_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SignalingServiceServer is the server API for SignalingService service.
 // All implementations must embed UnimplementedSignalingServiceServer
 // for forward compatibility.
@@ -103,6 +116,8 @@ type SignalingServiceServer interface {
 	CloseSession(context.Context, *CloseSessionRequest) (*CloseSessionReply, error)
 	// GetMySessions returns all sessions creates by the requesting user
 	GetMySessions(context.Context, *GetMySessionsRequest) (*GetMySessionsReply, error)
+	// GetServerTime returns the server time in nanoseconds
+	GetServerTime(context.Context, *GetServerTimeRequest) (*GetServerTimeReply, error)
 	mustEmbedUnimplementedSignalingServiceServer()
 }
 
@@ -124,6 +139,9 @@ func (UnimplementedSignalingServiceServer) CloseSession(context.Context, *CloseS
 }
 func (UnimplementedSignalingServiceServer) GetMySessions(context.Context, *GetMySessionsRequest) (*GetMySessionsReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMySessions not implemented")
+}
+func (UnimplementedSignalingServiceServer) GetServerTime(context.Context, *GetServerTimeRequest) (*GetServerTimeReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetServerTime not implemented")
 }
 func (UnimplementedSignalingServiceServer) mustEmbedUnimplementedSignalingServiceServer() {}
 func (UnimplementedSignalingServiceServer) testEmbeddedByValue()                          {}
@@ -218,6 +236,24 @@ func _SignalingService_GetMySessions_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SignalingService_GetServerTime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetServerTimeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SignalingServiceServer).GetServerTime(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SignalingService_GetServerTime_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SignalingServiceServer).GetServerTime(ctx, req.(*GetServerTimeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SignalingService_ServiceDesc is the grpc.ServiceDesc for SignalingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -240,6 +276,10 @@ var SignalingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetMySessions",
 			Handler:    _SignalingService_GetMySessions_Handler,
+		},
+		{
+			MethodName: "GetServerTime",
+			Handler:    _SignalingService_GetServerTime_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
