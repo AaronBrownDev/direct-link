@@ -1,4 +1,5 @@
 #include "camera_session.hpp"
+#include "../../../video-core/include/common/types.hpp"
 #include <iostream>
 
 bool CameraSession::start(const std::string &whipUrl,
@@ -14,37 +15,55 @@ bool CameraSession::start(const std::string &whipUrl,
     #else
         captureConfig.devicePath = "/dev/video0";
         captureConfig.inputFormat = "v4l2";
+        // TODO: Add pixel_format to videoCore::capture::captureConfig
+        // captureConfig.pixelFormat = "mjpeg";
     #endif
-    captureConfig.width = 640;
-    captureConfig.height = 480;
-    captureConfig.framerate = 5;
+    captureConfig.width = 1280;
+    captureConfig.height = 720;
+    captureConfig.framerate = 30;
 
     videoCore::encode::EncoderConfig encoderConfig;
-    encoderConfig.width = 1920;
-    encoderConfig.height = 1080;
-    encoderConfig.framerate = 30;
+    encoderConfig.width = captureConfig.width;
+    encoderConfig.height = captureConfig.height;
+    encoderConfig.framerate = captureConfig.framerate;
     encoderConfig.bitrate = 4000000;
     encoderConfig.preset = videoCore::encode::EncoderConfig::Preset::UltraFast;
 
     auto startResult = pipeline_.initialize(captureConfig, encoderConfig);
     if (startResult != videoCore::Result::Success) {
+        std::cerr << "[CameraSession] Failed to initialize video pipeline: "
+                  << videoCore::resultToString(startResult)
+                  << " (device=" << captureConfig.devicePath
+                  << ", format=" << captureConfig.inputFormat
+                //   TODO: Add pixel_format to videoCore::capture::captureConfig
+                //   << ", pixel_format=" << captureConfig.pixelFormat
+                  << ", " << captureConfig.width << "x" << captureConfig.height
+                  << "@" << captureConfig.framerate << "fps)\n";
         return false; // Failed to initialize pipeline
     }
     
     auto whipPublisherResult = whipPublisher_.initialize(
         whipUrl, streamKey, encoderConfig.framerate,
         [](const std::string &err) {
-            std::cerr << "WHIPPublisher error: " << err << "\n";
+            std::cerr << "[CameraSession] WHIPPublisher error: " << err << "\n";
         });
     if (whipPublisherResult != networking::Result::Success) {
-        return false; // Failed to initialize WHIP publisher
+        std::cerr << "[CameraSession] Failed to initialize WHIP publisher"
+                     " (url=" << whipUrl << ")\n";
+        return false;
     }
+
+    // TODO: Add setKeyFrameRequestCallback to WHIP Publisher
+    //  whipPublisher_.setKeyframeRequestCallback([this]() {
+    //     pipeline_.requestKeyframe();
+    // });
 
     // The WHIP publisher is started first to set running_ to true 
     // before producing frames to avoid dropping frames during
     // publisher startup.
     auto publisherResult = whipPublisher_.start();
     if (publisherResult != networking::Result::Success) {
+        std::cerr << "[CameraSession] Failed to start WHIP publisher"
         pipeline_.stop();
         return false;
     }
@@ -55,21 +74,30 @@ bool CameraSession::start(const std::string &whipUrl,
         });
 
     if (pipelineResult != videoCore::Result::Success) {
+        std::cerr << "[CameraSession] Failed to start video pipeline: "
+                  << videoCore::resultToString(pipelineResult) << "\n";
         whipPublisher_.stop();
         return false;
     }
 
-    
-
     isRunning_ = true;
     return true;
+}
+
+// TODO: Add setPreviewCallback method to videoCore::pipeline::VideoPipeline
+void CameraSession::setPreviewCallback(std::function<void(const videoCore::Frame &)> cb) {
+    // pipeline_.setPreviewCallback(std::move(cb));
 }
 
 void CameraSession::stop() {
     if (!isRunning_) {
         return; // Not running
     }
-    pipeline_.stop();
+    const auto stop_result = pipeline_.stop();
+    if (stop_result != videoCore::Result::Success) {
+        std::cerr << "[CameraSession] Pipeline stop returned an error: "
+                  << videoCore::resultToString(stop_result) << "\n";
+    }
     whipPublisher_.stop();
     isRunning_ = false;
 }
