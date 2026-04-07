@@ -39,6 +39,8 @@ Thumbnail {
         if (assigned_track !== null) {
             assigned_track.setVideoSink(dl_video_output.videoSink);
         }
+
+        dl_video_output.clearOutput();
     }
 
     VideoOutput {
