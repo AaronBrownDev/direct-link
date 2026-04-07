@@ -29,7 +29,7 @@ bool VideoTrack::setTrack(const std::shared_ptr<livekit::Track> &track) {
     unsetTrack();
 
     livekit::VideoStream::Options opts;
-    opts.format = livekit::VideoBufferType::RGBA;
+    opts.format = livekit::VideoBufferType::I420;
 
     m_stream = livekit::VideoStream::fromTrack(track, opts);
     if (!m_stream) {
