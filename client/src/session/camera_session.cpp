@@ -15,8 +15,7 @@ bool CameraSession::start(const std::string &whipUrl,
     #else
         captureConfig.devicePath = "/dev/video0";
         captureConfig.inputFormat = "v4l2";
-        // TODO: Add pixel_format to videoCore::capture::captureConfig
-        // captureConfig.pixelFormat = "mjpeg";
+        captureConfig.pixelFormat = "mjpeg";
     #endif
     captureConfig.width = 1280;
     captureConfig.height = 720;
@@ -35,8 +34,7 @@ bool CameraSession::start(const std::string &whipUrl,
                   << videoCore::resultToString(startResult)
                   << " (device=" << captureConfig.devicePath
                   << ", format=" << captureConfig.inputFormat
-                //   TODO: Add pixel_format to videoCore::capture::captureConfig
-                //   << ", pixel_format=" << captureConfig.pixelFormat
+                  << ", pixel_format=" << captureConfig.pixelFormat
                   << ", " << captureConfig.width << "x" << captureConfig.height
                   << "@" << captureConfig.framerate << "fps)\n";
         return false; // Failed to initialize pipeline
