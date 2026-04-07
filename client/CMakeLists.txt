@@ -65,6 +65,10 @@ qt_add_executable(test_livekit_room
     tests/test_livekit_room.cpp
 )
 
+qt_add_executable(test_operator_session
+    tests/test_operator_session.cpp
+)
+
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
@@ -131,6 +135,18 @@ target_include_directories(test_livekit_room PRIVATE
     ${CMAKE_BINARY_DIR}
 )
 
+target_include_directories(test_operator_session PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/session
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${LIVEKIT_DIR}/include
+    ${CMAKE_BINARY_DIR}
+    ${GST_INCLUDE_DIRS}
+    ${FFMPEG_LIBRARIES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../video-core/include
+)
+
 target_link_libraries(direct-link PRIVATE
     Qt6::Core
     Qt6::Quick
@@ -177,6 +193,23 @@ target_link_libraries(test_livekit_room PRIVATE
     livekit_ffi
     directlink_networkplugin
     directlink_appplugin
+    video_core
+)
+
+target_link_libraries(test_operator_session PRIVATE
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Multimedia
+    Qt6::Concurrent
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
+    livekit
+    livekit_ffi
+    directlink_appplugin
+    directlink_networkplugin
+    directlink_sessionplugin
     video_core
 )
 
