@@ -74,6 +74,12 @@ Result VideoPipeline::start(
     return Result::Success;
 }
 
+void VideoPipeline::requestKeyframe() noexcept {
+    if (encoder_) {
+        encoder_->requestKeyframe();
+    }
+}
+
 void VideoPipeline::setPreviewCallback(std::function<void(const Frame &)> previewCallback) {
     previewCallback_ = std::move(previewCallback);
 }

@@ -30,6 +30,9 @@ public:
     start(std::function<void(std::unique_ptr<Packet>)> packetCallback);
     [[nodiscard]] Result stop();
 
+    // Forward keyframe request to encoder. Thread-safe
+    void requestKeyframe() noexcept;
+
     // Optional callback to receive raw frame before encoding.
     // Must be set before start().
     void setPreviewCallback(std::function<void(const Frame &)> previewCallback);

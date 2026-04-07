@@ -51,10 +51,9 @@ bool CameraSession::start(const std::string &whipUrl,
         return false;
     }
 
-    // TODO: Add setKeyFrameRequestCallback to WHIP Publisher
-    //  whipPublisher_.setKeyframeRequestCallback([this]() {
-    //     pipeline_.requestKeyframe();
-    // });
+     whipPublisher_.setKeyframeRequestCallback([this]() {
+        pipeline_.requestKeyframe();
+    });
 
     // The WHIP publisher is started first to set running_ to true 
     // before producing frames to avoid dropping frames during
