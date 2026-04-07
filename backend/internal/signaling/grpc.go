@@ -251,7 +251,7 @@ func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest
 }
 
 // GetServerTime returns the server time in unix nanoseconds
-func (s *Server) GetServerTime(ctx context.Context, _ *pb.GetServerTimeRequest) (*pb.GetServerTimeReply, error) {
+func (s *Server) GetServerTime(_ context.Context, _ *pb.GetServerTimeRequest) (*pb.GetServerTimeReply, error) {
 	s.metrics.LatencyRequestsTotal.Inc()
 	return &pb.GetServerTimeReply{
 		ServerTimeNs: time.Now().UnixNano(),
