@@ -45,7 +45,7 @@ RowLayout {
             Layout.preferredHeight: width / aspect_ratio
             Layout.minimumHeight: implicitWidth / aspect_ratio
             
-            Layout.maximumWidth: dl_operator_view.height * aspect_ratio
+            Layout.maximumWidth: dl_director_view.height * aspect_ratio
             implicitWidth: 500
         }
 

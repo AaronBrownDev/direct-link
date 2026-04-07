@@ -30,6 +30,10 @@ public:
     start(std::function<void(std::unique_ptr<Packet>)> packetCallback);
     [[nodiscard]] Result stop();
 
+    // Optional callback to receive raw frame before encoding.
+    // Must be set before start().
+    void setPreviewCallback(std::function<void(const Frame &)> previewCallback);
+
     // Statistics getters
     [[nodiscard]] int getCurrentFramerate() const noexcept {
         return currentFramerate_;
@@ -70,6 +74,7 @@ private:
     std::unique_ptr<capture::CameraCapture> captureDevice_;
     std::unique_ptr<encode::Encoder> encoder_;
     std::function<void(std::unique_ptr<Packet>)> packetCallback_;
+    std::function<void(const Frame &)> previewCallback_;
 
     // Frame queue  between capture and encode threads
     std::queue<std::unique_ptr<Frame>> frameQueue_;

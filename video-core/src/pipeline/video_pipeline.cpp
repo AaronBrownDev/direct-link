@@ -51,6 +51,9 @@ Result VideoPipeline::start(
     auto capture_result =
         captureDevice_->start([this](std::unique_ptr<Frame> frame) {
             {
+                if (previewCallback_) {
+                    previewCallback_(*frame);
+                }
                 std::lock_guard<std::mutex> lock(queueMutex_);
                 if (frameQueue_.size() >= QUEUE_CAPACITY) {
                     frameQueue_.pop(); // Drop oldest frame
@@ -69,6 +72,10 @@ Result VideoPipeline::start(
         [this](const std::stop_token &token) { encodeLoop(token); });
 
     return Result::Success;
+}
+
+void VideoPipeline::setPreviewCallback(std::function<void(const Frame &)> previewCallback) {
+    previewCallback_ = std::move(previewCallback);
 }
 
 Result VideoPipeline::stop() {

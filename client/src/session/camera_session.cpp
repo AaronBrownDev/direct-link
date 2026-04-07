@@ -61,7 +61,7 @@ bool CameraSession::start(const std::string &whipUrl,
     // publisher startup.
     auto publisherResult = whipPublisher_.start();
     if (publisherResult != networking::Result::Success) {
-        std::cerr << "[CameraSession] Failed to start WHIP publisher"
+        std::cerr << "[CameraSession] Failed to start WHIP publisher";
         pipeline_.stop();
         return false;
     }
@@ -82,9 +82,8 @@ bool CameraSession::start(const std::string &whipUrl,
     return true;
 }
 
-// TODO: Add setPreviewCallback method to videoCore::pipeline::VideoPipeline
 void CameraSession::setPreviewCallback(std::function<void(const videoCore::Frame &)> cb) {
-    // pipeline_.setPreviewCallback(std::move(cb));
+    pipeline_.setPreviewCallback(std::move(cb));
 }
 
 void CameraSession::stop() {
