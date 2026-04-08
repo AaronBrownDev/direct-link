@@ -26,20 +26,11 @@ func newTestServer(t *testing.T) *signaling.Server {
 	redisAddr := redisAddr()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	cfg := signaling.Config{
-		RedisAddr:         redisAddr,
-		RedisPassword:     "",
-		RedisDB:           0,
-		RedisPoolSize:     10,
-		RedisMinIdle:      2,
-		RedisDialTimeout:  5 * time.Second,
-		RedisReadTimeout:  3 * time.Second,
-		RedisWriteTimeout: 3 * time.Second,
-		SessionTTL:        24 * time.Hour,
-		LiveKitHost:       "http://livekit:7880",
-		LiveKitAPIKey:     "devkey",
-		LiveKitAPISecret:  "secret",
-	}
+	cfg := signaling.DefaultConfig()
+	cfg.RedisAddr = redisAddr
+	cfg.LiveKitHost = "http://livekit:7880"
+	cfg.LiveKitAPIKey = "devkey"
+	cfg.LiveKitAPISecret = "secret"
 	return signaling.NewServer(cfg, logger)
 }
 
