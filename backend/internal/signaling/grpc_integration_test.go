@@ -27,18 +27,19 @@ func newTestServer(t *testing.T) *signaling.Server {
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	cfg := signaling.Config{
-		RedisAddr:         redisAddr,
-		RedisPassword:     "",
-		RedisDB:           0,
-		RedisPoolSize:     10,
-		RedisMinIdle:      2,
-		RedisDialTimeout:  5 * time.Second,
-		RedisReadTimeout:  3 * time.Second,
-		RedisWriteTimeout: 3 * time.Second,
-		SessionTTL:        24 * time.Hour,
-		LiveKitHost:       "http://livekit:7880",
-		LiveKitAPIKey:     "devkey",
-		LiveKitAPISecret:  "secret",
+		RedisAddr:          redisAddr,
+		RedisPassword:      "",
+		RedisDB:            0,
+		RedisPoolSize:      10,
+		RedisMinIdle:       2,
+		RedisDialTimeout:   5 * time.Second,
+		RedisReadTimeout:   3 * time.Second,
+		RedisWriteTimeout:  3 * time.Second,
+		SessionTTL:         24 * time.Hour,
+		LiveKitHost:        "http://livekit:7880",
+		LiveKitExternalURL: "ws://localhost:7880",
+		LiveKitAPIKey:      "devkey",
+		LiveKitAPISecret:   "secret",
 	}
 	return signaling.NewServer(cfg, logger)
 }
@@ -187,18 +188,18 @@ func TestServer_GetMySessions(t *testing.T) {
 
 // TestJoinSession_ByRoomCode tests if the user is able to join with just a room code
 func TestServer_JoinSession(t *testing.T) {
-	t.Run("join session successful", func(t *testing.T) {
-		srv := newTestServer(t)
-		ctx := context.Background()
+	srv := newTestServer(t)
+	ctx := context.Background()
+	createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+		UserId:     "director-join",
+		MaxCameras: 4,
+	})
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	t.Run("director join session successful", func(t *testing.T) {
 
-		createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
-			UserId:     "director-join",
-			MaxCameras: 4,
-		})
-		if err != nil {
-			t.Fatalf("CreateSession: %v", err)
-		}
-		_, err = srv.JoinSession(ctx, &pb.JoinRequest{
+		dirResp, err := srv.JoinSession(ctx, &pb.JoinRequest{
 			RoomCode: createResp.RoomCode,
 			UserId:   "director-join",
 			Role:     "director",
@@ -207,13 +208,48 @@ func TestServer_JoinSession(t *testing.T) {
 		if err != nil {
 			t.Fatalf("JoinSession: %v", err)
 		}
+		if dirResp.Token == "" {
+			t.Error("expected token for director role")
+		}
+		if dirResp.LivekitUrl == "" {
+			t.Error("expected non-empty livekit_url for director role")
+		}
+		if dirResp.WhipUrl != "" {
+			t.Error("expected whipurl for director role")
+		}
+		if dirResp.StreamKey != "" {
+			t.Error("expected streamKey url for director role")
+		}
 	})
 
-	t.Run("user not allowed to close session", func(t *testing.T) {
-		srv := newTestServer(t)
-		ctx := context.Background()
+	t.Run("camera join session successful", func(t *testing.T) {
+		camResp, err := srv.JoinSession(ctx, &pb.JoinRequest{
+			RoomCode: createResp.RoomCode,
+			UserId:   "camera-join",
+			Role:     "camera",
+		})
+		if err != nil {
+			t.Fatalf("JoinSession: %v", err)
+		}
 
-		createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+		// Camera gets whip_url + stream_key, NOT a token
+		if camResp.WhipUrl == "" {
+			t.Error("expected non-empty whip_url for camera role")
+		}
+		if camResp.StreamKey == "" {
+			t.Error("expected non-empty stream_key for camera role") // line 233 fix
+		}
+		// These should be empty for camera
+		if camResp.Token != "" {
+			t.Error("expected empty token for camera role")
+		}
+		if camResp.LivekitUrl != "" {
+			t.Error("expected empty livekit_url for camera role")
+		}
+	})
+
+	t.Run("non owner not allowed to close session", func(t *testing.T) {
+		createResp, err = srv.CreateSession(ctx, &pb.CreateSessionRequest{
 			UserId:     "director-close",
 			MaxCameras: 4,
 		})
@@ -224,6 +260,7 @@ func TestServer_JoinSession(t *testing.T) {
 			RoomCode: createResp.RoomCode,
 			UserId:   "director-close",
 		})
+
 		if err != nil {
 			t.Fatalf("CloseSession: %v", err)
 		}
@@ -237,6 +274,126 @@ func TestServer_JoinSession(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error joining closed session")
 		}
+	})
+
+}
+
+func TestLifecycle_FullSessionFlow(t *testing.T) {
+	srv := newTestServer(t)
+	ctx := context.Background()
+
+	var roomCode string
+	const directorID = "lifecycle-director"
+	const cameraCount = 2
+
+	t.Run("create session", func(t *testing.T) {
+		createResp, err := srv.CreateSession(ctx, &pb.CreateSessionRequest{
+			UserId:     directorID,
+			MaxCameras: cameraCount,
+		})
+
+		if err != nil {
+			t.Fatalf("CreateSession: %v", err)
+		}
+		if createResp.RoomCode == "" {
+			t.Fatal("expected non-empty room code")
+		}
+		roomCode = createResp.RoomCode
+	})
+
+	t.Run("join session as director", func(t *testing.T) {
+		joinResp, err := srv.JoinSession(ctx, &pb.JoinRequest{
+			RoomCode: roomCode,
+			UserId:   directorID,
+			Role:     "director",
+		})
+		if err != nil {
+			t.Fatalf("JoinSession: %v", err)
+		}
+		if joinResp.Token == "" {
+			t.Error("expected non-empty token for director role")
+		}
+		if joinResp.LivekitUrl == "" {
+			t.Error("expected non-empty livekit url for director role")
+		}
+
+	})
+
+	t.Run("join session as cameras", func(t *testing.T) {
+		joinResp, err := srv.JoinSession(ctx, &pb.JoinRequest{
+			RoomCode: roomCode,
+			UserId:   "lifecycle-camera-1",
+			Role:     "camera",
+		})
+		if err != nil {
+			t.Fatalf("JoinSession: %v", err)
+		}
+		if joinResp.WhipUrl == "" {
+			t.Error("expected non-empty whip url for camera role")
+		}
+		if joinResp.StreamKey == "" {
+			t.Error("expected empty stream key for camera role")
+		}
+	})
+
+	t.Run("close session", func(t *testing.T) {
+		closeResp, err := srv.CloseSession(ctx, &pb.CloseSessionRequest{
+			RoomCode: roomCode,
+			UserId:   directorID,
+		})
+
+		if err != nil {
+			t.Fatalf("CloseSession: %v", err)
+		}
+		if !closeResp.Success {
+			t.Error("expected success=true for successful close")
+		}
+	})
+
+	t.Run("session status is closed", func(t *testing.T) {
+		sessions, err := srv.GetMySessions(ctx, &pb.GetMySessionsRequest{
+			UserId: directorID,
+		})
+
+		if err != nil {
+			t.Fatalf("GetMySessions: %v", err)
+		}
+		var found bool
+		for _, s := range sessions.Sessions {
+			if s.RoomCode == roomCode {
+				found = true
+				if s.Status != "closed" {
+					t.Errorf("expected session status 'closed', got '%s'", s.Status)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("session with room code %s not found in GetMySessions response", roomCode)
+		}
+
+	})
+
+	t.Run("director joins after session closed", func(t *testing.T) {
+		_, err := srv.JoinSession(ctx, &pb.JoinRequest{
+			RoomCode: roomCode,
+			UserId:   "late-director",
+			Role:     "director",
+		})
+		if err == nil {
+			t.Fatal("expected error joining closed session")
+		}
+	})
+
+	t.Run("camera joins after session closed", func(t *testing.T) {
+		_, err := srv.JoinSession(ctx, &pb.JoinRequest{
+			RoomCode: roomCode,
+			UserId:   "late-camera",
+			Role:     "camera",
+		})
+		if err == nil {
+			t.Fatal("expected error joining closed session")
+		}
+
 	})
 
 }
