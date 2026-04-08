@@ -2,6 +2,7 @@ package signaling
 
 import (
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -19,6 +20,8 @@ type Config struct {
 	RedisDialTimeout  time.Duration
 	RedisReadTimeout  time.Duration
 	RedisWriteTimeout time.Duration
+	RedisMaxRetries   int
+	RedisRetryBackoff time.Duration
 	SessionTTL        time.Duration
 
 	// LiveKit connection
@@ -47,6 +50,8 @@ func DefaultConfig() Config {
 		RedisDialTimeout:  5 * time.Second,
 		RedisReadTimeout:  3 * time.Second,
 		RedisWriteTimeout: 3 * time.Second,
+		RedisMaxRetries:   3,
+		RedisRetryBackoff: 100 * time.Millisecond,
 		SessionTTL:        24 * time.Hour,
 
 		LiveKitHost:        "http://livekit:7880",
@@ -95,6 +100,18 @@ func LoadConfig() Config {
 	if lockTTL := os.Getenv("JANITOR_LOCK_TTL"); lockTTL != "" {
 		if d, err := time.ParseDuration(lockTTL); err == nil {
 			cfg.JanitorLockTTL = d
+		}
+	}
+
+	if v := os.Getenv("REDIS_MAX_RETRIES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.RedisMaxRetries = n
+		}
+	}
+
+	if v := os.Getenv("REDIS_RETRY_BACKOFF"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cfg.RedisRetryBackoff = d
 		}
 	}
 

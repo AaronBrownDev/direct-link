@@ -125,6 +125,38 @@ func (j *Janitor) SweepAt(ctx context.Context, now time.Time) {
 	}
 }
 
+// WatchStore polls the store's health and triggers a reconciliation sweep
+// whenever Redis transitions from unavailable back to healthy. It blocks until
+// ctx is cancelled and is intended to run in its own goroutine alongside Run.
+func (j *Janitor) WatchStore(ctx context.Context) {
+	const pollInterval = 5 * time.Second
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	wasHealthy := true // assume healthy on startup; first failure starts tracking
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := j.store.Ping(ctx)
+			isHealthy := err == nil
+
+			if !wasHealthy && isHealthy {
+				j.logger.Info("redis reconnected, triggering reconciliation sweep")
+				j.SweepAt(ctx, time.Now())
+			}
+			if wasHealthy && !isHealthy {
+				j.logger.Warn("redis became unavailable", "error", err)
+			}
+
+			wasHealthy = isHealthy
+		}
+	}
+}
+
 func (j *Janitor) closeExpiredSession(ctx context.Context, sess session.Session) {
 	log := j.logger.With("session_id", sess.ID)
 

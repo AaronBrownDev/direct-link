@@ -20,11 +20,11 @@ func NewSessionID() string {
 // Creates human readable room code
 func NewRoomCode(ctx context.Context, store Store) (string, error) {
 	for range maxRoomAttempts {
-		n, err := rand.Int(rand.Reader, big.NewInt(10000))
-		code := fmt.Sprintf("ROOM-%06d", n.Int64())
+		n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
 		if err != nil {
 			return "", err
 		}
+		code := fmt.Sprintf("ROOM-%06d", n.Int64())
 
 		// Check if the generated room code is unique
 		_, err = store.GetSessionByRoomCode(ctx, code)

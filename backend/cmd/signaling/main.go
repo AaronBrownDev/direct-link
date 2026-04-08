@@ -8,8 +8,8 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/AaronBrownDev/direct-link/internal/janitor"
 	"github.com/AaronBrownDev/direct-link/internal/signaling"
+	"github.com/AaronBrownDev/direct-link/internal/worker/janitor"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -20,6 +20,7 @@ func main() {
 func run() int {
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	slog.SetDefault(logger)
 
 	cfg := signaling.LoadConfig()
 	server := signaling.NewServer(cfg, logger)
@@ -49,6 +50,12 @@ func run() int {
 	go func() {
 		defer wg.Done()
 		j.Run(ctx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		j.WatchStore(ctx)
 	}()
 
 	if err := server.ListenAndServe(ctx); err != nil {
