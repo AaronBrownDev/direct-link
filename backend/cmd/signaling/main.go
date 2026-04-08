@@ -8,7 +8,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/AaronBrownDev/direct-link/internal/janitor"
+	"github.com/AaronBrownDev/direct-link/internal/worker/janitor"
 	"github.com/AaronBrownDev/direct-link/internal/signaling"
 	"github.com/redis/go-redis/v9"
 )

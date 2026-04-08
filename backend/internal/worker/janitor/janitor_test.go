@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AaronBrownDev/direct-link/internal/janitor"
+	"github.com/AaronBrownDev/direct-link/internal/worker/janitor"
 	"github.com/AaronBrownDev/direct-link/pkg/metrics"
 	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"github.com/alicebob/miniredis/v2"
