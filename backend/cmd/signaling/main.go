@@ -7,11 +7,9 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/AaronBrownDev/direct-link/internal/janitor"
 	"github.com/AaronBrownDev/direct-link/internal/signaling"
-	"github.com/AaronBrownDev/direct-link/pkg/session"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -57,7 +55,7 @@ func run() int {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		watchRedisReconnect(ctx, server.Store(), j, logger)
+		j.WatchStore(ctx)
 	}()
 
 	if err := server.ListenAndServe(ctx); err != nil {
@@ -74,32 +72,3 @@ func run() int {
 	return 0
 }
 
-func watchRedisReconnect(ctx context.Context, store session.Store, j *janitor.Janitor, logger *slog.Logger) {
-	const pollInterval = 5 * time.Second
-
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
-
-	wasHealthy := true //assume healthy on startup - first failure starts tracking
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			err := store.Ping(ctx)
-			isHealthy := err == nil
-
-			if !wasHealthy && isHealthy {
-				logger.Info("redis reconnect, triggering reconciliation sweep")
-				j.SweepAt(ctx, time.Now())
-			}
-
-			if !isHealthy && wasHealthy {
-				logger.Warn("redis became unavailable", "error", err)
-			}
-
-			wasHealthy = isHealthy
-		}
-	}
-}
