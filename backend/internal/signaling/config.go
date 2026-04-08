@@ -2,6 +2,7 @@ package signaling
 
 import (
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -99,6 +100,18 @@ func LoadConfig() Config {
 	if lockTTL := os.Getenv("JANITOR_LOCK_TTL"); lockTTL != "" {
 		if d, err := time.ParseDuration(lockTTL); err == nil {
 			cfg.JanitorLockTTL = d
+		}
+	}
+
+	if v := os.Getenv("REDIS_MAX_RETRIES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.RedisMaxRetries = n
+		}
+	}
+
+	if v := os.Getenv("REDIS_RETRY_BACKOFF"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			cfg.RedisRetryBackoff = d
 		}
 	}
 
