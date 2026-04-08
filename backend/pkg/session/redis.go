@@ -51,6 +51,10 @@ type RedisStore struct {
 
 // NewRedisStore creates a new Redis-backed store
 func NewRedisStore(cfg RedisConfig) (*RedisStore, error) {
+	if cfg.RetryBackoff <= 0 {
+		return nil, fmt.Errorf("session: RetryBackoff must be positive, got %v", cfg.RetryBackoff)
+	}
+
 	client := redis.NewClient(&redis.Options{
 		Addr:         cfg.Addr,
 		Password:     cfg.Password,
@@ -98,32 +102,34 @@ func (r *RedisStore) CreateSession(ctx context.Context, session *Session) (err e
 		"status":      session.Status,
 	}
 
-	// Use pipeline for atomic operations
-	pipe := r.client.Pipeline()
-
-	// 1. Store session hash
-	pipe.HSet(ctx, sessionKey, sessionData)
-	pipe.Expire(ctx, sessionKey, r.sessionTTL)
-
-	// 2. Create room code mapping
-	if session.RoomCode != "" {
-		roomCodeKey := roomCodePrefix + session.RoomCode
-		pipe.Set(ctx, roomCodeKey, session.ID, r.sessionTTL)
-	}
-
-	// Add to user's sessions
 	userSessionsKey := userSessionsPrefix + session.CreatedBy + ":sessions"
-	pipe.SAdd(ctx, userSessionsKey, session.ID)
-	pipe.Expire(ctx, userSessionsKey, r.sessionTTL)
 
-	// 3. Add to active sessions set
-	pipe.ZAdd(ctx, activeSessionsKey, redis.Z{
-		Score:  float64(time.Now().Add(r.sessionTTL).Unix()),
-		Member: session.ID,
+	err = r.retryRedisOp(ctx, func() error {
+		pipe := r.client.Pipeline()
+
+		// 1. Store session hash
+		pipe.HSet(ctx, sessionKey, sessionData)
+		pipe.Expire(ctx, sessionKey, r.sessionTTL)
+
+		// 2. Create room code mapping
+		if session.RoomCode != "" {
+			roomCodeKey := roomCodePrefix + session.RoomCode
+			pipe.Set(ctx, roomCodeKey, session.ID, r.sessionTTL)
+		}
+
+		// 3. Add to user's sessions
+		pipe.SAdd(ctx, userSessionsKey, session.ID)
+		pipe.Expire(ctx, userSessionsKey, r.sessionTTL)
+
+		// 4. Add to active sessions set
+		pipe.ZAdd(ctx, activeSessionsKey, redis.Z{
+			Score:  float64(time.Now().Add(r.sessionTTL).Unix()),
+			Member: session.ID,
+		})
+
+		_, e := pipe.Exec(ctx)
+		return e
 	})
-
-	// Execute all commands atomically
-	_, err = pipe.Exec(ctx)
 
 	return err
 
@@ -213,22 +219,31 @@ func (r *RedisStore) UpdateSessionStatus(ctx context.Context, sessionID string, 
 
 	sessionKey := sessionPrefix + sessionID
 
-	exists, err := r.client.Exists(ctx, sessionKey).Result()
-
+	var exists int64
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		exists, e = r.client.Exists(ctx, sessionKey).Result()
+		return e
+	})
 	if err != nil {
 		return err
 	}
 	if exists == 0 {
 		return ErrSessionNotFound
 	}
-	if err := r.client.HSet(ctx, sessionKey, "status", status).Err(); err != nil {
+	err = r.retryRedisOp(ctx, func() error {
+		return r.client.HSet(ctx, sessionKey, "status", status).Err()
+	})
+	if err != nil {
 		return err
 	}
 
-	// If closing, remove from active sessions
+	// If closing, remove from active sessions — warn only since the janitor will reconcile on next sweep
 	if status == statusClosed {
-		if zErr := r.client.ZRem(ctx, activeSessionsKey, sessionID); zErr != nil {
-			slog.Info("failed to remove session from active set", "session_id", sessionID, "error", zErr)
+		if zErr := r.retryRedisOp(ctx, func() error {
+			return r.client.ZRem(ctx, activeSessionsKey, sessionID).Err()
+		}); zErr != nil {
+			slog.Warn("failed to remove session from active set", "session_id", sessionID, "error", zErr)
 		}
 	}
 
@@ -254,17 +269,20 @@ func (r *RedisStore) DeleteSession(ctx context.Context, sessionID string) (err e
 	accessKey := sessionKey + sessionAccessSuffix
 	userSessionsKey := userSessionsPrefix + session.CreatedBy + ":sessions"
 
-	pipe := r.client.Pipeline()
-	pipe.Del(ctx, sessionKey)
-	pipe.Del(ctx, accessKey)
-	pipe.SRem(ctx, userSessionsKey, sessionID)
-	pipe.ZRem(ctx, activeSessionsKey, sessionID)
+	err = r.retryRedisOp(ctx, func() error {
+		pipe := r.client.Pipeline()
+		pipe.Del(ctx, sessionKey)
+		pipe.Del(ctx, accessKey)
+		pipe.SRem(ctx, userSessionsKey, sessionID)
+		pipe.ZRem(ctx, activeSessionsKey, sessionID)
 
-	if session.RoomCode != "" {
-		pipe.Del(ctx, roomCodePrefix+session.RoomCode)
-	}
+		if session.RoomCode != "" {
+			pipe.Del(ctx, roomCodePrefix+session.RoomCode)
+		}
 
-	_, err = pipe.Exec(ctx)
+		_, e := pipe.Exec(ctx)
+		return e
+	})
 
 	return err
 }
@@ -277,12 +295,18 @@ func (r *RedisStore) GetExpiredSessions(ctx context.Context, now time.Time) (ses
 	}()
 
 	// Get expired session IDs from the sorted set
-	sessionIDs, err := r.client.ZRangeArgs(ctx, redis.ZRangeArgs{
-		Key:     activeSessionsKey,
-		Start:   "-inf",
-		Stop:    fmt.Sprintf("%d", now.Unix()),
-		ByScore: true,
-	}).Result()
+	stop := fmt.Sprintf("%d", now.Unix())
+	var sessionIDs []string
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		sessionIDs, e = r.client.ZRangeArgs(ctx, redis.ZRangeArgs{
+			Key:     activeSessionsKey,
+			Start:   "-inf",
+			Stop:    stop,
+			ByScore: true,
+		}).Result()
+		return e
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +322,7 @@ func (r *RedisStore) GetExpiredSessions(ctx context.Context, now time.Time) (ses
 			return nil, fmt.Errorf("failed to get expired session %s: %w", sessionID, err)
 		}
 		if session.Status == statusClosed {
-			if zErr := r.client.ZRem(ctx, activeSessionsKey, sessionID); zErr != nil {
+			if zErr := r.client.ZRem(ctx, activeSessionsKey, sessionID).Err(); zErr != nil {
 				slog.Warn("failed to remove expired session", "session_id", session.ID, "error", zErr)
 			}
 			continue
@@ -320,10 +344,15 @@ func (r *RedisStore) GetRole(ctx context.Context, sessionID, userID string) (str
 
 	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
 
-	role, err := r.client.HGet(ctx, accessKey, userID).Result()
-	if errors.Is(err, redis.Nil) {
-		return "", nil
-	}
+	var role string
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		role, e = r.client.HGet(ctx, accessKey, userID).Result()
+		if errors.Is(e, redis.Nil) {
+			return nil
+		}
+		return e
+	})
 	if err != nil {
 		return "", err
 	}
@@ -342,7 +371,12 @@ func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role st
 	accessKey := sessionKey + sessionAccessSuffix
 
 	// Verify session exists
-	exists, err := r.client.Exists(ctx, sessionKey).Result()
+	var exists int64
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		exists, e = r.client.Exists(ctx, sessionKey).Result()
+		return e
+	})
 	if err != nil {
 		return err
 	}
@@ -350,11 +384,13 @@ func (r *RedisStore) GrantAccess(ctx context.Context, sessionID, userID, role st
 		return ErrSessionNotFound
 	}
 
-	pipe := r.client.Pipeline()
-	pipe.HSet(ctx, accessKey, userID, role)
-	pipe.Expire(ctx, accessKey, r.sessionTTL)
-
-	_, err = pipe.Exec(ctx)
+	err = r.retryRedisOp(ctx, func() error {
+		pipe := r.client.Pipeline()
+		pipe.HSet(ctx, accessKey, userID, role)
+		pipe.Expire(ctx, accessKey, r.sessionTTL)
+		_, e := pipe.Exec(ctx)
+		return e
+	})
 	return err
 }
 
@@ -368,8 +404,9 @@ func (r *RedisStore) RevokeAccess(ctx context.Context, sessionID, userID string)
 
 	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
 
-	err = r.client.HDel(ctx, accessKey, userID).Err()
-
+	err = r.retryRedisOp(ctx, func() error {
+		return r.client.HDel(ctx, accessKey, userID).Err()
+	})
 	return err
 }
 
@@ -383,8 +420,12 @@ func (r *RedisStore) HasAccess(ctx context.Context, sessionID, userID string) (h
 
 	accessKey := sessionPrefix + sessionID + sessionAccessSuffix
 
-	exists, err := r.client.HExists(ctx, accessKey, userID).Result()
-
+	var exists bool
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		exists, e = r.client.HExists(ctx, accessKey, userID).Result()
+		return e
+	})
 	return exists, err
 }
 
@@ -398,7 +439,12 @@ func (r *RedisStore) GetUserSessions(ctx context.Context, userID string) (sessio
 
 	userSessionsKey := userSessionsPrefix + userID + ":sessions"
 
-	sessionIDs, err := r.client.SMembers(ctx, userSessionsKey).Result()
+	var sessionIDs []string
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		sessionIDs, e = r.client.SMembers(ctx, userSessionsKey).Result()
+		return e
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -429,10 +475,13 @@ func (r *RedisStore) AddIngressID(ctx context.Context, sessionID, ingressID stri
 	}()
 
 	key := sessionPrefix + sessionID + sessionIngressSuffix
-	pipe := r.client.Pipeline()
-	pipe.SAdd(ctx, key, ingressID)
-	pipe.Expire(ctx, key, r.sessionTTL)
-	_, err = pipe.Exec(ctx)
+	err = r.retryRedisOp(ctx, func() error {
+		pipe := r.client.Pipeline()
+		pipe.SAdd(ctx, key, ingressID)
+		pipe.Expire(ctx, key, r.sessionTTL)
+		_, e := pipe.Exec(ctx)
+		return e
+	})
 	return err
 }
 
@@ -444,7 +493,11 @@ func (r *RedisStore) GetIngressIDs(ctx context.Context, sessionID string) (ids [
 	}()
 
 	key := sessionPrefix + sessionID + sessionIngressSuffix
-	ids, err = r.client.SMembers(ctx, key).Result()
+	err = r.retryRedisOp(ctx, func() error {
+		var e error
+		ids, e = r.client.SMembers(ctx, key).Result()
+		return e
+	})
 	return ids, err
 }
 
@@ -524,15 +577,19 @@ func isRetryable(err error) bool {
 }
 
 func (r *RedisStore) retryRedisOp(ctx context.Context, op func() error) error {
+	maxAttempts := r.maxRetries
+	if maxAttempts < 1 {
+		maxAttempts = 1
+	}
 	var err error
-	for attempt := range r.maxRetries {
+	for attempt := range maxAttempts {
 		err = op()
 		if err == nil || !isRetryable(err) {
 			return err
 		}
-		if attempt < r.maxRetries-1 {
+		if attempt < maxAttempts-1 {
 			backoff := r.retryBackOff * (1 << attempt)
-
+			slog.Warn("redis operation failed, retrying", "attempt", attempt+1, "max", r.maxRetries, "backoff", backoff, "error", err)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
