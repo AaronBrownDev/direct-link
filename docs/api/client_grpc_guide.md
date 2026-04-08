@@ -146,6 +146,45 @@ This section documents the endpoints that will be used by the client to `Create 
     - **Camera operators can rejoin after disconnecting** by calling JoinSession again with the same room code. They do not need a new room code from the director.
     - **Director tokens expire after 1 hour.** If the director's LiveKit connection drops due to token expiry, call JoinSession again to get a fresh token.
 
+- **GetServerTime**
+    1. **Purpose**: Returns the server's current wall-clock time in nanoseconds. Both camera and director machines call this independently to compute their clock offset relative to the server, putting their timestamps in a shared reference frame so end-to-end latency can be measured across machines with independent clocks.
+    2. **Who calls it**: Camera operators and directors — any client that needs to correct its local timestamps.
+    3. **Request fields**: None.
+    4. **Response fields**:
+        - **server_time_ns (int64)**: Current server time as a Unix timestamp in nanoseconds.
+    5. **All possible errors**: This endpoint is unauthenticated and has no required fields. No application-level errors are expected; treat any `Internal` response as transient and retry.
+    6. **An example**:
+    ```
+    - Request: (empty)
+    - Response:
+        "server_time_ns": 1743628800000000000
+    ```
+
+    **Clock Offset Formula (required for end-to-end latency measurement)**:
+
+    ```
+    t1            = client time immediately before sending the request (nanoseconds)
+    t2            = client time immediately after receiving the response (nanoseconds)
+    server_time   = server_time_ns from the response
+
+    clock_offset  = server_time - (t1 + t2) / 2
+
+    corrected_timestamp = local_time + clock_offset
+    ```
+
+    The `(t1 + t2) / 2` midpoint is the client's best estimate of the moment the server recorded its timestamp, assuming equal one-way delays. Network delay is not subtracted — it is absorbed into the midpoint calculation (same approach used by NTP).
+
+    Clients should call `GetServerTime` on a regular interval (e.g. every 5 seconds) and apply a rolling average over recent samples to smooth out jitter. Do not use a single sample.
+
+    **Accuracy note**: The residual error comes from network asymmetry — if the request and response take different amounts of time, the midpoint estimate is off by half the difference. On our GKE dev cluster this asymmetry is typically sub-millisecond, well within the sub-150ms latency target.
+
+    **End-to-end latency pipeline (camera + director coordination required)**:
+
+    - **Camera side**: embed `corrected_stamp = now() + offset_cam` into each frame as an RTP header extension before it enters the GStreamer WHIP pipeline.
+    - **Director side**: extract that RTP header extension timestamp on receipt, then compute `e2e_latency = (now() + offset_dir) - corrected_stamp`.
+
+    The specific RTP header extension ID and format must be agreed on between the camera and director implementations before merging.
+
 
 ## *Data Models*
 
@@ -322,6 +361,24 @@ Expected response:
       "status": "closed"
     }
   ]
+}
+```
+
+### GetServerTime
+
+Record `t1` immediately before the call and `t2` immediately after. The clock offset is `server_time_ns - (t1 + t2) / 2`.
+
+```bash
+grpcurl -plaintext \
+  dev:50051 \
+  directlink.signaling.SignalingService/GetServerTime
+```
+
+Expected response:
+
+```json
+{
+  "serverTimeNs": 1743628800000000000
 }
 ```
 

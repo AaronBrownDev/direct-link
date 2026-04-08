@@ -440,11 +440,11 @@ func (x *GetMySessionsReply) GetSessions() []*SessionInfo {
 // SessionInfo represents a single session in a list response
 type SessionInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"` // Internal UUID, informational only
-	RoomCode      string                 `protobuf:"bytes,2,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`    // Primary identifier
-	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`                        // "active" or "closed"
-	MaxCameras    int32                  `protobuf:"varint,4,opt,name=max_cameras,json=maxCameras,proto3" json:"max_cameras,omitempty"`
-	CreatedAt     string                 `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"` // RFC3339 formatted timestamp
+	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`     // Internal UUID, informational only
+	RoomCode      string                 `protobuf:"bytes,2,opt,name=room_code,json=roomCode,proto3" json:"room_code,omitempty"`        // Primary identifier
+	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`                            // "active" or "closed"
+	MaxCameras    int32                  `protobuf:"varint,4,opt,name=max_cameras,json=maxCameras,proto3" json:"max_cameras,omitempty"` // Max cameras allowed
+	CreatedAt     string                 `protobuf:"bytes,5,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`     // RFC3339 formatted timestamp
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -514,6 +514,88 @@ func (x *SessionInfo) GetCreatedAt() string {
 	return ""
 }
 
+// GetServerTimeRequest is an empty request
+type GetServerTimeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServerTimeRequest) Reset() {
+	*x = GetServerTimeRequest{}
+	mi := &file_signaling_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServerTimeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServerTimeRequest) ProtoMessage() {}
+
+func (x *GetServerTimeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_signaling_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServerTimeRequest.ProtoReflect.Descriptor instead.
+func (*GetServerTimeRequest) Descriptor() ([]byte, []int) {
+	return file_signaling_proto_rawDescGZIP(), []int{9}
+}
+
+// GetServerTimeReply returns the server's current wall clock time for client clock offset calculation
+type GetServerTimeReply struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServerTimeNs  int64                  `protobuf:"varint,1,opt,name=server_time_ns,json=serverTimeNs,proto3" json:"server_time_ns,omitempty"` // Current server time as Unix timestamp in nanoseconds
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServerTimeReply) Reset() {
+	*x = GetServerTimeReply{}
+	mi := &file_signaling_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServerTimeReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServerTimeReply) ProtoMessage() {}
+
+func (x *GetServerTimeReply) ProtoReflect() protoreflect.Message {
+	mi := &file_signaling_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServerTimeReply.ProtoReflect.Descriptor instead.
+func (*GetServerTimeReply) Descriptor() ([]byte, []int) {
+	return file_signaling_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetServerTimeReply) GetServerTimeNs() int64 {
+	if x != nil {
+		return x.ServerTimeNs
+	}
+	return 0
+}
+
 var File_signaling_proto protoreflect.FileDescriptor
 
 const file_signaling_proto_rawDesc = "" +
@@ -553,12 +635,16 @@ const file_signaling_proto_rawDesc = "" +
 	"\vmax_cameras\x18\x04 \x01(\x05R\n" +
 	"maxCameras\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x05 \x01(\tR\tcreatedAt2\x97\x03\n" +
+	"created_at\x18\x05 \x01(\tR\tcreatedAt\"\x16\n" +
+	"\x14GetServerTimeRequest\":\n" +
+	"\x12GetServerTimeReply\x12$\n" +
+	"\x0eserver_time_ns\x18\x01 \x01(\x03R\fserverTimeNs2\xfe\x03\n" +
 	"\x10SignalingService\x12Q\n" +
 	"\vJoinSession\x12!.directlink.signaling.JoinRequest\x1a\x1f.directlink.signaling.JoinReply\x12e\n" +
 	"\rCreateSession\x12*.directlink.signaling.CreateSessionRequest\x1a(.directlink.signaling.CreateSessionReply\x12b\n" +
 	"\fCloseSession\x12).directlink.signaling.CloseSessionRequest\x1a'.directlink.signaling.CloseSessionReply\x12e\n" +
-	"\rGetMySessions\x12*.directlink.signaling.GetMySessionsRequest\x1a(.directlink.signaling.GetMySessionsReplyB@Z>github.com/AaronBrownDev/direct-link/shared/protocol/signalingb\x06proto3"
+	"\rGetMySessions\x12*.directlink.signaling.GetMySessionsRequest\x1a(.directlink.signaling.GetMySessionsReply\x12e\n" +
+	"\rGetServerTime\x12*.directlink.signaling.GetServerTimeRequest\x1a(.directlink.signaling.GetServerTimeReplyB@Z>github.com/AaronBrownDev/direct-link/shared/protocol/signalingb\x06proto3"
 
 var (
 	file_signaling_proto_rawDescOnce sync.Once
@@ -572,7 +658,7 @@ func file_signaling_proto_rawDescGZIP() []byte {
 	return file_signaling_proto_rawDescData
 }
 
-var file_signaling_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_signaling_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_signaling_proto_goTypes = []any{
 	(*JoinRequest)(nil),          // 0: directlink.signaling.JoinRequest
 	(*JoinReply)(nil),            // 1: directlink.signaling.JoinReply
@@ -583,22 +669,26 @@ var file_signaling_proto_goTypes = []any{
 	(*GetMySessionsRequest)(nil), // 6: directlink.signaling.GetMySessionsRequest
 	(*GetMySessionsReply)(nil),   // 7: directlink.signaling.GetMySessionsReply
 	(*SessionInfo)(nil),          // 8: directlink.signaling.SessionInfo
+	(*GetServerTimeRequest)(nil), // 9: directlink.signaling.GetServerTimeRequest
+	(*GetServerTimeReply)(nil),   // 10: directlink.signaling.GetServerTimeReply
 }
 var file_signaling_proto_depIdxs = []int32{
-	8, // 0: directlink.signaling.GetMySessionsReply.sessions:type_name -> directlink.signaling.SessionInfo
-	0, // 1: directlink.signaling.SignalingService.JoinSession:input_type -> directlink.signaling.JoinRequest
-	2, // 2: directlink.signaling.SignalingService.CreateSession:input_type -> directlink.signaling.CreateSessionRequest
-	4, // 3: directlink.signaling.SignalingService.CloseSession:input_type -> directlink.signaling.CloseSessionRequest
-	6, // 4: directlink.signaling.SignalingService.GetMySessions:input_type -> directlink.signaling.GetMySessionsRequest
-	1, // 5: directlink.signaling.SignalingService.JoinSession:output_type -> directlink.signaling.JoinReply
-	3, // 6: directlink.signaling.SignalingService.CreateSession:output_type -> directlink.signaling.CreateSessionReply
-	5, // 7: directlink.signaling.SignalingService.CloseSession:output_type -> directlink.signaling.CloseSessionReply
-	7, // 8: directlink.signaling.SignalingService.GetMySessions:output_type -> directlink.signaling.GetMySessionsReply
-	5, // [5:9] is the sub-list for method output_type
-	1, // [1:5] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	8,  // 0: directlink.signaling.GetMySessionsReply.sessions:type_name -> directlink.signaling.SessionInfo
+	0,  // 1: directlink.signaling.SignalingService.JoinSession:input_type -> directlink.signaling.JoinRequest
+	2,  // 2: directlink.signaling.SignalingService.CreateSession:input_type -> directlink.signaling.CreateSessionRequest
+	4,  // 3: directlink.signaling.SignalingService.CloseSession:input_type -> directlink.signaling.CloseSessionRequest
+	6,  // 4: directlink.signaling.SignalingService.GetMySessions:input_type -> directlink.signaling.GetMySessionsRequest
+	9,  // 5: directlink.signaling.SignalingService.GetServerTime:input_type -> directlink.signaling.GetServerTimeRequest
+	1,  // 6: directlink.signaling.SignalingService.JoinSession:output_type -> directlink.signaling.JoinReply
+	3,  // 7: directlink.signaling.SignalingService.CreateSession:output_type -> directlink.signaling.CreateSessionReply
+	5,  // 8: directlink.signaling.SignalingService.CloseSession:output_type -> directlink.signaling.CloseSessionReply
+	7,  // 9: directlink.signaling.SignalingService.GetMySessions:output_type -> directlink.signaling.GetMySessionsReply
+	10, // 10: directlink.signaling.SignalingService.GetServerTime:output_type -> directlink.signaling.GetServerTimeReply
+	6,  // [6:11] is the sub-list for method output_type
+	1,  // [1:6] is the sub-list for method input_type
+	1,  // [1:1] is the sub-list for extension type_name
+	1,  // [1:1] is the sub-list for extension extendee
+	0,  // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_signaling_proto_init() }
@@ -612,7 +702,7 @@ func file_signaling_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signaling_proto_rawDesc), len(file_signaling_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

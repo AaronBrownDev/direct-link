@@ -249,3 +249,11 @@ func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest
 	}
 	return &pb.GetMySessionsReply{Sessions: pbSessions}, nil
 }
+
+// GetServerTime returns the server time in unix nanoseconds
+func (s *Server) GetServerTime(_ context.Context, _ *pb.GetServerTimeRequest) (*pb.GetServerTimeReply, error) {
+	s.metrics.LatencyRequestsTotal.Inc()
+	return &pb.GetServerTimeReply{
+		ServerTimeNs: time.Now().UnixNano(),
+	}, nil
+}
