@@ -15,7 +15,7 @@ import ui.theme
         label:string - Sets the text displayed above the text field
         emptyText:string - Sets the text displayed when there is no text input
         isCode:bool - Determines whether or not the input is evaluated as a
-            room code (i.e. ROOM-123456)
+            room code (a six-digit number)
         maxLength:int - Constrains the length of the entered text to a set amount of characters
         input:string - An alias for the contents of the field's text input (readonly)
 
@@ -39,8 +39,8 @@ ColumnLayout {
     readonly property string input: dl_field_input.text
 
     function clear() {
-        dl_field_input.text = ""
-        state: ""
+        dl_field_input.text = "";
+        state = "";
     }
 
     implicitHeight: dl_field_label.implicitHeight + spacing + 65
@@ -97,6 +97,7 @@ ColumnLayout {
             anchors.margins: 15
             clip: true
             verticalAlignment: TextInput.AlignVCenter
+            // For codes, the user can only type up to 6 numbers. When not editing the code, the full code (11 characters is shown)
             maximumLength: dl_field.isCode ? 11 : dl_field.maxLength
             color: Theme.textWhite
             font.pointSize: 16
@@ -105,10 +106,12 @@ ColumnLayout {
             onTextEdited: {
                 dl_field.state = "";
                 if (dl_field.isCode) {
-                    let clean = text.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-                    clean = clean.substring(0, 10);
-                    if (clean.length > 4)
-                        clean = clean.substring(0, 4) + "-" + clean.substring(4);
+                    let clean = text.replace(/[^0-9]/g, "");
+                    clean = clean.slice(0, 6);
+
+                    if (clean.length > 0) {
+                        clean = "ROOM-" + clean;
+                    }
 
                     if (text !== clean)
                         text = clean;

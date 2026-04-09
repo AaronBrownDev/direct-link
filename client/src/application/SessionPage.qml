@@ -8,6 +8,8 @@
  * will return the user to the previous page they were on. The 'Close Session' button
  * is visible only to directors and will prompt the user to confirm a session close.
  */
+ 
+pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
@@ -63,6 +65,8 @@ ColumnLayout {
     }
 
     Component.onDestruction: {
+        dl_root_layout.isClosing = true;
+        
         if (dl_root_layout.user_type === UserRole.director) {
                 DirectorTransport.disconnectFromRoom();
             } else {

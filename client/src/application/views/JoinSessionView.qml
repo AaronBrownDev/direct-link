@@ -80,7 +80,7 @@ Rectangle {
             Layout.fillWidth: true
 
             label: "Session Code"
-            emptyText: "Enter code (XXXX-XXXXXX)"
+            emptyText: "Enter 6-digit code"
             maxLength: 11
             isCode: true
 
