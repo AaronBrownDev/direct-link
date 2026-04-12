@@ -20,6 +20,8 @@ public:
                std::function<void(std::unique_ptr<Packet>)> packetCallback);
     [[nodiscard]] virtual Result encodeFrame(AVFrame *frame) = 0;
     virtual void stop() = 0;
+    // Requests an IDR (instantaneous decoder refresh) to allow remote decoder to recover after packet loss
+    virtual void requestKeyframe() noexcept {}
 
     [[nodiscard]] virtual bool isRunning() const { return running_; };
 

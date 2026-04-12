@@ -8,13 +8,21 @@
 
 import QtQuick
 import QtQuick.Layouts
-import QtMultimedia
+import session
 import ui.controls
 
 RowLayout {
         id: dl_operator_view
 
         spacing: 15
+
+        Component.onCompleted: {
+            CameraSessionController.previewSink = dl_camera_preview.video_sink;
+        }
+
+        Component.onDestruction: {
+            CameraSessionController.previewSink = null;
+        }
 
         SessionLog {
             id: dl_session_log
@@ -29,14 +37,5 @@ RowLayout {
             Layout.minimumHeight: implicitWidth / aspect_ratio
             Layout.maximumWidth: dl_operator_view.height * aspect_ratio
             implicitWidth: 500
-        }
-
-        CaptureSession {
-            id: dl_capture_session
-            camera: Camera {
-                id: dl_camera
-                active: true
-            }
-            videoOutput: dl_camera_preview.video_sink
         }
     }

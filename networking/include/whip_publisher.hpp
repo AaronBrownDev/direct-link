@@ -27,10 +27,15 @@ public:
     void pushPacket(std::unique_ptr<videoCore::Packet> packet);
     [[nodiscard]] bool isRunning() const noexcept { return running_; }
 
+    void setKeyframeRequestCallback(std::function<void()> cb) noexcept {
+        forceKeyframeCallback_ = std::move(cb);
+    }
+
 private:
     std::string whipUrl_;
     std::string streamKey_;
     std::function<void(std::string)> onErrorCallback_;
+    std::function<void()> forceKeyframeCallback_;
     bool running_ = false;
     GstElement *pipeline_ = nullptr;
     GstElement *appsrc_ = nullptr;

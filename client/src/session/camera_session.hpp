@@ -15,6 +15,7 @@ public:
 
     bool start(const std::string &whipUrl, const std::string &streamKey);
     void stop();
+    void setPreviewCallback(std::function<void(const videoCore::Frame &)> cb);
 
 private:
     videoCore::pipeline::VideoPipeline pipeline_;

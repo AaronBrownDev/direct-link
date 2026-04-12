@@ -12,7 +12,28 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS  Core Quick QuickControls2 Multimedia Concurrent Protobuf Grpc)
 find_package(PkgConfig REQUIRED)
-find_package(Microsoft.GSL CONFIG REQUIRED)
+find_package(Microsoft.GSL CONFIG)
+find_package(fmt CONFIG)
+if(NOT fmt_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        fmt
+        URL https://github.com/fmtlib/fmt/archive/refs/tags/11.1.4.tar.gz
+        URL_HASH SHA256=b888d55b0caf8f2f213a94f2b7d58bf2e2630ff0b0c87f8c5c74e2ab1b770289
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(fmt)
+endif()
+if(NOT Microsoft.GSL_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        microsoft_gsl
+        URL https://github.com/microsoft/GSL/archive/refs/tags/v4.2.0.tar.gz
+        URL_HASH SHA256=2c717545a073649126cb99ebd493fa2ae23120077968795d2c69cbab821e4ac6
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
+    FetchContent_MakeAvailable(microsoft_gsl)
+endif()
 pkg_check_modules(FFMPEG REQUIRED
     libavcodec
     libavutil
@@ -44,6 +65,10 @@ qt_add_executable(test_livekit_room
     tests/test_livekit_room.cpp
 )
 
+qt_add_executable(test_operator_session
+    tests/test_operator_session.cpp
+)
+
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
@@ -67,8 +92,8 @@ qt_add_grpc(signaling_grpc CLIENT
 
 target_link_libraries(signaling_grpc PRIVATE signaling_proto)
 
-# LiveKit SDK (pre-built in container)
-set(LIVEKIT_DIR /home/vscode/livekit-cpp)
+# LiveKit SDK — can be overriden with -DLIVEKIT_DIR=<path> at configure time
+set(LIVEKIT_DIR "/home/vscode/livekit-cpp" CACHE PATH "Path to livekit-cpp SDK directory")
 
 add_library(livekit SHARED IMPORTED)
 set_target_properties(livekit PROPERTIES
@@ -110,6 +135,18 @@ target_include_directories(test_livekit_room PRIVATE
     ${CMAKE_BINARY_DIR}
 )
 
+target_include_directories(test_operator_session PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/session
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${LIVEKIT_DIR}/include
+    ${CMAKE_BINARY_DIR}
+    ${GST_INCLUDE_DIRS}
+    ${FFMPEG_LIBRARIES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../video-core/include
+)
+
 target_link_libraries(direct-link PRIVATE
     Qt6::Core
     Qt6::Quick
@@ -123,6 +160,7 @@ target_link_libraries(direct-link PRIVATE
     signaling_grpc
     livekit
     livekit_ffi
+    fmt
     directlink_appplugin
     directlink_uiplugin
     directlink_ui_controlsplugin
@@ -155,6 +193,23 @@ target_link_libraries(test_livekit_room PRIVATE
     livekit_ffi
     directlink_networkplugin
     directlink_appplugin
+    video_core
+)
+
+target_link_libraries(test_operator_session PRIVATE
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Multimedia
+    Qt6::Concurrent
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
+    livekit
+    livekit_ffi
+    directlink_appplugin
+    directlink_networkplugin
+    directlink_sessionplugin
     video_core
 )
 

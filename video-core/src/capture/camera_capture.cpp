@@ -96,6 +96,11 @@ Result CameraCapture::setupDevice() {
                     std::to_string(config_.framerate).c_str(), 0);
     }
 
+    if (!config_.pixelFormat.empty()) {
+        av_dict_set(&options, "input_format", 
+                    config_.pixelFormat.c_str(), 0);
+    }
+
     formatCtx_ = avformat_alloc_context();
     if (avformat_open_input(&formatCtx_, config_.devicePath.c_str(), input_fmt,
                             &options) < 0) {
