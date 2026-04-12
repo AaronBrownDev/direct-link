@@ -109,6 +109,7 @@ Window {
 
         inputType: DLPopup.InputType.ConfirmCancel
         displayText: "Are you sure you want to close this session?"
+        closeText: "Cancel"
         onConfirmed: SessionClient.closeSession(root.pending_close_room, root.user_id)
     }
 
@@ -129,6 +130,7 @@ Window {
 
         inputType: DLPopup.InputType.ConfirmCancel
         displayText: "Are you sure you want to log out?"
+        closeText: "Cancel"
         onConfirmed: {
             dl_page_stack.popToIndex(0, StackView.Immediate);
             root.user_id = "";
@@ -139,6 +141,33 @@ Window {
             dl_header.connection_status = "disconnected"
             dl_header.state = "login";
             dl_profile.state = "hidden";
+        }
+    }
+
+    DLPopup {
+        id: dl_reconnect_popup
+
+        property string reason: "Unknown"
+
+        displayText: "You have been disconnected.\n\nReason: " + reason;
+
+        inputType: DLPopup.InputType.ConfirmCancel
+        confirmText: "Reconnect"
+        closeText: "Cancel"
+        confirmType: DLButton.ButtonType.Primary
+        onConfirmed: {
+            if (root.last_room === "") {
+                dl_error_popup.displayText = "Failed to rejoin session.";
+                dl_error_popup.open();
+                return;
+            }
+
+            if (root.user_type === UserRole.director) {
+                root.room_max_cameras = 4;
+            }
+
+            root.current_operation = "joinSession";
+            SessionClient.joinSession(root.last_room, root.user_id, UserRole.toString(root.user_type));
         }
     }
 
@@ -293,12 +322,21 @@ Window {
             dl_header.connection_status = "connected"
         }
 
-        function onDisconnected() {
+        function onDisconnected(reason) {
             dl_header.connection_status = "disconnected"
+
+            if (reason != "ClientInitiated") {
+                dl_reconnect_popup.reason = reason;
+                dl_reconnect_popup.open();
+            }
         }
 
         function onConnectionStateChanged(newState) {
             dl_header.connection_status = newState
+
+            if (newState == "disconnected") {
+                
+            }
         }
     }
 

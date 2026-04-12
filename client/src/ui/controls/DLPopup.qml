@@ -31,6 +31,11 @@ Popup {
     property string displayText: ""
     property int inputType: DLPopup.InputType.ConfirmCancel
 
+    property string confirmText: "Confirm"
+    property int confirmType: DLButton.ButtonType.Danger
+    property string closeText: "Close"
+    property int closeType: DLButton.ButtonType.Secondary
+
     anchors.centerIn: parent
     width: 500
     height: 200
@@ -61,11 +66,7 @@ Popup {
             font.pointSize: 14
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
-<<<<<<< HEAD
-            wrapMode: Text.WordWrap
-=======
             wrapMode: Text.Wrap
->>>>>>> affbfa4 (feat(app): allow onAccepted signal to submit session code on dashboard)
         }
 
         RowLayout {
@@ -82,8 +83,8 @@ Popup {
                 Layout.preferredHeight: 55
 
                 visible: dl_popup.inputType === DLPopup.InputType.ConfirmCancel
-                button_text: "Confirm"
-                button_type: DLButton.ButtonType.Danger
+                button_text: dl_popup.confirmText
+                button_type: dl_popup.confirmType
                 onClicked: {
                     dl_popup.confirmed();
                     dl_popup.close();
@@ -94,8 +95,8 @@ Popup {
                 Layout.preferredWidth: 200
                 Layout.preferredHeight: 55
 
-                button_text: dl_popup.inputType === DLPopup.InputType.ConfirmCancel ? "Cancel" : "Close"
-                button_type: DLButton.ButtonType.Secondary
+                button_text: dl_popup.closeText
+                button_type: dl_popup.closeType
                 onClicked: {
                     dl_popup.close();
                 }

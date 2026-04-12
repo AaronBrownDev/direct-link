@@ -74,7 +74,7 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
 
     signals:
         void connected();
-        void disconnected();
+        void disconnected(const QString &reason);
         void connectionStateChanged(const QString &newState);
         void sessionChanged();
 

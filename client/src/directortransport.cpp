@@ -141,12 +141,15 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room & /*unused*/, con
 
 void DirectorTransport::onDisconnected(livekit::Room & /*unused*/, const livekit::DisconnectedEvent &event) {
     livekit::DisconnectReason reason = event.reason;
+    std::string_view reason_sv = disconnectReasonToString(reason);
 
     qDebug() << "[DirectorTransport] Disconnected from room."
-             << "\n\treason=" << disconnectReasonToString(reason);
+             << "\n\treason=" << reason_sv;
 
-    QMetaObject::invokeMethod(this, [this]() {
-        emit disconnected();
+    QString reason_str = QString::fromUtf8(reason_sv.data(), static_cast<qsizetype>(reason_sv.size()));
+
+    QMetaObject::invokeMethod(this, [this, reason_str]() {
+        emit disconnected(reason_str);
     }, Qt::QueuedConnection);
 }
 
@@ -218,7 +221,7 @@ void DirectorTransport::disconnectFromRoom() {
     qDebug() << "[DirectorTransport] Disconnected.";
     emit connectionStateChanged(m_connection_state);
     emit sessionChanged();
-    emit disconnected();
+    emit disconnected("ClientInitiated");
 }
 
 void DirectorTransport::shutdown() {
