@@ -50,7 +50,11 @@ Result SoftwareEncoder::initialize(
     codecCtx_->max_b_frames = 0;             // No B-frames for low latency
     codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P; // Common pixel format
     codecCtx_->color_range = AVCOL_RANGE_MPEG; // 16-235/16-240 range
-    codecCtx_->profile = FF_PROFILE_H264_CONSTRAINED_BASELINE; // For WebRTC
+    #ifdef AV_PROFILE_H264_CONSTRAINED_BASELINE
+        codecCtx_->profile = AV_PROFILE_H264_CONSTRAINED_BASELINE;
+    #else
+        codecCtx_->profile = FF_PROFILE_H264_CONSTRAINED_BASELINE;
+    #endif
 
     // Set preset options (e.g., ultrafast, fast, medium, slow)
     AVDictionary *options = nullptr;
