@@ -49,7 +49,7 @@ Result NVENCEncoder::initialize(
     codecCtx_->framerate = AVRational{config_.framerate, 1};
     codecCtx_->gop_size = config_.gopSize;
     codecCtx_->max_b_frames = 0;          // No B-frames for low latency
-    codecCtx_->pix_fmt = AV_PIX_FMT_NV12; // Common pixel format
+    codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P; // Match camera capture output
 
     // Set preset options (e.g., ultrafast, fast, medium, slow)
     AVDictionary *options = nullptr;
@@ -90,18 +90,21 @@ Result NVENCEncoder::encodeFrame(AVFrame *frame) {
     AVFrame *input_frame = frame;
     AVFrame *converted_frame = nullptr;
 
-    if (frame->format != AV_PIX_FMT_YUV420P || frame->linesize[0] == 0) {
+    if (frame->format != codecCtx_->pix_fmt ||
+        frame->width != codecCtx_->width ||
+        frame->height != codecCtx_->height ||
+        frame->linesize[0] == 0) {
         converted_frame = av_frame_alloc();
         converted_frame->width = codecCtx_->width;
         converted_frame->height = codecCtx_->height;
-        converted_frame->format = AV_PIX_FMT_YUV420P;
+        converted_frame->format = codecCtx_->pix_fmt;
         av_frame_get_buffer(converted_frame, 32);
 
         // Convert to YUV420P if needed
         SwsContext *sws_ctx = sws_getContext(
             frame->width, frame->height,
             static_cast<AVPixelFormat>(frame->format), codecCtx_->width,
-            codecCtx_->height, AV_PIX_FMT_YUV420P, SWS_BILINEAR, nullptr,
+            codecCtx_->height, codecCtx_->pix_fmt, SWS_BILINEAR, nullptr,
             nullptr, nullptr);
 
         // Perform conversion if swsCtx is valid

@@ -97,6 +97,7 @@ Result SoftwareEncoder::encodeFrame(AVFrame *frame) {
         return Result::ErrorEncodeFailed; // Not initialized
     }
 
+    
     auto src_fmt = static_cast<AVPixelFormat>(frame->format);
     bool src_full_range = (frame->color_range == AVCOL_RANGE_JPEG);
     switch (src_fmt) {
