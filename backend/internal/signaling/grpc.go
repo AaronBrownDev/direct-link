@@ -17,14 +17,8 @@ import (
 func (s *Server) JoinSession(ctx context.Context, req *pb.JoinRequest) (*pb.JoinReply, error) {
 
 	// Validate required fields
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
-	if req.Role == "" {
-		return nil, status.Error(codes.InvalidArgument, "role is required")
-	}
-	if req.RoomCode == "" {
-		return nil, status.Error(codes.InvalidArgument, "room_code is required")
+	if err := validateJoinRequest(req); err != nil {
+		return nil, err
 	}
 
 	// Resolve room code to session and verify it is active
@@ -120,12 +114,8 @@ func (s *Server) joinAsDirector(ctx context.Context, req *pb.JoinRequest, sess *
 func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest) (*pb.CreateSessionReply, error) {
 
 	// Validate required fields
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
-	if req.MaxCameras <= 0 {
-		//TODO: Add camera limit
-		return nil, status.Error(codes.InvalidArgument, "max_cameras must be greater than zero")
+	if err := validateCreateSessionRequest(req); err != nil {
+		return nil, err
 	}
 
 	// Generate session ID and room code
@@ -179,11 +169,8 @@ func (s *Server) CreateSession(ctx context.Context, req *pb.CreateSessionRequest
 func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) (*pb.CloseSessionReply, error) {
 
 	// Validate required fields
-	if req.RoomCode == "" {
-		return nil, status.Error(codes.InvalidArgument, "room_code is required")
-	}
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	if err := validateCloseSessionRequest(req); err != nil {
+		return nil, err
 	}
 
 	// Retrieves session by room code
@@ -225,10 +212,9 @@ func (s *Server) CloseSession(ctx context.Context, req *pb.CloseSessionRequest) 
 // GetMySessions returns all sessions created by the requesting user
 func (s *Server) GetMySessions(ctx context.Context, req *pb.GetMySessionsRequest) (*pb.GetMySessionsReply, error) {
 	// Validate required fields
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
+	if err := validateGetMySessionsRequest(req); err != nil {
+		return nil, err
 	}
-
 	// Fetch all sessions for this user
 	sessions, err := s.store.GetUserSessions(ctx, req.UserId)
 	if err != nil {
