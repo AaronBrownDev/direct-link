@@ -13,8 +13,12 @@ const (
 	maxCamerasAllowed = 4
 )
 
+// roomCodeRegex is compiled once at package init for performance
+// Valid format ROOM-XXXXXX where X is a digit (e.g. ROOM-XXXXXX)
 var roomCodeRegex = regexp.MustCompile(`^ROOM-\d{6}$`)
 
+// validateRoomCode is a shared helper used by any request that carries a room code.
+// Empty and malformed inputs produce distinct error messages
 func validateRoomCode(code string) error {
 	if code == "" {
 		return status.Error(codes.InvalidArgument, "room_code is required")
@@ -26,6 +30,7 @@ func validateRoomCode(code string) error {
 	return nil
 }
 
+// validateUserID is a shared helper used by every request that carries a user_id.
 func validateUserID(id string) error {
 	if len(id) == 0 || len(id) > maxUserIDLength {
 		return status.Error(codes.InvalidArgument, "user_id must be between 1 and 64 characters")
@@ -33,6 +38,7 @@ func validateUserID(id string) error {
 	return nil
 }
 
+// validateJoinRequest validates a JoinSession request
 func validateJoinRequest(req *pb.JoinRequest) error {
 	if err := validateRoomCode(req.RoomCode); err != nil {
 		return err
@@ -47,6 +53,7 @@ func validateJoinRequest(req *pb.JoinRequest) error {
 	return nil
 }
 
+// validateCreateSessionRequest validates a CreateSession request
 func validateCreateSessionRequest(req *pb.CreateSessionRequest) error {
 	if err := validateUserID(req.UserId); err != nil {
 		return err
@@ -57,6 +64,7 @@ func validateCreateSessionRequest(req *pb.CreateSessionRequest) error {
 	return nil
 }
 
+// validateCloseSessionRequest validates a CloseSession request
 func validateCloseSessionRequest(req *pb.CloseSessionRequest) error {
 	if err := validateRoomCode(req.RoomCode); err != nil {
 		return err
@@ -67,6 +75,7 @@ func validateCloseSessionRequest(req *pb.CloseSessionRequest) error {
 	return nil
 }
 
+// validateGetMySessionsRequest validates a GetMySessions request
 func validateGetMySessionsRequest(req *pb.GetMySessionsRequest) error {
 	if err := validateUserID(req.UserId); err != nil {
 		return err
