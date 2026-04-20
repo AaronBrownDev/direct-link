@@ -46,7 +46,10 @@ jobs:
             libavutil-dev \
             libswscale-dev \
             libavdevice-dev \
-            libgtest-dev
+            libgtest-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
 
       - name: Build and run unit tests
         run: make test
@@ -103,7 +106,10 @@ jobs:
             libavformat-dev \
             libavutil-dev \
             libswscale-dev \
-            libavdevice-dev
+            libavdevice-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev
 
       - name: Generate compile_commands.json
         run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON .
