@@ -57,12 +57,12 @@ Result CameraCapture::buildPipeline() {
     const int f = config_.framerate;
     const std::string dev = config_.devicePath;
 
-    const std::string rawCaps = "video/x-raw,format=I420"
+    const std::string raw_caps = "video/x-raw,format=I420"
                                 ",width=" +
                                 std::to_string(w) +
                                 ",height=" + std::to_string(h) +
                                 ",framerate=" + std::to_string(f) + "/1";
-    const std::string sinkProps = "appsink name=sink sync=false max-buffers=4 "
+    const std::string sink_props = "appsink name=sink sync=false max-buffers=4 "
                                   "drop=true emit-signals=false";
 
     // Ordered candidates. Each is probed to READY state; the first that
@@ -87,7 +87,7 @@ Result CameraCapture::buildPipeline() {
         ",height=" + std::to_string(h) + ",framerate=" + std::to_string(f) +
         "/1"
         " ! jpegdec ! videoconvert ! video/x-raw,format=I420 ! " +
-        sinkProps);
+        sink_props);
 
     // V4L2 raw — fallback for cameras without MJPEG.
     candidates.push_back(
@@ -95,25 +95,25 @@ Result CameraCapture::buildPipeline() {
         ",height=" + std::to_string(h) + ",framerate=" + std::to_string(f) +
         "/1"
         " ! videoconvert ! video/x-raw,format=I420 ! " +
-        sinkProps);
+        sink_props);
 
-    GstElementFactory *pwFactory = gst_element_factory_find("pipewiresrc");
-    if (pwFactory != nullptr) {
-        gst_object_unref(pwFactory);
+    GstElementFactory *pw_factory = gst_element_factory_find("pipewiresrc");
+    if (pw_factory != nullptr) {
+        gst_object_unref(pw_factory);
         candidates.push_back("pipewiresrc target-object=" + dev +
                              " do-timestamp=true"
                              " ! jpegdec ! videoconvert ! videoscale ! " +
-                             rawCaps + " ! " + sinkProps);
+                             raw_caps + " ! " + sink_props);
         candidates.push_back("pipewiresrc do-timestamp=true"
                              " ! jpegdec ! videoconvert ! videoscale ! " +
-                             rawCaps + " ! " + sinkProps);
+                             raw_caps + " ! " + sink_props);
         candidates.push_back("pipewiresrc target-object=" + dev +
                              " do-timestamp=true"
                              " ! videoconvert ! videoscale ! " +
-                             rawCaps + " ! " + sinkProps);
+                             raw_caps + " ! " + sink_props);
         candidates.push_back("pipewiresrc do-timestamp=true"
                              " ! videoconvert ! videoscale ! " +
-                             rawCaps + " ! " + sinkProps);
+                             raw_caps + " ! " + sink_props);
     }
 
     for (const auto &pipelineStr : candidates) {
@@ -294,11 +294,11 @@ Result CameraCapture::stop() {
 
 void CameraCapture::captureLoop(const std::stop_token &stopToken) {
     // 100 ms pull timeout expressed in nanoseconds.
-    constexpr GstClockTime kPullTimeoutNs = 100 * GST_MSECOND;
+    constexpr GstClockTime k_pull_timeout_ns = 100 * GST_MSECOND;
 
     while (!stopToken.stop_requested()) {
         GstSample *sample = gst_app_sink_try_pull_sample(GST_APP_SINK(appsink_),
-                                                         kPullTimeoutNs);
+                                                         k_pull_timeout_ns);
 
         if (sample == nullptr) {
             // Timeout or EOS — check the bus for a hard error before looping.
@@ -377,26 +377,26 @@ void CameraCapture::captureLoop(const std::stop_token &stopToken) {
         // Copy the three YUV planes row-by-row, guarding against stride
         // mismatches.
         for (int plane = 0; plane < 3; ++plane) {
-            const int srcStride = GST_VIDEO_FRAME_PLANE_STRIDE(&vframe, plane);
-            const int dstStride = avf->linesize[plane];
-            const int planeHeight =
+            const int src_stride = GST_VIDEO_FRAME_PLANE_STRIDE(&vframe, plane);
+            const int dst_stride = avf->linesize[plane];
+            const int plane_height =
                 (plane == 0) ? avf->height : (avf->height + 1) / 2;
-            const int copyWidth = std::min(srcStride, dstStride);
+            const int copy_width = std::min(src_stride, dst_stride);
 
             const auto *src = static_cast<const uint8_t *>(
                 GST_VIDEO_FRAME_PLANE_DATA(&vframe, plane));
             uint8_t *dst = avf->data[plane];
 
-            for (int row = 0; row < planeHeight; ++row) {
-                std::memcpy(dst + row * dstStride, src + row * srcStride,
-                            static_cast<std::size_t>(copyWidth));
+            for (int row = 0; row < plane_height; ++row) {
+                std::memcpy(dst + row * dst_stride, src + row * src_stride,
+                            static_cast<std::size_t>(copy_width));
             }
         }
 
         // PTS from the GStreamer buffer, in nanoseconds.
-        GstClockTime bufPts = GST_BUFFER_PTS(buffer);
+        GstClockTime buf_pts = GST_BUFFER_PTS(buffer);
         avf->pts =
-            GST_CLOCK_TIME_IS_VALID(bufPts) ? static_cast<int64_t>(bufPts) : 0;
+            GST_CLOCK_TIME_IS_VALID(buf_pts) ? static_cast<int64_t>(buf_pts) : 0;
 
         gst_video_frame_unmap(&vframe);
         gst_sample_unref(sample);

@@ -6,8 +6,7 @@
 #include <functional>
 #include <thread>
 
-using GstElement = struct GstElement;
-
+typedef struct _GstElement GstElement;  // NOLINT(modernize-use-using, bugprone-reserved-identifier)
 namespace videoCore::capture {
 
 class CameraCapture {
