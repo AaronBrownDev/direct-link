@@ -93,7 +93,7 @@ qt_add_grpc(signaling_grpc CLIENT
 target_link_libraries(signaling_grpc PRIVATE signaling_proto)
 
 # LiveKit SDK — can be overriden with -DLIVEKIT_DIR=<path> at configure time
-set(LIVEKIT_DIR "/home/vscode/livekit-cpp" CACHE PATH "Path to livekit-cpp SDK directory")
+set(LIVEKIT_DIR "/opt/livekit-cpp" CACHE PATH "Path to livekit-cpp SDK directory")
 
 add_library(livekit SHARED IMPORTED)
 set_target_properties(livekit PROPERTIES
@@ -235,6 +235,22 @@ install(TARGETS direct-link
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
+install(FILES
+    ${LIVEKIT_DIR}/build/lib/liblivekit.so
+    ${LIVEKIT_DIR}/build/lib/liblivekit_ffi.so
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(direct-link)
+endif()
+
+if (WIN32 OR APPLE)
+    qt_generate_deploy_app_script(
+        TARGET direct-link
+        OUTPUT_SCRIPT deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
+    )
+
+    install(SCRIPT ${deploy_script})
 endif()

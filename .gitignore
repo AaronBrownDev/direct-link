@@ -100,6 +100,10 @@ Thumbs.db
 *.pro.user*
 CMakeLists.txt.user*
 
+# Packaging
+AppDir/
+*.AppImage
+
 # xemacs
 *.flc
 
