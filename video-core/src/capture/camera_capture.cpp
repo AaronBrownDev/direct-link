@@ -178,7 +178,7 @@ Result CameraCapture::buildPipeline() {
                 gst_message_parse_error(msg, &busErr, &dbg);
                 std::cerr << "[CameraCapture] error: "
                           << (busErr != nullptr ? busErr->message : "?");
-                
+
                 if (dbg != nullptr) {
                     std::cerr << " | " << dbg;
                 }

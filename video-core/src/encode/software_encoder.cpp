@@ -47,14 +47,14 @@ Result SoftwareEncoder::initialize(
     codecCtx_->time_base = AVRational{1, config_.framerate};
     codecCtx_->framerate = AVRational{config_.framerate, 1};
     codecCtx_->gop_size = config_.gopSize;
-    codecCtx_->max_b_frames = 0;             // No B-frames for low latency
-    codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P; // Common pixel format
+    codecCtx_->max_b_frames = 0;               // No B-frames for low latency
+    codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P;   // Common pixel format
     codecCtx_->color_range = AVCOL_RANGE_MPEG; // 16-235/16-240 range
-    #ifdef AV_PROFILE_H264_CONSTRAINED_BASELINE
-        codecCtx_->profile = AV_PROFILE_H264_CONSTRAINED_BASELINE;
-    #else
-        codecCtx_->profile = FF_PROFILE_H264_CONSTRAINED_BASELINE;
-    #endif
+#ifdef AV_PROFILE_H264_CONSTRAINED_BASELINE
+    codecCtx_->profile = AV_PROFILE_H264_CONSTRAINED_BASELINE;
+#else
+    codecCtx_->profile = FF_PROFILE_H264_CONSTRAINED_BASELINE;
+#endif
 
     // Set preset options (e.g., ultrafast, fast, medium, slow)
     AVDictionary *options = nullptr;
@@ -97,34 +97,32 @@ Result SoftwareEncoder::encodeFrame(AVFrame *frame) {
         return Result::ErrorEncodeFailed; // Not initialized
     }
 
-    
     auto src_fmt = static_cast<AVPixelFormat>(frame->format);
     bool src_full_range = (frame->color_range == AVCOL_RANGE_JPEG);
     switch (src_fmt) {
-        case AV_PIX_FMT_YUVJ420P:
-            src_fmt = AV_PIX_FMT_YUV420P;
-            src_full_range = true;
-            break;
-        case AV_PIX_FMT_YUVJ422P:
-            src_fmt = AV_PIX_FMT_YUV422P;
-            src_full_range = true;
-            break;
-        case AV_PIX_FMT_YUVJ444P:
-            src_fmt = AV_PIX_FMT_YUV444P;
-            src_full_range = true;
-            break;
-        default: break;
+    case AV_PIX_FMT_YUVJ420P:
+        src_fmt = AV_PIX_FMT_YUV420P;
+        src_full_range = true;
+        break;
+    case AV_PIX_FMT_YUVJ422P:
+        src_fmt = AV_PIX_FMT_YUV422P;
+        src_full_range = true;
+        break;
+    case AV_PIX_FMT_YUVJ444P:
+        src_fmt = AV_PIX_FMT_YUV444P;
+        src_full_range = true;
+        break;
+    default:
+        break;
     }
 
     // Convert frame to YUV420P with limited range if needed
     AVFrame *input_frame = frame;
     AVFrame *converted_frame = nullptr;
 
-    if (src_fmt != AV_PIX_FMT_YUV420P ||
-        src_full_range ||
+    if (src_fmt != AV_PIX_FMT_YUV420P || src_full_range ||
         frame->width != codecCtx_->width ||
-        frame->height != codecCtx_->height ||
-        frame->linesize[0] == 0) {
+        frame->height != codecCtx_->height || frame->linesize[0] == 0) {
         converted_frame = av_frame_alloc();
         converted_frame->width = codecCtx_->width;
         converted_frame->height = codecCtx_->height;
@@ -133,19 +131,22 @@ Result SoftwareEncoder::encodeFrame(AVFrame *frame) {
 
         // Convert to YUV420P if needed
         SwsContext *sws_ctx = sws_getContext(
-            frame->width, frame->height, src_fmt,
-            codecCtx_->width, codecCtx_->height, AV_PIX_FMT_YUV420P, 
-            SWS_BILINEAR, nullptr, nullptr, nullptr);
+            frame->width, frame->height, src_fmt, codecCtx_->width,
+            codecCtx_->height, AV_PIX_FMT_YUV420P, SWS_BILINEAR, nullptr,
+            nullptr, nullptr);
 
         // Perform conversion if swsCtx is valid
         if (sws_ctx != nullptr) {
             if (src_full_range) {
-                // Maps JPEG full-range (0-255) luma/chroma to H.264 limited-range
-                // (16-235 / 16-240) so that the colors are not washed out at the decoder
-                sws_setColorspaceDetails(sws_ctx, 
-                    sws_getCoefficients(SWS_CS_DEFAULT), 1, // full range @ src
-                    sws_getCoefficients(SWS_CS_DEFAULT), 0, // limited range @ destination
-                    0, 1 << 16, 1 << 16);
+                // Maps JPEG full-range (0-255) luma/chroma to H.264
+                // limited-range (16-235 / 16-240) so that the colors are not
+                // washed out at the decoder
+                sws_setColorspaceDetails(sws_ctx,
+                                         sws_getCoefficients(SWS_CS_DEFAULT),
+                                         1, // full range @ src
+                                         sws_getCoefficients(SWS_CS_DEFAULT),
+                                         0, // limited range @ destination
+                                         0, 1 << 16, 1 << 16);
             }
             sws_scale(sws_ctx, frame->data, frame->linesize, 0, frame->height,
                       converted_frame->data, converted_frame->linesize);

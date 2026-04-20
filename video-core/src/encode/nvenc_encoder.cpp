@@ -48,7 +48,7 @@ Result NVENCEncoder::initialize(
     codecCtx_->time_base = AVRational{1, config_.framerate};
     codecCtx_->framerate = AVRational{config_.framerate, 1};
     codecCtx_->gop_size = config_.gopSize;
-    codecCtx_->max_b_frames = 0;          // No B-frames for low latency
+    codecCtx_->max_b_frames = 0;             // No B-frames for low latency
     codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P; // Match camera capture output
 
     // Set preset options (e.g., ultrafast, fast, medium, slow)
@@ -92,8 +92,7 @@ Result NVENCEncoder::encodeFrame(AVFrame *frame) {
 
     if (frame->format != codecCtx_->pix_fmt ||
         frame->width != codecCtx_->width ||
-        frame->height != codecCtx_->height ||
-        frame->linesize[0] == 0) {
+        frame->height != codecCtx_->height || frame->linesize[0] == 0) {
         converted_frame = av_frame_alloc();
         converted_frame->width = codecCtx_->width;
         converted_frame->height = codecCtx_->height;

@@ -23,7 +23,9 @@ public:
     Result start(std::function<void(std::unique_ptr<Frame>)> frameCallback);
     Result stop();
 
-    [[nodiscard]] bool isRunning() const { return running_.load(std::memory_order_relaxed); }
+    [[nodiscard]] bool isRunning() const {
+        return running_.load(std::memory_order_relaxed);
+    }
     [[nodiscard]] int getWidth() const { return width_; }
     [[nodiscard]] int getHeight() const { return height_; }
     [[nodiscard]] int getFramerate() const { return framerate_; }
@@ -31,13 +33,13 @@ public:
 private:
     CaptureConfig config_;
     GstElement *pipeline_ = nullptr;
-    GstElement *appsink_  = nullptr;
+    GstElement *appsink_ = nullptr;
 
     std::atomic<bool> running_{false};
     std::jthread captureThread_;
 
-    int width_     = 0;
-    int height_    = 0;
+    int width_ = 0;
+    int height_ = 0;
     int framerate_ = 0;
 
     std::function<void(std::unique_ptr<Frame>)> frameCallback_;

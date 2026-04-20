@@ -80,7 +80,8 @@ void VideoPipeline::requestKeyframe() noexcept {
     }
 }
 
-void VideoPipeline::setPreviewCallback(std::function<void(const Frame &)> previewCallback) {
+void VideoPipeline::setPreviewCallback(
+    std::function<void(const Frame &)> previewCallback) {
     previewCallback_ = std::move(previewCallback);
 }
 
