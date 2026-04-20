@@ -37,13 +37,17 @@ all: tests
 tests: encode_test nvenc_test
 
 LINT_DIRS := src include tests/unit tests/integration
+GST_CFLAGS := $(shell pkg-config --cflags gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
 
 # Lint code with clang-tidy
 lint:
 	@echo "Running clang-tidy on source files..."
 	@find $(LINT_DIRS) -name "*.cpp" | \
         xargs -P$(shell nproc) -I{} clang-tidy -p $(BUILD_DIR) \
-        --extra-arg=-std=c++20 {}
+        --extra-arg=-std=c++20 \
+        --header-filter='.*direct-link/video-core/.*' \
+        $(addprefix --extra-arg=,$(GST_CFLAGS)) \
+        {}
 	@echo "Lint complete!"
 
 # Format source code (fixes files in place - run locally)
