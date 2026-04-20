@@ -1,212 +1,419 @@
 #include "../../include/capture/camera_capture.hpp"
 #include "../../include/capture/capture_config.hpp"
-#include <chrono>
-#include <functional>
-#include <thread>
+#include <cstring>
+#include <gst/app/gstappsink.h>
+#include <gst/gst.h>
+#include <gst/video/video.h>
+#include <iostream>
+#include <string>
 
 extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavdevice/avdevice.h>
-#include <libavformat/avformat.h>
+#include <libavutil/frame.h>
+#include <libavutil/pixfmt.h>
 }
 
 namespace videoCore::capture {
+
 CameraCapture::~CameraCapture() {
     stop();
-
-    if (codecCtx_ != nullptr) {
-        avcodec_free_context(&codecCtx_);
-        codecCtx_ = nullptr;
+    if (appsink_ != nullptr) {
+        gst_object_unref(appsink_);
+        appsink_ = nullptr;
     }
-    if (formatCtx_ != nullptr) {
-        avformat_close_input(&formatCtx_);
-        formatCtx_ = nullptr;
+    if (pipeline_ != nullptr) {
+        // Always transition to NULL before unreffing. If start() never ran (or
+        // failed mid-way), the pipeline may still own live GStreamer threads
+        // that would keep the process alive after the window is closed.
+        gst_element_set_state(pipeline_, GST_STATE_NULL);
+        gst_object_unref(pipeline_);
+        pipeline_ = nullptr;
     }
 }
 
 Result CameraCapture::initialize(const CaptureConfig &config) {
     config_ = config;
 
-    auto res = setupDevice();
-    if (res != Result::Success) {
-        return res;
+    // Apply defaults for unspecified dimensions/framerate.
+    if (config_.width == 0) {
+        config_.width = 1280;
+    }
+    if (config_.height == 0) {
+        config_.height = 720;
+    }
+    if (config_.framerate == 0) {
+        config_.framerate = 30;
     }
 
-    res = setupCodec();
-    if (res != Result::Success) {
-        return res;
+    if (!gst_is_initialized()) {
+        gst_init(nullptr, nullptr);
     }
 
-    return Result::Success;
+    return buildPipeline();
+}
+
+Result CameraCapture::buildPipeline() {
+    const int w = config_.width;
+    const int h = config_.height;
+    const int f = config_.framerate;
+    const std::string dev = config_.devicePath;
+
+    const std::string rawCaps = "video/x-raw,format=I420"
+                                ",width=" +
+                                std::to_string(w) +
+                                ",height=" + std::to_string(h) +
+                                ",framerate=" + std::to_string(f) + "/1";
+    const std::string sinkProps = "appsink name=sink sync=false max-buffers=4 "
+                                  "drop=true emit-signals=false";
+
+    // Ordered candidates. Each is probed to READY state; the first that
+    // succeeds is kept. READY is sufficient to check device availability — it
+    // avoids the cleanup hang caused by stopping a live streaming thread
+    // mid-flight.
+    //
+    // Candidate ordering rationale:
+    //  - v4l2src comes first: it is universally compatible and works whether
+    //    PipeWire is present or absent (via the pipewire-v4l2 compat layer).
+    //    pipewiresrc requires the session manager (WirePlumber) to have
+    //    registered video nodes; when no nodes exist it hangs indefinitely at
+    //    PLAYING.
+    //  - pipewiresrc variants are kept as fallbacks for environments where
+    //  native
+    //    PipeWire video nodes are available and v4l2 compat is disabled.
+    std::vector<std::string> candidates;
+
+    // V4L2 MJPEG — preferred; most USB cameras expose MJPEG at 720p+/30fps.
+    candidates.push_back(
+        "v4l2src device=" + dev + " ! image/jpeg,width=" + std::to_string(w) +
+        ",height=" + std::to_string(h) + ",framerate=" + std::to_string(f) +
+        "/1"
+        " ! jpegdec ! videoconvert ! video/x-raw,format=I420 ! " +
+        sinkProps);
+
+    // V4L2 raw — fallback for cameras without MJPEG.
+    candidates.push_back(
+        "v4l2src device=" + dev + " ! video/x-raw,width=" + std::to_string(w) +
+        ",height=" + std::to_string(h) + ",framerate=" + std::to_string(f) +
+        "/1"
+        " ! videoconvert ! video/x-raw,format=I420 ! " +
+        sinkProps);
+
+    GstElementFactory *pwFactory = gst_element_factory_find("pipewiresrc");
+    if (pwFactory != nullptr) {
+        gst_object_unref(pwFactory);
+        candidates.push_back("pipewiresrc target-object=" + dev +
+                             " do-timestamp=true"
+                             " ! jpegdec ! videoconvert ! videoscale ! " +
+                             rawCaps + " ! " + sinkProps);
+        candidates.push_back("pipewiresrc do-timestamp=true"
+                             " ! jpegdec ! videoconvert ! videoscale ! " +
+                             rawCaps + " ! " + sinkProps);
+        candidates.push_back("pipewiresrc target-object=" + dev +
+                             " do-timestamp=true"
+                             " ! videoconvert ! videoscale ! " +
+                             rawCaps + " ! " + sinkProps);
+        candidates.push_back("pipewiresrc do-timestamp=true"
+                             " ! videoconvert ! videoscale ! " +
+                             rawCaps + " ! " + sinkProps);
+    }
+
+    for (const auto &pipelineStr : candidates) {
+        std::cerr << "[CameraCapture] trying: " << pipelineStr << "\n";
+
+        GError *parseErr = nullptr;
+        GstElement *pipeline = gst_parse_launch(pipelineStr.c_str(), &parseErr);
+        if (parseErr != nullptr || pipeline == nullptr) {
+            std::cerr << "[CameraCapture] parse error: "
+                      << (parseErr != nullptr ? parseErr->message
+                                              : "null pipeline")
+                      << "\n";
+            if (parseErr != nullptr) {
+                g_error_free(parseErr);
+            }
+            if (pipeline != nullptr) {
+                gst_object_unref(pipeline);
+            }
+            continue;
+        }
+
+        // Probe to READY — this allocates device resources without starting the
+        // streaming thread. PLAYING validation is deferred to start() so that
+        // we never need to tear down a live source mid-flight during candidate
+        // probing, which can cause pipewiresrc to hang on cleanup.
+        GstStateChangeReturn ret =
+            gst_element_set_state(pipeline, GST_STATE_READY);
+        GstState reached = GST_STATE_NULL;
+        if (ret != GST_STATE_CHANGE_FAILURE) {
+            ret =
+                gst_element_get_state(pipeline, &reached, nullptr, GST_SECOND);
+        }
+
+        if (ret != GST_STATE_CHANGE_FAILURE && reached == GST_STATE_READY) {
+            GstElement *appsink =
+                gst_bin_get_by_name(GST_BIN(pipeline), "sink");
+            if (appsink != nullptr) {
+                pipeline_ = pipeline;
+                appsink_ = appsink;
+                width_ = w;
+                height_ = h;
+                framerate_ = f;
+                std::cerr << "[CameraCapture] pipeline ready\n";
+                return Result::Success;
+            }
+            // appsink was null — pipeline built but sink not found
+            std::cerr
+                << "[CameraCapture] appsink element not found in pipeline\n";
+            gst_element_set_state(pipeline, GST_STATE_NULL);
+            gst_object_unref(pipeline);
+        }
+
+        // Candidate failed — drain the bus for a diagnostic message then move
+        // on.
+        GstBus *bus = gst_element_get_bus(pipeline);
+        if (bus != nullptr) {
+            GstMessage *msg = gst_bus_timed_pop_filtered(bus, 500 * GST_MSECOND,
+                                                         GST_MESSAGE_ERROR);
+            if (msg != nullptr) {
+                GError *busErr = nullptr;
+                gchar *dbg = nullptr;
+                gst_message_parse_error(msg, &busErr, &dbg);
+                std::cerr << "[CameraCapture] error: "
+                          << (busErr != nullptr ? busErr->message : "?");
+                
+                if (dbg != nullptr) {
+                    std::cerr << " | " << dbg;
+                }
+                std::cerr << "\n";
+                if (busErr != nullptr) {
+                    g_error_free(busErr);
+                }
+                if (dbg != nullptr) {
+                    g_free(dbg);
+                }
+                gst_message_unref(msg);
+            }
+            gst_object_unref(bus);
+        }
+        gst_element_set_state(pipeline, GST_STATE_NULL);
+        gst_object_unref(pipeline);
+    }
+
+    std::cerr << "[CameraCapture] all pipeline candidates failed\n";
+    return Result::ErrorDeviceNotFound;
+}
+
+// Drain the GStreamer bus and log the first ERROR message, if any.
+// Uses a 500 ms timed wait because pipewiresrc posts its error asynchronously —
+// a non-blocking pop races with the message delivery and silently misses it.
+static void logPipelineError(GstElement *pipeline) {
+    GstBus *bus = gst_element_get_bus(pipeline);
+    if (bus == nullptr) {
+        return;
+    }
+    GstMessage *msg =
+        gst_bus_timed_pop_filtered(bus, 500 * GST_MSECOND, GST_MESSAGE_ERROR);
+    if (msg != nullptr) {
+        GError *err = nullptr;
+        gchar *dbg = nullptr;
+
+        gst_message_parse_error(msg, &err, &dbg);
+        std::cerr << "[CameraCapture] pipeline error: "
+                  << (err != nullptr ? err->message : "?");
+        if (dbg != nullptr) {
+            std::cerr << " | " << dbg;
+        }
+        std::cerr << "\n";
+        if (err != nullptr) {
+            g_error_free(err);
+        }
+        if (dbg != nullptr) {
+            g_free(dbg);
+        }
+        gst_message_unref(msg);
+    }
+    gst_object_unref(bus);
 }
 
 Result CameraCapture::start(
     std::function<void(std::unique_ptr<Frame>)> frameCallback) {
-    if (formatCtx_ == nullptr) {
-        return Result::ErrorInitFailed; // Not initialized
+    if (pipeline_ == nullptr) {
+        return Result::ErrorInitFailed;
     }
-    if (isRunning()) {
-        return Result::ErrorInitFailed; // Already running
+    if (running_.load(std::memory_order_relaxed) || captureThread_.joinable()) {
+        return Result::ErrorInitFailed;
     }
 
     frameCallback_ = std::move(frameCallback);
 
+    GstStateChangeReturn ret =
+        gst_element_set_state(pipeline_, GST_STATE_PLAYING);
+    if (ret == GST_STATE_CHANGE_FAILURE) {
+        logPipelineError(pipeline_);
+        std::cerr << "[CameraCapture] failed to set pipeline to PLAYING\n";
+        gst_element_set_state(pipeline_, GST_STATE_NULL);
+        return Result::ErrorCaptureFailed;
+    }
+
+    // Wait up to 5 s for the pipeline to reach PLAYING.
+    GstState state = GST_STATE_NULL;
+    ret = gst_element_get_state(pipeline_, &state, nullptr,
+                                static_cast<GstClockTime>(5) * GST_SECOND);
+    if (ret == GST_STATE_CHANGE_FAILURE || state != GST_STATE_PLAYING) {
+        logPipelineError(pipeline_);
+        std::cerr << "[CameraCapture] pipeline failed to reach PLAYING state "
+                     "(reached: "
+                  << gst_element_state_get_name(state) << ")\n";
+        gst_element_set_state(pipeline_, GST_STATE_NULL);
+        return Result::ErrorCaptureFailed;
+    }
+
+    running_.store(true, std::memory_order_relaxed);
     captureThread_ = std::jthread(
         [this](const std::stop_token &token) { captureLoop(token); });
+
     return Result::Success;
 }
 
 Result CameraCapture::stop() {
+    if (!running_.load(std::memory_order_relaxed)) {
+        return Result::Success;
+    }
+
+    running_.store(false, std::memory_order_relaxed);
+
     if (captureThread_.joinable()) {
         captureThread_.request_stop();
         captureThread_.join();
     }
-    return Result::Success;
-}
 
-int CameraCapture::getWidth() const {
-    return codecCtx_ != nullptr ? codecCtx_->width : 0;
-}
-
-int CameraCapture::getHeight() const {
-    return codecCtx_ != nullptr ? codecCtx_->height : 0;
-}
-
-int CameraCapture::getFramerate() const {
-    return codecCtx_ != nullptr ? codecCtx_->framerate.num : 0;
-}
-
-Result CameraCapture::setupDevice() {
-    avdevice_register_all();
-
-    const AVInputFormat *input_fmt =
-        av_find_input_format(config_.inputFormat.c_str());
-    if (input_fmt == nullptr) {
-        return Result::ErrorInvalidParameter;
-    }
-
-    AVDictionary *options = nullptr;
-    if (config_.width > 0 && config_.height > 0) {
-        std::string video_size = std::to_string(config_.width) + "x" +
-                                 std::to_string(config_.height);
-        av_dict_set(&options, "video_size", video_size.c_str(), 0);
-    }
-    if (config_.framerate > 0) {
-        av_dict_set(&options, "framerate",
-                    std::to_string(config_.framerate).c_str(), 0);
-    }
-
-    if (!config_.pixelFormat.empty()) {
-        av_dict_set(&options, "input_format", 
-                    config_.pixelFormat.c_str(), 0);
-    }
-
-    formatCtx_ = avformat_alloc_context();
-    if (avformat_open_input(&formatCtx_, config_.devicePath.c_str(), input_fmt,
-                            &options) < 0) {
-        av_dict_free(&options);
-        return Result::ErrorDeviceNotFound;
-    }
-    av_dict_free(&options);
-
-    if (avformat_find_stream_info(formatCtx_, nullptr) < 0) {
-        return Result::ErrorInitFailed;
-    }
-
-    // Find video stream
-    for (unsigned i = 0; i < formatCtx_->nb_streams; i++) {
-        if (formatCtx_->streams[i]->codecpar->codec_type ==
-            AVMEDIA_TYPE_VIDEO) {
-            videoStreamIdx_ = static_cast<int>(i);
-            break;
-        }
-    }
-
-    // If no video stream found, return error
-    if (videoStreamIdx_ == -1) {
-        return Result::ErrorDeviceNotFound;
+    if (pipeline_ != nullptr) {
+        gst_element_set_state(pipeline_, GST_STATE_NULL);
     }
 
     return Result::Success;
-}
-
-Result CameraCapture::setupCodec() {
-    if (videoStreamIdx_ == -1) {
-        return Result::ErrorInitFailed; // No video stream
-    }
-
-    auto *codecpar = formatCtx_->streams[videoStreamIdx_]->codecpar;
-    const AVCodec *decoder = avcodec_find_decoder(codecpar->codec_id);
-    if (decoder == nullptr) {
-        return Result::ErrorInitFailed; // Decoder not found
-    }
-
-    codecCtx_ = avcodec_alloc_context3(decoder);
-    if (codecCtx_ == nullptr) {
-        return Result::ErrorInitFailed; // Could not allocate codec context
-    }
-
-    if (avcodec_parameters_to_context(codecCtx_, codecpar) < 0) {
-        return Result::ErrorInitFailed; // Could not copy codec parameters
-    }
-
-    if (avcodec_open2(codecCtx_, decoder, nullptr) < 0) {
-        return Result::ErrorInitFailed;
-    }
-    return Result::Success;
-}
-
-bool CameraCapture::processFrame(AVFrame *frame) {
-    auto wrapped_frame = std::make_unique<Frame>();
-    wrapped_frame->frame.reset(av_frame_clone(frame));
-
-    AVRational stream_tb = formatCtx_->streams[videoStreamIdx_]->time_base;
-    constexpr AVRational ns_tb = {1, 1000000000};
-    wrapped_frame->pts = (frame->pts != AV_NOPTS_VALUE)
-                             ? av_rescale_q(frame->pts, stream_tb, ns_tb)
-                             : 0;
-
-    wrapped_frame->width = frame->width;
-    wrapped_frame->height = frame->height;
-    wrapped_frame->format = static_cast<AVPixelFormat>(frame->format);
-
-    if (frameCallback_) {
-        frameCallback_(std::move(wrapped_frame));
-    }
-
-    av_frame_unref(frame);
-    return true;
-}
-
-bool CameraCapture::processPacket(AVPacket *packet, AVFrame *frame) {
-    if (packet->stream_index != videoStreamIdx_) {
-        return false;
-    }
-    if (avcodec_send_packet(codecCtx_, packet) != 0) {
-        return false;
-    }
-    if (avcodec_receive_frame(codecCtx_, frame) != 0) {
-        return false;
-    }
-    return processFrame(frame);
 }
 
 void CameraCapture::captureLoop(const std::stop_token &stopToken) {
-    AVPacket *packet = av_packet_alloc();
-    AVFrame *frame = av_frame_alloc();
+    // 100 ms pull timeout expressed in nanoseconds.
+    constexpr GstClockTime kPullTimeoutNs = 100 * GST_MSECOND;
 
     while (!stopToken.stop_requested()) {
-        if (av_read_frame(formatCtx_, packet) >= 0) {
-            processPacket(packet, frame);
-            av_packet_unref(packet);
+        GstSample *sample = gst_app_sink_try_pull_sample(GST_APP_SINK(appsink_),
+                                                         kPullTimeoutNs);
+
+        if (sample == nullptr) {
+            // Timeout or EOS — check the bus for a hard error before looping.
+            GstBus *bus = gst_element_get_bus(pipeline_);
+            if (bus != nullptr) {
+                GstMessage *msg = gst_bus_pop_filtered(
+                    bus, static_cast<GstMessageType>(GST_MESSAGE_ERROR |
+                                                     GST_MESSAGE_EOS));
+                if (msg != nullptr) {
+                    if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ERROR) {
+                        GError *err = nullptr;
+                        gchar *dbg = nullptr;
+                        gst_message_parse_error(msg, &err, &dbg);
+                        std::cerr << "[CameraCapture] pipeline error: "
+                                  << (err != nullptr ? err->message : "unknown")
+                                  << " | " << (dbg != nullptr ? dbg : "")
+                                  << "\n";
+                        if (err != nullptr) {
+                            g_error_free(err);
+                        }
+                        if (dbg != nullptr) {
+                            g_free(dbg);
+                        }
+                    }
+                    gst_message_unref(msg);
+                    gst_object_unref(bus);
+                    break;
+                }
+                gst_object_unref(bus);
+            }
+            continue;
         }
-        else {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        GstCaps *caps = gst_sample_get_caps(sample);
+        GstBuffer *buffer = gst_sample_get_buffer(sample);
+
+        if (caps == nullptr || buffer == nullptr) {
+            gst_sample_unref(sample);
+            continue;
+        }
+
+        GstVideoInfo vinfo;
+        if (!gst_video_info_from_caps(&vinfo, caps)) {
+            std::cerr << "[CameraCapture] gst_video_info_from_caps failed\n";
+            gst_sample_unref(sample);
+            continue;
+        }
+
+        GstVideoFrame vframe;
+        if (!gst_video_frame_map(&vframe, &vinfo, buffer, GST_MAP_READ)) {
+            std::cerr << "[CameraCapture] gst_video_frame_map failed\n";
+            gst_sample_unref(sample);
+            continue;
+        }
+
+        // Allocate an AVFrame to hand off to the rest of the pipeline.
+        AVFrame *avf = av_frame_alloc();
+        if (avf == nullptr) {
+            gst_video_frame_unmap(&vframe);
+            gst_sample_unref(sample);
+            continue;
+        }
+
+        avf->format = AV_PIX_FMT_YUV420P;
+        avf->width = GST_VIDEO_FRAME_WIDTH(&vframe);
+        avf->height = GST_VIDEO_FRAME_HEIGHT(&vframe);
+
+        if (av_frame_get_buffer(avf, 32) < 0) {
+            std::cerr << "[CameraCapture] av_frame_get_buffer failed\n";
+            av_frame_free(&avf);
+            gst_video_frame_unmap(&vframe);
+            gst_sample_unref(sample);
+            continue;
+        }
+
+        // Copy the three YUV planes row-by-row, guarding against stride
+        // mismatches.
+        for (int plane = 0; plane < 3; ++plane) {
+            const int srcStride = GST_VIDEO_FRAME_PLANE_STRIDE(&vframe, plane);
+            const int dstStride = avf->linesize[plane];
+            const int planeHeight =
+                (plane == 0) ? avf->height : (avf->height + 1) / 2;
+            const int copyWidth = std::min(srcStride, dstStride);
+
+            const auto *src = static_cast<const uint8_t *>(
+                GST_VIDEO_FRAME_PLANE_DATA(&vframe, plane));
+            uint8_t *dst = avf->data[plane];
+
+            for (int row = 0; row < planeHeight; ++row) {
+                std::memcpy(dst + row * dstStride, src + row * srcStride,
+                            static_cast<std::size_t>(copyWidth));
+            }
+        }
+
+        // PTS from the GStreamer buffer, in nanoseconds.
+        GstClockTime bufPts = GST_BUFFER_PTS(buffer);
+        avf->pts =
+            GST_CLOCK_TIME_IS_VALID(bufPts) ? static_cast<int64_t>(bufPts) : 0;
+
+        gst_video_frame_unmap(&vframe);
+        gst_sample_unref(sample);
+
+        auto wrapped = std::make_unique<Frame>();
+        wrapped->frame.reset(avf);
+        wrapped->pts = avf->pts;
+        wrapped->width = avf->width;
+        wrapped->height = avf->height;
+        wrapped->format = AV_PIX_FMT_YUV420P;
+
+        if (frameCallback_) {
+            frameCallback_(std::move(wrapped));
         }
     }
 
-    av_frame_free(&frame);
-    av_packet_free(&packet);
+    running_.store(false, std::memory_order_relaxed);
 }
 
 } // namespace videoCore::capture

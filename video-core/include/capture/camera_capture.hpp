@@ -2,20 +2,20 @@
 
 #include "../common/types.hpp"
 #include "capture_config.hpp"
+#include <atomic>
 #include <functional>
 #include <thread>
 
-struct AVFormatContext;
-struct AVCodecContext;
+#include <gst/gst.h>
 
 namespace videoCore::capture {
+
 class CameraCapture {
 public:
     CameraCapture() = default;
     ~CameraCapture();
     CameraCapture(CameraCapture &&) = delete;
     CameraCapture &operator=(CameraCapture &&) = delete;
-
     CameraCapture(const CameraCapture &) = delete;
     CameraCapture &operator=(const CameraCapture &) = delete;
 
@@ -23,25 +23,27 @@ public:
     Result start(std::function<void(std::unique_ptr<Frame>)> frameCallback);
     Result stop();
 
-    [[nodiscard]] bool isRunning() const { return captureThread_.joinable(); }
-    [[nodiscard]] int getWidth() const;
-    [[nodiscard]] int getHeight() const;
-    [[nodiscard]] int getFramerate() const;
+    [[nodiscard]] bool isRunning() const { return running_.load(std::memory_order_relaxed); }
+    [[nodiscard]] int getWidth() const { return width_; }
+    [[nodiscard]] int getHeight() const { return height_; }
+    [[nodiscard]] int getFramerate() const { return framerate_; }
 
 private:
     CaptureConfig config_;
-    AVFormatContext *formatCtx_ = nullptr;
-    AVCodecContext *codecCtx_ = nullptr;
-    int videoStreamIdx_ = -1;
+    GstElement *pipeline_ = nullptr;
+    GstElement *appsink_  = nullptr;
+
+    std::atomic<bool> running_{false};
     std::jthread captureThread_;
+
+    int width_     = 0;
+    int height_    = 0;
+    int framerate_ = 0;
 
     std::function<void(std::unique_ptr<Frame>)> frameCallback_;
 
+    [[nodiscard]] Result buildPipeline();
     void captureLoop(const std::stop_token &stopToken);
-    Result setupDevice();
-    Result setupCodec();
-
-    bool processPacket(AVPacket *packet, AVFrame *frame);
-    bool processFrame(AVFrame *frame);
 };
+
 } // namespace videoCore::capture

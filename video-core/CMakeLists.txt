@@ -19,6 +19,13 @@ pkg_check_modules(FFMPEG REQUIRED
     libavdevice
 )
 
+# GStreamer — used by camera_capture for PipeWire-native capture
+pkg_check_modules(GST REQUIRED
+    gstreamer-1.0
+    gstreamer-app-1.0
+    gstreamer-video-1.0
+)
+
 # Compiler flags
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
@@ -41,10 +48,12 @@ add_library(video_core STATIC
 target_include_directories(video_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${FFMPEG_INCLUDE_DIRS}
+    ${GST_INCLUDE_DIRS}
 )
 
 target_link_libraries(video_core PUBLIC
     ${FFMPEG_LIBRARIES}
+    ${GST_LIBRARIES}
 )
 
 # =================================================================
