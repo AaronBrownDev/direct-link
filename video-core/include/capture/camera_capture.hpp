@@ -6,7 +6,7 @@
 #include <functional>
 #include <thread>
 
-#include <gst/gst.h>
+using GstElement = struct GstElement;
 
 namespace videoCore::capture {
 
