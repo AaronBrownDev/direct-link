@@ -3,6 +3,7 @@
 CXX := g++
 CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic -g -fno-omit-frame-pointer
 LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale libavdevice)
+GST_FLAGS := $(shell pkg-config --cflags --libs gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
 INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale libavdevice)
 
 # Directories
@@ -121,7 +122,7 @@ test: $(UNIT_TEST_BIN)
 	@$(UNIT_TEST_BIN)
 
 $(UNIT_TEST_BIN): $(UNIT_TEST_SRC) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(GTEST_FLAGS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(GTEST_FLAGS) $(GST_FLAGS)
 	@echo "Built unit tests -> $@"
 
 PIPELINE_TEST_SRC := tests/integration/test_video_pipeline.cpp \
