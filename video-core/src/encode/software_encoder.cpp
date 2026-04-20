@@ -44,8 +44,8 @@ Result SoftwareEncoder::initialize(
     codecCtx_->width = config_.width;
     codecCtx_->height = config_.height;
     codecCtx_->bit_rate = config_.bitrate;
-    codecCtx_->time_base = AVRational{1, config_.framerate};
-    codecCtx_->framerate = AVRational{config_.framerate, 1};
+    codecCtx_->time_base = AVRational{.num = 1, .den = config_.framerate};
+    codecCtx_->framerate = AVRational{.num = config_.framerate, .den = 1};
     codecCtx_->gop_size = config_.gopSize;
     codecCtx_->max_b_frames = 0;               // No B-frames for low latency
     codecCtx_->pix_fmt = AV_PIX_FMT_YUV420P;   // Common pixel format
@@ -165,7 +165,7 @@ Result SoftwareEncoder::encodeFrame(AVFrame *frame) {
     // Convert PTS from nanoseconds to encoder timebase
     input_frame->pts =
         av_rescale_q(frame->pts, // already nanoseconds from CameraCapture
-                     AVRational{1, 1000000000}, // from
+                     AVRational{.num = 1, .den = 1000000000}, // from
                      codecCtx_->time_base       // to encoder timebase
         );
 

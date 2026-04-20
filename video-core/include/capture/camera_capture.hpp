@@ -6,7 +6,7 @@
 #include <functional>
 #include <thread>
 
-typedef struct _GstElement GstElement;  // NOLINT(modernize-use-using, bugprone-reserved-identifier)
+#include <gst/gst.h>
 namespace videoCore::capture {
 
 class CameraCapture {

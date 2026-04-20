@@ -22,7 +22,7 @@ int64_t Encoder::rescaleToNs(int64_t value, AVRational src_tb) {
     if (value == AV_NOPTS_VALUE) {
         return 0;
     }
-    constexpr AVRational ns_tb = {1, 1000000000};
+    constexpr AVRational ns_tb = {.num = 1, .den = 1000000000};
     return av_rescale_q(value, src_tb, ns_tb);
 }
 
