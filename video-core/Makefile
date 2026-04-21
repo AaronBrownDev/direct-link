@@ -2,8 +2,9 @@
 
 CXX := g++
 CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic -g -fno-omit-frame-pointer
-LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale libavdevice)
-INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale libavdevice)
+LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale)
+GST_FLAGS := $(shell pkg-config --cflags --libs gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
+INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale)
 
 # Directories
 BUILD_DIR := build
@@ -36,13 +37,17 @@ all: tests
 tests: encode_test nvenc_test
 
 LINT_DIRS := src include tests/unit tests/integration
+GST_CFLAGS := $(shell pkg-config --cflags gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
 
 # Lint code with clang-tidy
 lint:
 	@echo "Running clang-tidy on source files..."
 	@find $(LINT_DIRS) -name "*.cpp" | \
         xargs -P$(shell nproc) -I{} clang-tidy -p $(BUILD_DIR) \
-        --extra-arg=-std=c++20 {}
+        --extra-arg=-std=c++20 \
+        --header-filter='.*direct-link/video-core/.*' \
+        $(addprefix --extra-arg=,$(GST_CFLAGS)) \
+        {}
 	@echo "Lint complete!"
 
 # Format source code (fixes files in place - run locally)
@@ -121,7 +126,7 @@ test: $(UNIT_TEST_BIN)
 	@$(UNIT_TEST_BIN)
 
 $(UNIT_TEST_BIN): $(UNIT_TEST_SRC) | $(BIN_DIR)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(GTEST_FLAGS)
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS) $(GTEST_FLAGS) $(GST_FLAGS)
 	@echo "Built unit tests -> $@"
 
 PIPELINE_TEST_SRC := tests/integration/test_video_pipeline.cpp \

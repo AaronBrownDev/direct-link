@@ -143,7 +143,7 @@ target_include_directories(test_operator_session PRIVATE
     ${LIVEKIT_DIR}/include
     ${CMAKE_BINARY_DIR}
     ${GST_INCLUDE_DIRS}
-    ${FFMPEG_LIBRARIES}
+    ${FFMPEG_INCLUDE_DIRS}
     ${CMAKE_CURRENT_SOURCE_DIR}/../video-core/include
 )
 
@@ -178,6 +178,7 @@ target_link_libraries(test_signaling_client PRIVATE
     signaling_proto
     signaling_grpc
     directlink_networkplugin
+    fmt
 )
 
 target_link_libraries(test_livekit_room PRIVATE
@@ -194,6 +195,8 @@ target_link_libraries(test_livekit_room PRIVATE
     directlink_networkplugin
     directlink_appplugin
     video_core
+    fmt
+    Microsoft.GSL::GSL
 )
 
 target_link_libraries(test_operator_session PRIVATE
@@ -211,6 +214,7 @@ target_link_libraries(test_operator_session PRIVATE
     directlink_networkplugin
     directlink_sessionplugin
     video_core
+    fmt
 )
 
 if(Qt6_VERSION VERSION_LESS 6.1.0)

@@ -34,8 +34,8 @@ static EncodedTestData generateTestPackets(int frameCount = 5) {
 
     ctx->width = result.width;
     ctx->height = result.height;
-    ctx->time_base = {1, result.framerate};
-    ctx->framerate = {result.framerate, 1};
+    ctx->time_base = {.num = 1, .den = result.framerate};
+    ctx->framerate = {.num = result.framerate, .den = 1};
     ctx->pix_fmt = AV_PIX_FMT_YUV420P;
     ctx->gop_size = 1; // every frame is a keyframe — simplifies decoder test
 

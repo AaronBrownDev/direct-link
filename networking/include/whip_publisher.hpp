@@ -26,12 +26,17 @@ public:
 
     void pushPacket(std::unique_ptr<videoCore::Packet> packet);
     [[nodiscard]] bool isRunning() const noexcept { return running_; }
-
+    
+    // Register a callback invoked when the remote decoder sends a RTCP PLI or
+    // FIR (via GstForceKeyUnitEvent).  The callback should request an IDR from
+    // the encoder.  Must be called before start().
     void setKeyframeRequestCallback(std::function<void()> cb) noexcept {
         forceKeyframeCallback_ = std::move(cb);
     }
 
 private:
+    void logBusError();
+
     std::string whipUrl_;
     std::string streamKey_;
     std::function<void(std::string)> onErrorCallback_;
@@ -42,5 +47,11 @@ private:
     std::mutex appsrcMutex_;
     std::uint64_t frameCount_ = 0;
     int framerate_ = 60; // Default framerate, can be overridden by config
+    
+    // Absolute PTS of the first packet pushed; used to compute pipeline-relative
+    // timestamps.  v4l2 timestamps are relative to device open, not the
+    // GStreamer pipeline base time, so raw PTS values would cause GStreamer to
+    // buffer packets until the pipeline clock catches up.
+    std::int64_t streamStartPts_ = -1;
 };
 } // namespace networking

@@ -54,7 +54,8 @@ Result VideoPipeline::start(
                 if (previewCallback_) {
                     previewCallback_(*frame);
                 }
-                std::lock_guard<std::mutex> lock(queueMutex_);
+                std::lock_guard<std::mutex> lock(
+                    queueMutex_); // NOLINT(modernize-use-scoped-lock)
                 if (frameQueue_.size() >= QUEUE_CAPACITY) {
                     frameQueue_.pop(); // Drop oldest frame
                     framesDropped_++;
@@ -80,7 +81,8 @@ void VideoPipeline::requestKeyframe() noexcept {
     }
 }
 
-void VideoPipeline::setPreviewCallback(std::function<void(const Frame &)> previewCallback) {
+void VideoPipeline::setPreviewCallback(
+    std::function<void(const Frame &)> previewCallback) {
     previewCallback_ = std::move(previewCallback);
 }
 
