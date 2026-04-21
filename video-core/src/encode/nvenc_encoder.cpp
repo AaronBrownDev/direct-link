@@ -120,7 +120,7 @@ Result NVENCEncoder::encodeFrame(AVFrame *frame) {
     input_frame->pts =
         av_rescale_q(frame->pts, // already nanoseconds from CameraCapture
                      AVRational{.num = 1, .den = 1000000000}, // from
-                     codecCtx_->time_base       // to encoder timebase
+                     codecCtx_->time_base // to encoder timebase
         );
 
     // Send frame to encoder

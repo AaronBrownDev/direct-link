@@ -12,7 +12,11 @@ extern "C" {
 #include <libavutil/pixfmt.h>
 }
 
-// NOLINTBEGIN(cppcoreguidelines-pro-type-cstyle-cast, bugprone-casting-through-void, cppcoreguidelines-pro-bounds-constant-array-index, clang-analyzer-optin.core.EnumCastOutOfRange, readability-implicit-bool-conversion)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-cstyle-cast,
+// bugprone-casting-through-void,
+// cppcoreguidelines-pro-bounds-constant-array-index,
+// clang-analyzer-optin.core.EnumCastOutOfRange,
+// readability-implicit-bool-conversion)
 namespace videoCore::capture {
 
 CameraCapture::~CameraCapture() {
@@ -59,12 +63,12 @@ Result CameraCapture::buildPipeline() {
     const std::string dev = config_.devicePath;
 
     const std::string raw_caps = "video/x-raw,format=I420"
-                                ",width=" +
-                                std::to_string(w) +
-                                ",height=" + std::to_string(h) +
-                                ",framerate=" + std::to_string(f) + "/1";
+                                 ",width=" +
+                                 std::to_string(w) +
+                                 ",height=" + std::to_string(h) +
+                                 ",framerate=" + std::to_string(f) + "/1";
     const std::string sink_props = "appsink name=sink sync=false max-buffers=4 "
-                                  "drop=true emit-signals=false";
+                                   "drop=true emit-signals=false";
 
     // Ordered candidates. Each is probed to READY state; the first that
     // succeeds is kept. READY is sufficient to check device availability — it
@@ -121,11 +125,12 @@ Result CameraCapture::buildPipeline() {
         std::cerr << "[CameraCapture] trying: " << pipeline_str << "\n";
 
         GError *parse_err = nullptr;
-        GstElement *pipeline = gst_parse_launch(pipeline_str.c_str(), &parse_err);
+        GstElement *pipeline =
+            gst_parse_launch(pipeline_str.c_str(), &parse_err);
         if (parse_err != nullptr || pipeline == nullptr) {
             std::cerr << "[CameraCapture] parse error: "
                       << (parse_err != nullptr ? parse_err->message
-                                              : "null pipeline")
+                                               : "null pipeline")
                       << "\n";
             if (parse_err != nullptr) {
                 g_error_free(parse_err);
@@ -388,15 +393,17 @@ void CameraCapture::captureLoop(const std::stop_token &stopToken) {
             uint8_t *dst = avf->data[plane];
 
             for (int row = 0; row < plane_height; ++row) {
-                std::memcpy(dst + (static_cast<ptrdiff_t>(row) * dst_stride), src + (static_cast<ptrdiff_t>(row) * src_stride),
+                std::memcpy(dst + (static_cast<ptrdiff_t>(row) * dst_stride),
+                            src + (static_cast<ptrdiff_t>(row) * src_stride),
                             static_cast<std::size_t>(copy_width));
             }
         }
 
         // PTS from the GStreamer buffer, in nanoseconds.
         GstClockTime buf_pts = GST_BUFFER_PTS(buffer);
-        avf->pts =
-            GST_CLOCK_TIME_IS_VALID(buf_pts) ? static_cast<int64_t>(buf_pts) : 0;
+        avf->pts = GST_CLOCK_TIME_IS_VALID(buf_pts)
+                       ? static_cast<int64_t>(buf_pts)
+                       : 0;
 
         gst_video_frame_unmap(&vframe);
         gst_sample_unref(sample);
@@ -417,4 +424,8 @@ void CameraCapture::captureLoop(const std::stop_token &stopToken) {
 }
 
 } // namespace videoCore::capture
-// NOLINTEND(cppcoreguidelines-pro-type-cstyle-cast, bugprone-casting-through-void, cppcoreguidelines-pro-bounds-constant-array-index, clang-analyzer-optin.core.EnumCastOutOfRange, readability-implicit-bool-conversion)
+// NOLINTEND(cppcoreguidelines-pro-type-cstyle-cast,
+// bugprone-casting-through-void,
+// cppcoreguidelines-pro-bounds-constant-array-index,
+// clang-analyzer-optin.core.EnumCastOutOfRange,
+// readability-implicit-bool-conversion)

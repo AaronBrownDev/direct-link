@@ -54,7 +54,8 @@ Result VideoPipeline::start(
                 if (previewCallback_) {
                     previewCallback_(*frame);
                 }
-                std::lock_guard<std::mutex> lock(queueMutex_);
+                std::lock_guard<std::mutex> lock(
+                    queueMutex_); // NOLINT(modernize-use-scoped-lock)
                 if (frameQueue_.size() >= QUEUE_CAPACITY) {
                     frameQueue_.pop(); // Drop oldest frame
                     framesDropped_++;
