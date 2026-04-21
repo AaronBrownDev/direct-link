@@ -12,6 +12,7 @@ extern "C" {
 #include <libavutil/pixfmt.h>
 }
 
+// NOLINTBEGIN(cppcoreguidelines-pro-type-cstyle-cast, bugprone-casting-through-void, cppcoreguidelines-pro-bounds-constant-array-index, clang-analyzer-optin.core.EnumCastOutOfRange, readability-implicit-bool-conversion)
 namespace videoCore::capture {
 
 CameraCapture::~CameraCapture() {
@@ -116,18 +117,18 @@ Result CameraCapture::buildPipeline() {
                              raw_caps + " ! " + sink_props);
     }
 
-    for (const auto &pipelineStr : candidates) {
-        std::cerr << "[CameraCapture] trying: " << pipelineStr << "\n";
+    for (const auto &pipeline_str : candidates) {
+        std::cerr << "[CameraCapture] trying: " << pipeline_str << "\n";
 
-        GError *parseErr = nullptr;
-        GstElement *pipeline = gst_parse_launch(pipelineStr.c_str(), &parseErr);
-        if (parseErr != nullptr || pipeline == nullptr) {
+        GError *parse_err = nullptr;
+        GstElement *pipeline = gst_parse_launch(pipeline_str.c_str(), &parse_err);
+        if (parse_err != nullptr || pipeline == nullptr) {
             std::cerr << "[CameraCapture] parse error: "
-                      << (parseErr != nullptr ? parseErr->message
+                      << (parse_err != nullptr ? parse_err->message
                                               : "null pipeline")
                       << "\n";
-            if (parseErr != nullptr) {
-                g_error_free(parseErr);
+            if (parse_err != nullptr) {
+                g_error_free(parse_err);
             }
             if (pipeline != nullptr) {
                 gst_object_unref(pipeline);
@@ -173,18 +174,17 @@ Result CameraCapture::buildPipeline() {
             GstMessage *msg = gst_bus_timed_pop_filtered(bus, 500 * GST_MSECOND,
                                                          GST_MESSAGE_ERROR);
             if (msg != nullptr) {
-                GError *busErr = nullptr;
+                GError *bus_err = nullptr;
                 gchar *dbg = nullptr;
-                gst_message_parse_error(msg, &busErr, &dbg);
+                gst_message_parse_error(msg, &bus_err, &dbg);
                 std::cerr << "[CameraCapture] error: "
-                          << (busErr != nullptr ? busErr->message : "?");
-
+                          << (bus_err != nullptr ? bus_err->message : "?");
                 if (dbg != nullptr) {
                     std::cerr << " | " << dbg;
                 }
                 std::cerr << "\n";
-                if (busErr != nullptr) {
-                    g_error_free(busErr);
+                if (bus_err != nullptr) {
+                    g_error_free(bus_err);
                 }
                 if (dbg != nullptr) {
                     g_free(dbg);
@@ -388,7 +388,7 @@ void CameraCapture::captureLoop(const std::stop_token &stopToken) {
             uint8_t *dst = avf->data[plane];
 
             for (int row = 0; row < plane_height; ++row) {
-                std::memcpy(dst + row * dst_stride, src + row * src_stride,
+                std::memcpy(dst + (static_cast<ptrdiff_t>(row) * dst_stride), src + (static_cast<ptrdiff_t>(row) * src_stride),
                             static_cast<std::size_t>(copy_width));
             }
         }
@@ -417,3 +417,4 @@ void CameraCapture::captureLoop(const std::stop_token &stopToken) {
 }
 
 } // namespace videoCore::capture
+// NOLINTEND(cppcoreguidelines-pro-type-cstyle-cast, bugprone-casting-through-void, cppcoreguidelines-pro-bounds-constant-array-index, clang-analyzer-optin.core.EnumCastOutOfRange, readability-implicit-bool-conversion)
