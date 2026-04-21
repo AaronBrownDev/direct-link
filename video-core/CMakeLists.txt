@@ -16,7 +16,6 @@ pkg_check_modules(FFMPEG REQUIRED
     libavformat
     libavutil
     libswscale
-    libavdevice
 )
 
 # GStreamer — used by camera_capture for PipeWire-native capture

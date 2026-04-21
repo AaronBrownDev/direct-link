@@ -2,9 +2,9 @@
 
 CXX := g++
 CXXFLAGS := -std=c++20 -Wall -Wextra -Wpedantic -g -fno-omit-frame-pointer
-LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale libavdevice)
+LDFLAGS := $(shell pkg-config --libs libavcodec libavformat libavutil libswscale)
 GST_FLAGS := $(shell pkg-config --cflags --libs gstreamer-1.0 gstreamer-app-1.0 gstreamer-video-1.0)
-INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale libavdevice)
+INCLUDES := -Iinclude $(shell pkg-config --cflags libavcodec libavformat libavutil libswscale)
 
 # Directories
 BUILD_DIR := build
