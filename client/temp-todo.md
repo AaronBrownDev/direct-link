@@ -19,8 +19,6 @@
 
 ### Packaging
 
-- Move package-linux.sh script to direct-link/scripts directory (edit as needed)
-- Delete client/scripts directory
 - Add a background to the app icon
 - Create documentation for Linux packaging workflow (docs/deployment/linux_packaging_guide.md)
 - Set up Windows packaging workflow + documentation (docs/deployment/windows_packaging_guide.md)

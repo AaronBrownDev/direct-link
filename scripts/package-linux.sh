@@ -4,9 +4,15 @@
 # Author:       Justin Williams
 # Date:         4/20/26
 # Description:  A script for packaging the app into an AppImage file
-#               that can be run on Linux machines.
+#               that can be run on Linux machines. Cmake will install
+#               and package the 
 #
-# Usage:        ./package-linux.sh
+# Usage:        ./package-linux.sh [--build]
+#
+# Options:      --build     Configure, then build install and package
+#                           the app. Run when packaging for the first
+#                           time or after changing source code.
+#               
 #
 # Notes:        The following must be installed to run this script
 #                       cmake
@@ -30,9 +36,15 @@ QT_PLUGINS="/home/justw/Qt/${QT_VERSION}/gcc_64/plugins"
 
 export QMAKE="/home/justw/Qt/${QT_VERSION}/gcc_64/bin/qmake"
 export QML_SOURCES_PATHS="${CLIENT_DIR}/src"
+export Qt6_DIR="/home/justw/Qt/${QT_VERSION}/gcc_64/lib/cmake/Qt6"
 export LD_LIBRARY_PATH="${CLIENT_DIR}/AppDir/usr/lib:/opt/livekit-cpp/build/lib:${CLIENT_DIR}/build/release:${LD_LIBRARY_PATH}"
 export LINUXDEPLOY_OUTPUT_APP_NAME="direct-link"
 export LINUXDEPLOY_OUTPUT_VERSION="0.1"
+
+BUILD=false
+if [ "${1}" == "--build" ]; then
+    BUILD=true
+fi
 
 # Check for required tools
 if ! command -v patchelf &>/dev/null; then
@@ -42,6 +54,11 @@ fi
 
 if ! command -v wget &>/dev/null; then
     echo "ERROR: wget is not installed. Run: sudo apt-get install wget"
+    exit 1
+fi
+
+if ! command -v ninja &>/dev/null; then
+    echo "ERROR: ninja is not installed. Run: sudo apt-get install ninja-build"
     exit 1
 fi
 
@@ -62,6 +79,21 @@ if [ ! -f "$LINUXDEPLOY_QT" ]; then
         https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage \
         -O "$LINUXDEPLOY_QT"
     chmod +x "$LINUXDEPLOY_QT"
+fi
+
+# Configure and build
+if [ "$BUILD" = true ]; then
+    echo "Configuring..."
+    cmake -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX="${CLIENT_DIR}/AppDir/usr" \
+        -DLIVEKIT_DIR=/opt/livekit-cpp \
+        -DQt6_DIR="${Qt6_DIR}" \
+        -B "${CLIENT_DIR}/build/release" \
+        -S "${CLIENT_DIR}"
+
+    echo "Building..."
+    cmake --build "${CLIENT_DIR}/build/release"
 fi
 
 # The following plugins are ignored to avoid dependency errors
@@ -85,9 +117,14 @@ for name in "${EXCLUDED_PLUGIN_DIRS[@]}"; do
     fi
 done
 
+echo "Installing to AppDir..."
+rm -rf "${CLIENT_DIR}/AppDir"
+cmake --install "${CLIENT_DIR}/build/release"
+
 cd "$CLIENT_DIR"
 
 # Patches the livekit path so that it does not rely on an absolute system path
+echo "Patching LiveKit RPATHs..."
 patchelf --set-rpath '$ORIGIN' AppDir/usr/lib/liblivekit.so
 patchelf --set-rpath '$ORIGIN' AppDir/usr/lib/liblivekit_ffi.so
 
@@ -102,10 +139,12 @@ patchelf --replace-needed \
     AppDir/usr/bin/direct-link
 patchelf --set-rpath '$ORIGIN/../lib' AppDir/usr/bin/direct-link
 
+echo "Packaging AppImage..."
 "$LINUXDEPLOY" \
     --appdir AppDir \
     --executable AppDir/usr/bin/direct-link \
     --desktop-file deploy/linux/direct-link.desktop \
     --icon-file deploy/linux/direct-link.png \
+    --custom-apprun deploy/linux/AppRun \
     --plugin qt \
     --output appimage

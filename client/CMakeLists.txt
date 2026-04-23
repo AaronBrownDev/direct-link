@@ -241,6 +241,31 @@ install(FILES
     DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
+install(FILES
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvideo4linux2.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstapp.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstjpeg.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvideoconvertscale.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstcoreelements.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstwebrtchttp.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstwebrtc.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstrswebrtc.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstdtls.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstsrtp.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstrtp.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstrtpmanager.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstrtpmanagerbad.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstrtponvif.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstnice.so
+    /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstvideoparsersbad.so
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/gstreamer-1.0    
+)
+
+install(PROGRAMS
+    /usr/lib/x86_64-linux-gnu/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/gstreamer-1.0
+)
+
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(direct-link)
 endif()
