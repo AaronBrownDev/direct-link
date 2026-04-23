@@ -42,8 +42,8 @@ Rectangle {
     }
 
     function validateInput() {
-        if (dl_session_code_field.input.length === 11)
-            dl_join_session_bg.joinClicked(dl_session_code_field.input, dl_camera_name_field.input);
+        if (dl_session_code_field.input.length === 6)
+            dl_join_session_bg.joinClicked(("ROOM-" + dl_session_code_field.input), dl_camera_name_field.input);
         else {
             dl_session_code_field.state = "invalid";
         }
@@ -80,8 +80,7 @@ Rectangle {
             Layout.fillWidth: true
 
             label: "Session Code"
-            emptyText: "Enter 6-digit code"
-            maxLength: 11
+            emptyText: "Enter 6-digit room code"
             isCode: true
 
             onAccepted: dl_join_session_bg.validateInput()

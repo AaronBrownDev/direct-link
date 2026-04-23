@@ -97,8 +97,8 @@ ColumnLayout {
             anchors.margins: 15
             clip: true
             verticalAlignment: TextInput.AlignVCenter
-            // For codes, the user can only type up to 6 numbers. When not editing the code, the full code (11 characters is shown)
-            maximumLength: dl_field.isCode ? 11 : dl_field.maxLength
+            // For codes, the user can only type up to 6 numbers
+            maximumLength: dl_field.isCode ? 6 : dl_field.maxLength
             color: Theme.textWhite
             font.pointSize: 16
             selectionColor: Theme.primary
@@ -107,11 +107,6 @@ ColumnLayout {
                 dl_field.state = "";
                 if (dl_field.isCode) {
                     let clean = text.replace(/[^0-9]/g, "");
-                    clean = clean.slice(0, 6);
-
-                    if (clean.length > 0) {
-                        clean = "ROOM-" + clean;
-                    }
 
                     if (text !== clean)
                         text = clean;
