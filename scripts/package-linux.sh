@@ -31,7 +31,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 CLIENT_DIR="${REPO_DIR}/client"
-QT_VERSION=6.10.2
+QT_VERSION=6.10.3
 QT_PLUGINS="/home/justw/Qt/${QT_VERSION}/gcc_64/plugins"
 
 export QMAKE="/home/justw/Qt/${QT_VERSION}/gcc_64/bin/qmake"

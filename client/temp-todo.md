@@ -1,5 +1,8 @@
 ## TODO
 
+### Notes
+- Qt Version has been bumped up from 6.10.2 to 6.10.3 due to Windows packaging dependencies
+
 ### UI Controls
 
 1. Latency chip + indicator
