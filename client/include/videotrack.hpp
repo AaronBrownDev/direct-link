@@ -38,7 +38,7 @@ class VideoTrack : public QObject {
 
         [[nodiscard]] QVideoSink *videoSink() const;
         [[nodiscard]] qreal aspectRatio() const;
-        
+
         void setVideoSink(QVideoSink *sink);
 
         bool setTrack(const std::shared_ptr<livekit::Track> &track);

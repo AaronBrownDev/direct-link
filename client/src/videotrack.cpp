@@ -71,7 +71,7 @@ void VideoTrack::startRead() {
 void VideoTrack::readLoop() {
     livekit::VideoFrameEvent event;
     bool has_ratio = false;
-    
+
     while (m_stream && m_stream->read(event)) {
         if (!has_ratio) {
             int w = event.frame.width();
@@ -83,6 +83,6 @@ void VideoTrack::readLoop() {
             }
         }
 
-       m_frameReader->pushFrame(std::move(event.frame));
+        m_frameReader->pushFrame(std::move(event.frame));
     }
 }
