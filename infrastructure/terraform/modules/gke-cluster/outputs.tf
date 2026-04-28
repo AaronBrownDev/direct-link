@@ -19,3 +19,9 @@ output "project_id" {
   value       = var.project_id
 }
 
+output "ca_certificate" {
+  description = "Base64-encoded CA certificate for the GKE cluster"
+  value       = google_container_cluster.primary.master_auth[0].cluster_ca_certificate
+  sensitive   = true
+}
+

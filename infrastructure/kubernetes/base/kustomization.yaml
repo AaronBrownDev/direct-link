@@ -23,3 +23,5 @@ resources:
   - ingress/deployment.yaml
   - ingress/service.yaml
   - ingress/configmap.yaml
+  - monitoring/prometheus
+  - monitoring/grafana
