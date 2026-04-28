@@ -7,6 +7,7 @@ RowLayout {
     id: dl_layout_session_info
 
     property string room_code: "XXXX-XXXX"
+    property double latency_ms: 0.0
 
     Layout.alignment: Qt.AlignHCenter
 
@@ -42,7 +43,7 @@ RowLayout {
 
         Text {
             id: dl_label_latency
-            text: "0 ms"
+            text: Math.round(dl_layout_session_info.latency_ms) + " ms"
             color: Theme.textBlack
             font.pointSize: 18
             anchors.centerIn: parent

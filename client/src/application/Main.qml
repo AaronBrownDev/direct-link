@@ -33,6 +33,7 @@ Window {
     property string pending_close_room: ""
     property int room_max_cameras: 0
     property string current_operation: ""
+    property bool inSession: false
 
     visible: true
     minimumWidth: 1400
@@ -45,6 +46,14 @@ Window {
     Component.onCompleted: {
         SessionClient.connectToServer(channel);
         root.connected = true;
+    }
+
+    Timer {
+        id: dl_latency_timer
+        interval: 2000
+        repeat: true
+        running: root.inSession
+        onTriggered: SessionClient.measureLatency()
     }
 
     // Header + Page Stack
@@ -159,6 +168,7 @@ Window {
         }
 
         function onClosePage() {
+            root.inSession = false;
             dl_page_stack.popCurrentItem(StackView.Immediate);
         }
 
@@ -217,6 +227,7 @@ Window {
         target: SessionClient
 
         function onDirectorJoined(token, livekitUrl) {
+            root.inSession = true;
             dl_page_stack.pushItem(dl_session_component, {
                 user_type: UserRole.director,
                 room_code: root.last_room,
@@ -227,12 +238,17 @@ Window {
         }
 
         function onCameraJoined(whipUrl, streamKey) {
+            root.inSession = true;
             dl_page_stack.pushItem(dl_session_component, {
                 user_type: UserRole.camera,
                 room_code: root.last_room,
                 whip_url: whipUrl,
                 stream_key: streamKey
             }, StackView.Immediate);
+        }
+
+        function onLatencyMeasured(rttMs) {
+            dl_page_stack.currentItem.latency_ms = rttMs;
         }
 
         function onSessionCreated(roomCode) {
@@ -245,6 +261,7 @@ Window {
 
         function onSessionClosed(success) {
             if (success) {
+                root.inSession = false;
                 if (root.last_room === root.pending_close_room)
                     root.last_room = "";
 

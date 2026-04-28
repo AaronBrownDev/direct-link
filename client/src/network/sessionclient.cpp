@@ -11,6 +11,8 @@
 #include <QDebug>
 #include "sessionclient.hpp"
 
+#include <chrono>
+
 using namespace directlink::signaling;
 
 SessionClient::SessionClient(QObject *parent) : QObject(parent) {}
@@ -157,4 +159,53 @@ void SessionClient::getMySessions(const QString &userId) {
 
         emit sessionsReceived(sessions);
     });
+}
+
+void SessionClient::measureLatency() {
+    GetServerTimeRequest req;
+
+    const auto t1_steady = std::chrono::steady_clock::now();
+    const qint64 t1_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+
+    auto reply = m_client.GetServerTime(req);
+    auto *reply_ptr = reply.get();
+
+    QObject::connect(reply_ptr, &QGrpcCallReply::finished, this,
+        [this, reply = std::move(reply), t1_steady, t1_ns](const QGrpcStatus &status) {
+            if (!status.isOk()) {
+                qWarning() << "[SessionClient] GetServerTime failed:" << status.message();
+                return;
+            }
+            auto resp = reply->read<GetServerTimeReply>();
+            if (!resp) {
+                qWarning() << "[SessionClient] Could not deserialize GetServerTimeReply";
+                return;
+            }
+
+            const auto t2_steady = std::chrono::steady_clock::now();
+            const double rtt_ms = std::chrono::duration<double, std::milli>(
+                t2_steady - t1_steady).count();
+
+            // Approximate t2 wall-clock time by adding the steady-clock elapsed to t1,
+            // avoiding a second system_clock::now() that could be affected by clock jumps.
+            const qint64 t2_ns = t1_ns + std::chrono::duration_cast<std::chrono::nanoseconds>(
+                t2_steady - t1_steady).count();
+
+            // Clock offset formula: server_time - (t1 + t2) / 2
+            const qint64 sample = resp->serverTimeNs() - ((t1_ns + t2_ns) / 2);
+
+            if (m_offset_initialized) {
+                m_clock_offset_ns = static_cast<qint64>(
+                    (OFFSET_EMA_ALPHA * static_cast<double>(sample))
+                    + ((1.0 - OFFSET_EMA_ALPHA) * static_cast<double>(m_clock_offset_ns)));
+            } else {
+                m_clock_offset_ns = sample;
+                m_offset_initialized = true;
+            }
+
+            emit latencyMeasured(rtt_ms);
+            emit clockOffsetChanged();
+        }
+    );
 }

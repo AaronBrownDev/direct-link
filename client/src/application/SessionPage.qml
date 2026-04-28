@@ -47,6 +47,8 @@ ColumnLayout {
     property string whip_url: ""
     property string stream_key: ""
 
+    property double latency_ms: 0.0
+
     property bool isClosing: false
 
     spacing: 15
@@ -76,6 +78,7 @@ ColumnLayout {
         Layout.topMargin: 10
 
         room_code: dl_root_layout.room_code
+        latency_ms: dl_root_layout.latency_ms
     }
 
     Loader {
