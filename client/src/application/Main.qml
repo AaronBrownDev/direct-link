@@ -237,18 +237,28 @@ Window {
             }, StackView.Immediate);
         }
 
-        function onCameraJoined(whipUrl, streamKey) {
+        function onCameraJoined(whipUrl, streamKey, dataToken, livekitUrl) {
             root.inSession = true;
             dl_page_stack.pushItem(dl_session_component, {
                 user_type: UserRole.camera,
                 room_code: root.last_room,
                 whip_url: whipUrl,
-                stream_key: streamKey
+                stream_key: streamKey,
+                data_token: dataToken,
+                data_livekit_url: livekitUrl
             }, StackView.Immediate);
         }
 
         function onLatencyMeasured(rttMs) {
-            dl_page_stack.currentItem.latency_ms = rttMs;
+            // Camera operators show signaling RTT as a proxy for network health.
+            // Directors receive true e2e latency via DirectorTransport.latencyMeasured.
+            if (root.user_type !== UserRole.director)
+                dl_page_stack.currentItem.latency_ms = rttMs;
+        }
+
+        function onClockOffsetChanged() {
+            DirectorTransport.setClockOffset(SessionClient.clockOffsetNs);
+            CameraLatencySender.setClockOffset(SessionClient.clockOffsetNs);
         }
 
         function onSessionCreated(roomCode) {
@@ -316,6 +326,10 @@ Window {
 
         function onConnectionStateChanged(newState) {
             dl_header.connection_status = newState
+        }
+
+        function onLatencyMeasured(latencyMs) {
+            dl_page_stack.currentItem.latency_ms = latencyMs;
         }
     }
 

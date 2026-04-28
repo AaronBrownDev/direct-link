@@ -5,6 +5,8 @@
 #include <livekit/remote_track_publication.h>
 #include <livekit/room.h>
 
+#include <chrono>
+
 static std::string_view disconnectReasonToString(livekit::DisconnectReason reason) {
     switch (reason) {
         case livekit::DisconnectReason::ClientInitiated:    return "ClientInitiated";
@@ -139,6 +141,30 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room & /*unused*/, con
 
 }
 
+void DirectorTransport::onUserPacketReceived(livekit::Room & /*unused*/, const livekit::UserDataPacketEvent &event) {
+    if (event.topic != "latency" || event.data.size() != 8) {
+        return;
+    }
+
+    // Deserialize big-endian int64 sent by CameraLatencySender.
+    qint64 capture_ns = 0;
+    for (int i = 0; i < 8; ++i) {
+        capture_ns = (capture_ns << 8) | static_cast<qint64>(event.data[static_cast<std::size_t>(i)]);
+    }
+
+    // Both capture_ns and display_ns are expressed relative to the signaling
+    // server clock, so their difference is true end-to-end latency.
+    const qint64 display_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count()
+        + m_clock_offset_ns.load(std::memory_order_relaxed);
+
+    const double latency_ms = static_cast<double>(display_ns - capture_ns) / 1e6;
+
+    QMetaObject::invokeMethod(this, [this, latency_ms]() {
+        emit latencyMeasured(latency_ms);
+    }, Qt::QueuedConnection);
+}
+
 void DirectorTransport::onDisconnected(livekit::Room & /*unused*/, const livekit::DisconnectedEvent &event) {
     livekit::DisconnectReason reason = event.reason;
 
@@ -224,6 +250,10 @@ void DirectorTransport::disconnectFromRoom() {
 void DirectorTransport::shutdown() {
     m_session.reset();
     m_room.reset();
+}
+
+void DirectorTransport::setClockOffset(qint64 ns) {
+    m_clock_offset_ns.store(ns, std::memory_order_relaxed);
 }
 
 QString DirectorTransport::connectionState() const {

@@ -74,12 +74,32 @@ func (s *Server) joinAsCamera(ctx context.Context, req *pb.JoinRequest, sess *se
 		s.logger.Warn("failed to store ingress ID", "ingress_id", info.IngressId, "error", err)
 	}
 
+	// Generate a data-only LiveKit JWT so the camera client can connect to the
+	// room as a non-publishing participant and send latency timestamp packets.
+	canPublish, canSubscribe := false, false
+	dataAt := auth.NewAccessToken(s.cfg.LiveKitAPIKey, s.cfg.LiveKitAPISecret)
+	dataGrant := &auth.VideoGrant{
+		RoomJoin:     true,
+		Room:         sess.ID,
+		CanPublish:   &canPublish,
+		CanSubscribe: &canSubscribe,
+	}
+	dataAt.SetVideoGrant(dataGrant).SetIdentity(req.UserId + "_data").SetValidFor(time.Hour)
+	dataToken, err := dataAt.ToJWT()
+	if err != nil {
+		s.logger.Warn("failed to generate camera data token", "session_id", sess.ID, "user_id", req.UserId, "error", err)
+		// Non-fatal: camera can still stream, latency measurement just won't work.
+		dataToken = ""
+	}
+
 	s.metrics.TokenGenerationsTotal.WithLabelValues("camera").Inc()
 	s.logger.Info("camera joined via WHIP ingress", "session_id", sess.ID, "user_id", req.UserId, "ingress_id", info.IngressId)
 
 	return &pb.JoinReply{
-		WhipUrl:   info.Url,
-		StreamKey: info.StreamKey,
+		WhipUrl:    info.Url,
+		StreamKey:  info.StreamKey,
+		DataToken:  dataToken,
+		LivekitUrl: s.cfg.LiveKitExternalURL,
 	}, nil
 }
 

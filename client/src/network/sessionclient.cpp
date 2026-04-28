@@ -87,11 +87,13 @@ void SessionClient::joinSession(const QString &roomCode, const QString &userId, 
             // Camera
             QString whip_url = resp->whipUrl();
             QString stream_key = resp->streamKey();
+            QString data_token = resp->dataToken();
+            QString livekit_url = resp->livekitUrl();
 
             qDebug() << "[SessionClient] Operator joined.";
             qDebug() << "WHIP URL:" << whip_url;
             qDebug() << "Stream key:" << stream_key;
-            emit cameraJoined(whip_url, stream_key);
+            emit cameraJoined(whip_url, stream_key, data_token, livekit_url);
         }
         else {
             qWarning() << "[SessionClient] JoinReply had no credentials for either role";

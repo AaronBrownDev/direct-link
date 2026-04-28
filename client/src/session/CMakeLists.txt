@@ -5,6 +5,7 @@ set_target_properties(directlink_session PROPERTIES AUTOMOC ON)
 target_include_directories(directlink_session PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${GST_INCLUDE_DIRS}
+    ${LIVEKIT_DIR}/include
 )
 
 target_link_libraries(directlink_session PRIVATE
@@ -14,6 +15,9 @@ target_link_libraries(directlink_session PRIVATE
     Qt6::Multimedia
     video_core
     directlink_networking
+    livekit
+    livekit_ffi
+    Microsoft.GSL::GSL
 )
 
 qt_add_qml_module(directlink_session
@@ -24,4 +28,6 @@ qt_add_qml_module(directlink_session
         ${CMAKE_CURRENT_SOURCE_DIR}/camera_session.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/session_controller.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/session_controller.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/camera_latency_sender.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/camera_latency_sender.cpp
 )

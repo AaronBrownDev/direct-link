@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: signaling
-          image: directlink/signaling:dev
+          image: us-south1-docker.pkg.dev/directlink-dev/directlink/signaling:latest
           ports:
             - name: grpc
               containerPort: 50051

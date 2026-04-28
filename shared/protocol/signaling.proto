@@ -28,10 +28,11 @@ message JoinRequest {
 
 // JoinReply provides credentials for connecting to LiveKit
 message JoinReply {
-    string token = 1; // LiveKit JWT access token (directors only)
-    string livekit_url = 2; // LiveKit server URL for media connection (directors only)
-    string whip_url = 3; // WHIP endpoint (cameras only)
-    string stream_key = 4; // WHIP auth token / stream key (cameras only)
+    string token = 1;       // LiveKit JWT access token (directors only)
+    string livekit_url = 2; // LiveKit server URL (directors for media; cameras for data channel)
+    string whip_url = 3;    // WHIP endpoint (cameras only)
+    string stream_key = 4;  // WHIP auth token / stream key (cameras only)
+    string data_token = 5;  // LiveKit data-only JWT for camera latency measurement (cameras only)
 }
 
 // CreatesSessionRequest initiates creation of a new production session 

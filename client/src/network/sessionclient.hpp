@@ -51,7 +51,8 @@ signals:
     void clockOffsetChanged();
 
     void directorJoined(const QString &token, const QString &livekitUrl);
-    void cameraJoined(const QString &whipUrl, const QString &streamKey);
+    void cameraJoined(const QString &whipUrl, const QString &streamKey,
+                      const QString &dataToken, const QString &livekitUrl);
 
     void sessionClosed(bool success);
 

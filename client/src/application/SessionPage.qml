@@ -47,6 +47,9 @@ ColumnLayout {
     property string whip_url: ""
     property string stream_key: ""
 
+    property string data_token: ""
+    property string data_livekit_url: ""
+
     property double latency_ms: 0.0
 
     property bool isClosing: false
@@ -61,15 +64,18 @@ ColumnLayout {
             DirectorTransport.connectToRoom(dl_root_layout.livekit_token, dl_root_layout.livekit_url);
         } else {
             CameraSessionController.start(dl_root_layout.whip_url, dl_root_layout.stream_key);
+            if (dl_root_layout.data_token.length > 0)
+                CameraLatencySender.start(dl_root_layout.data_token, dl_root_layout.data_livekit_url);
         }
     }
 
     Component.onDestruction: {
         if (dl_root_layout.user_type === UserRole.director) {
-                DirectorTransport.disconnectFromRoom();
-            } else {
-                CameraSessionController.stop();
-            }
+            DirectorTransport.disconnectFromRoom();
+        } else {
+            CameraSessionController.stop();
+            CameraLatencySender.stop();
+        }
     }
 
     SessionInfo {

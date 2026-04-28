@@ -18,6 +18,8 @@
 #include <livekit/room_delegate.h>
 #include <gsl/pointers>
 
+#include <atomic>
+
 #include "directorsession.hpp"
 
 class DirectorTransport : public QObject, public livekit::RoomDelegate {
@@ -65,22 +67,29 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
             livekit::Room & /*unused*/,
             const livekit::DisconnectedEvent &event) override;
 
+        void onUserPacketReceived(
+            livekit::Room & /*unused*/,
+            const livekit::UserDataPacketEvent &event) override;
+
         [[nodiscard]] QString connectionState() const;
         [[nodiscard]] DirectorSession* session() const;
 
         Q_INVOKABLE void connectToRoom(const QString &token, const QString &url);
         Q_INVOKABLE void disconnectFromRoom();
         Q_INVOKABLE void shutdown();
+        Q_INVOKABLE void setClockOffset(qint64 ns);
 
     signals:
         void connected();
         void disconnected();
         void connectionStateChanged(const QString &newState);
         void sessionChanged();
+        void latencyMeasured(double latencyMs);
 
     private:
         std::unique_ptr<livekit::Room> m_room;
         QString m_connection_state = "disconnected";
         std::unique_ptr<DirectorSession> m_session;
         gsl::owner<QFutureWatcher<bool> *> m_connectWatcher = nullptr;
+        std::atomic<qint64> m_clock_offset_ns{0};
 };
