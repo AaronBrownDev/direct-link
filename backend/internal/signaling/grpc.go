@@ -123,7 +123,15 @@ func (s *Server) joinAsDirector(ctx context.Context, req *pb.JoinRequest, sess *
 		CanPublish:   &canPublish,
 		CanSubscribe: &canSubscribe,
 	}
-	at.SetVideoGrant(grant).SetIdentity(req.UserId).SetValidFor(time.Hour)
+	// Request zero jitter-buffer playout delay so that libwebrtc targets the
+	// minimum possible buffering depth on the director's subscriber connection.
+	at.SetVideoGrant(grant).
+		SetIdentity(req.UserId).
+		SetValidFor(time.Hour).
+		SetRoomConfig(&livekit.RoomConfiguration{
+			MinPlayoutDelay: 0,
+			MaxPlayoutDelay: 0,
+		})
 
 	token, err := at.ToJWT()
 	if err != nil {

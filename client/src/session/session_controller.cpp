@@ -28,12 +28,13 @@ void CameraSessionController::start(const QString &whipUrl,
     std::string std_url = whipUrl.toStdString();
     std::string std_key = streamKey.toStdString();
 
-    // Wire up preview callback
-    if (previewSink_ != nullptr) {
+    // Always register the preview callback so frameCaptured is emitted even
+    // when there is no display sink (e.g. headless tests). Video rendering
+    // to the sink is only attempted when previewSink_ is non-null.
+    {
         QVideoSink *sink = previewSink_;
         QPointer<CameraSessionController> self(this);
         session_->setPreviewCallback([sink, self](const videoCore::Frame &frame) {
-            // Record capture time first, before any rendering work.
             const qint64 capture_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -43,7 +44,7 @@ void CameraSessionController::start(const QString &whipUrl,
                 }, Qt::QueuedConnection);
             }
 
-            if (frame.frame == nullptr) {
+            if (sink == nullptr || frame.frame == nullptr) {
                 return;
             }
             QVideoFrameFormat fmt(QSize(frame.width, frame.height),

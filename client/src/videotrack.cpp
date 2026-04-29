@@ -39,9 +39,7 @@ bool VideoTrack::setTrack(const std::shared_ptr<livekit::Track> &track) {
         return false;
     }
 
-    if (m_frameReader->videoSink() != nullptr) {
-        startRead();
-    }
+    startRead();
 
     return true;
 }
@@ -90,7 +88,9 @@ void VideoTrack::readLoop() {
             }
         }
 
-        m_frameReader->pushFrame(std::move(event.frame));
+        if (m_frameReader->videoSink() != nullptr) {
+            m_frameReader->pushFrame(std::move(event.frame));
+        }
 
         QMetaObject::invokeMethod(this, [this, received_ns]() {
             emit frameReceived(received_ns);
