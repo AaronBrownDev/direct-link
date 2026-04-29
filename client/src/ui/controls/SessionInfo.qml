@@ -8,6 +8,9 @@ RowLayout {
 
     property string room_code: "XXXX-XXXX"
     property double latency_ms: 0.0
+    property double dc_one_way_ms: 0.0
+    property double video_lag_ms: 0.0
+    property double display_gap_ms: 0.0
 
     Layout.alignment: Qt.AlignHCenter
 
@@ -34,19 +37,44 @@ RowLayout {
         font.pointSize: 18
     }
 
-    Rectangle {
-        id: dl_bg_label_latency
-        color: Theme.primary
-        Layout.preferredHeight: 70
-        Layout.preferredWidth: 180
-        radius: Layout.preferredHeight / 2
+    ColumnLayout {
+        spacing: 4
 
-        Text {
-            id: dl_label_latency
-            text: Math.round(dl_layout_session_info.latency_ms) + " ms"
-            color: Theme.textBlack
-            font.pointSize: 18
-            anchors.centerIn: parent
+        Rectangle {
+            id: dl_bg_label_latency
+            color: Theme.primary
+            Layout.preferredHeight: 70
+            Layout.preferredWidth: 180
+            radius: Layout.preferredHeight / 2
+
+            Text {
+                id: dl_label_latency
+                text: Math.round(dl_layout_session_info.latency_ms) + " ms"
+                color: Theme.textBlack
+                font.pointSize: 18
+                anchors.centerIn: parent
+            }
+        }
+
+        RowLayout {
+            spacing: 10
+            Layout.alignment: Qt.AlignHCenter
+
+            Text {
+                text: "DC " + Math.round(dl_layout_session_info.dc_one_way_ms) + "ms"
+                color: Theme.textWhite
+                font.pointSize: 9
+            }
+            Text {
+                text: "Vid " + Math.round(dl_layout_session_info.video_lag_ms) + "ms"
+                color: Theme.textWhite
+                font.pointSize: 9
+            }
+            Text {
+                text: "Disp " + Math.round(dl_layout_session_info.display_gap_ms) + "ms"
+                color: Theme.textWhite
+                font.pointSize: 9
+            }
         }
     }
 

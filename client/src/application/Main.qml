@@ -46,6 +46,7 @@ Window {
     Component.onCompleted: {
         SessionClient.connectToServer(channel);
         root.connected = true;
+        DirectorTransport.setWindow(root);
     }
 
     Timer {

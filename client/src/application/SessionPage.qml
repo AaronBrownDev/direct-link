@@ -51,6 +51,9 @@ ColumnLayout {
     property string data_livekit_url: ""
 
     property double latency_ms: 0.0
+    property double dc_one_way_ms: 0.0
+    property double video_lag_ms: 0.0
+    property double display_gap_ms: 0.0
 
     property bool isClosing: false
 
@@ -85,6 +88,9 @@ ColumnLayout {
 
         room_code: dl_root_layout.room_code
         latency_ms: dl_root_layout.latency_ms
+        dc_one_way_ms: dl_root_layout.dc_one_way_ms
+        video_lag_ms: dl_root_layout.video_lag_ms
+        display_gap_ms: dl_root_layout.display_gap_ms
     }
 
     Loader {
@@ -125,6 +131,22 @@ ColumnLayout {
                 }
                 dl_root_layout.closePage();
             }
+        }
+
+        function onLatencyBreakdown(dcMs, videoMs, gapMs) {
+            dl_root_layout.dc_one_way_ms = dcMs;
+            dl_root_layout.video_lag_ms = videoMs;
+            dl_root_layout.display_gap_ms = gapMs;
+        }
+    }
+
+    // Forward per-frame capture timestamps to CameraLatencySender so it uses
+    // actual capture times instead of the 33 ms fallback timer.
+    Connections {
+        target: CameraSessionController
+
+        function onFrameCaptured(captureNs) {
+            CameraLatencySender.onFrameCaptured(captureNs);
         }
     }
 

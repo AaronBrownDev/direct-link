@@ -152,35 +152,77 @@ void DirectorTransport::onUserPacketReceived(livekit::Room & /*unused*/, const l
         capture_ns = (capture_ns << 8) | static_cast<qint64>(event.data[static_cast<std::size_t>(i)]);
     }
 
+    // Stamp the local wall-clock time the DC packet arrived; used to separate
+    // network+encode latency from jitter-buffer+decode latency in onFrameArrived.
+    const qint64 dc_arrived_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+
     // Enqueue for consumption by onFrameArrived when the corresponding decoded
     // video frame arrives. Drop the oldest entry if the queue is full (e.g.
     // video pipeline stalled).
     std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
-    if (m_capture_queue.size() >= kMaxCaptureQueueSize) {
+    if (m_capture_queue.size() >= MAX_CAPTURE_QUEUE_SIZE) {
         m_capture_queue.pop();
     }
-    m_capture_queue.push(capture_ns);
+    m_capture_queue.push({capture_ns, dc_arrived_ns});
 }
 
 void DirectorTransport::onFrameArrived(qint64 receivedNs) {
-    qint64 capture_ns = 0;
+    // Always record for display-gap sampling even if no timestamp is queued.
+    m_last_received_ns = receivedNs;
+    m_frame_pending = true;
+
+    CaptureEntry entry{};
     {
         std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
-        if (m_capture_queue.empty()) {
-            return;
-        }
-        capture_ns = m_capture_queue.front();
+        if (m_capture_queue.empty()) { return; }
+        entry = m_capture_queue.front();
         m_capture_queue.pop();
     }
 
-    // receivedNs is the director's local clock; adjust to server clock domain
-    // so both sides share the same reference.
-    const qint64 display_ns = receivedNs + m_clock_offset_ns.load(std::memory_order_relaxed);
-    const double latency_ms = static_cast<double>(display_ns - capture_ns) / 1e6;
+    const qint64 offset = m_clock_offset_ns.load(std::memory_order_relaxed);
 
-    if (latency_ms > 0.0 && latency_ms < 30000.0) {
-        emit latencyMeasured(latency_ms);
+    // dc_one_way: camera preview callback → DC packet arrived at director.
+    // Both sides expressed in server clock domain, so clock offset applied once.
+    const double dc_one_way_ms = static_cast<double>(entry.dc_arrived_ns + offset - entry.capture_ns) / 1e6;
+
+    // video_lag: DC packet arrived → video frame decoded (encode pipeline +
+    // jitter buffer + decode). Both timestamps are director local clock so
+    // the offset cancels.
+    const double video_lag_ms = static_cast<double>(receivedNs - entry.dc_arrived_ns) / 1e6;
+
+    const double gap_ms = displayGapMs();
+    const double total_ms = dc_one_way_ms + video_lag_ms + gap_ms;
+
+    qDebug() << "[DirectorTransport] Latency breakdown:"
+             << "\n\tdc_one_way=" << dc_one_way_ms << "ms"
+             << "\n\tvideo_lag=" << video_lag_ms << "ms"
+             << "\n\tdisplay_gap=" << gap_ms << "ms"
+             << "\n\ttotal=" << total_ms << "ms"
+             << "\n\tclock_offset=" << (static_cast<double>(offset) / 1'000'000.0) << "ms";
+
+    if (total_ms > 0.0 && total_ms < 30000.0) {
+        emit latencyMeasured(total_ms);
+        emit latencyBreakdown(dc_one_way_ms, video_lag_ms, gap_ms);
     }
+}
+
+void DirectorTransport::onFrameSwapped() {
+    if (!m_frame_pending) { return; }
+    m_frame_pending = false;
+
+    const qint64 now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    const qint64 gap_ns = now_ns - m_last_received_ns;
+
+    // Sanity bounds: ignore gaps outside 0–500 ms (stale frames, system hiccup).
+    if (gap_ns <= 0 || gap_ns > 500'000'000LL) { return; }
+
+    m_display_gap_sum_ns -= gsl::at(m_display_gap_buf, m_display_gap_idx);
+    gsl::at(m_display_gap_buf, m_display_gap_idx) = gap_ns;
+    m_display_gap_sum_ns += gap_ns;
+    m_display_gap_idx = (m_display_gap_idx + 1) % DISPLAY_GAP_SAMPLES;
+    if (m_display_gap_count < DISPLAY_GAP_SAMPLES) { ++m_display_gap_count; }
 }
 
 void DirectorTransport::onDisconnected(livekit::Room & /*unused*/, const livekit::DisconnectedEvent &event) {
@@ -276,6 +318,22 @@ void DirectorTransport::shutdown() {
 
 void DirectorTransport::setClockOffset(qint64 ns) {
     m_clock_offset_ns.store(ns, std::memory_order_relaxed);
+}
+
+void DirectorTransport::setWindow(QObject *window) {
+    auto *qw = qobject_cast<QQuickWindow *>(window);
+    if (m_window != nullptr) {
+        disconnect(m_window, &QQuickWindow::frameSwapped, this, &DirectorTransport::onFrameSwapped);
+    }
+    m_window = qw;
+    if (m_window != nullptr) {
+        connect(m_window, &QQuickWindow::frameSwapped, this, &DirectorTransport::onFrameSwapped, Qt::QueuedConnection);
+    }
+}
+
+double DirectorTransport::displayGapMs() const {
+    if (m_display_gap_count == 0) { return 0.0; }
+    return static_cast<double>(m_display_gap_sum_ns) / m_display_gap_count / 1e6;
 }
 
 QString DirectorTransport::connectionState() const {
