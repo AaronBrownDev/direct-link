@@ -12,7 +12,9 @@ CameraLatencySender::CameraLatencySender(QObject *parent)
     , m_room(nullptr)
     , m_timer(new QTimer(this))
 {
-    m_timer->setInterval(500);
+    // 33 ms fallback — one tick per video frame at ~30 fps. Replaced by
+    // accurate per-frame timestamps once onFrameCaptured is wired up.
+    m_timer->setInterval(33);
     connect(m_timer, &QTimer::timeout, this, &CameraLatencySender::sendTimestamp);
 }
 
@@ -76,9 +78,21 @@ void CameraLatencySender::start(const QString &token, const QString &url) {
 
 void CameraLatencySender::stop() {
     m_timer->stop();
+    m_frame_driven = false;
     // Resetting the room before the connect watcher signals prevents the
     // finished lambda from starting the timer after stop() returns.
     m_room.reset();
+}
+
+void CameraLatencySender::onFrameCaptured(qint64 captureNs) {
+    if (!m_frame_driven) {
+        m_frame_driven = true;
+        m_timer->stop();
+    }
+    if (!m_room || !m_room->localParticipant()) {
+        return;
+    }
+    sendTimestampNs(captureNs + m_clock_offset_ns.load(std::memory_order_relaxed));
 }
 
 void CameraLatencySender::setClockOffset(qint64 offsetNs) {
@@ -89,19 +103,19 @@ void CameraLatencySender::sendTimestamp() {
     if (!m_room || !m_room->localParticipant()) {
         return;
     }
-
     const qint64 local_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
-    const qint64 server_ns = local_ns + m_clock_offset_ns.load(std::memory_order_relaxed);
+    sendTimestampNs(local_ns + m_clock_offset_ns.load(std::memory_order_relaxed));
+}
 
+void CameraLatencySender::sendTimestampNs(qint64 serverNs) {
     // Serialize as big-endian int64 (8 bytes).
     std::vector<uint8_t> payload(8);
-    qint64 tmp = server_ns;
+    qint64 tmp = serverNs;
     for (int i = 7; i >= 0; --i) {
         payload[static_cast<std::size_t>(i)] = static_cast<uint8_t>(tmp & 0xFF);
         tmp >>= 8;
     }
-
     try {
         m_room->localParticipant()->publishData(payload, /*reliable=*/false, {}, "latency");
     } catch (const std::exception &e) {

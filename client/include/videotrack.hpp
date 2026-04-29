@@ -47,6 +47,10 @@ class VideoTrack : public QObject {
     signals:
         void videoSinkChanged();
         void aspectRatioChanged();
+        // Emitted (via QueuedConnection) on the main thread each time a decoded
+        // frame arrives in the read loop. receivedNs is the local wall-clock
+        // nanoseconds captured immediately after VideoStream::read() returns.
+        void frameReceived(qint64 receivedNs);
 
     private:
         std::unique_ptr<FrameReader> m_frameReader;

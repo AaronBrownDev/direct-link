@@ -146,23 +146,41 @@ void DirectorTransport::onUserPacketReceived(livekit::Room & /*unused*/, const l
         return;
     }
 
-    // Deserialize big-endian int64 sent by CameraLatencySender.
+    // Deserialize big-endian int64 — capture time in server clock domain.
     qint64 capture_ns = 0;
     for (int i = 0; i < 8; ++i) {
         capture_ns = (capture_ns << 8) | static_cast<qint64>(event.data[static_cast<std::size_t>(i)]);
     }
 
-    // Both capture_ns and display_ns are expressed relative to the signaling
-    // server clock, so their difference is true end-to-end latency.
-    const qint64 display_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count()
-        + m_clock_offset_ns.load(std::memory_order_relaxed);
+    // Enqueue for consumption by onFrameArrived when the corresponding decoded
+    // video frame arrives. Drop the oldest entry if the queue is full (e.g.
+    // video pipeline stalled).
+    std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
+    if (m_capture_queue.size() >= kMaxCaptureQueueSize) {
+        m_capture_queue.pop();
+    }
+    m_capture_queue.push(capture_ns);
+}
 
+void DirectorTransport::onFrameArrived(qint64 receivedNs) {
+    qint64 capture_ns = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
+        if (m_capture_queue.empty()) {
+            return;
+        }
+        capture_ns = m_capture_queue.front();
+        m_capture_queue.pop();
+    }
+
+    // receivedNs is the director's local clock; adjust to server clock domain
+    // so both sides share the same reference.
+    const qint64 display_ns = receivedNs + m_clock_offset_ns.load(std::memory_order_relaxed);
     const double latency_ms = static_cast<double>(display_ns - capture_ns) / 1e6;
 
-    QMetaObject::invokeMethod(this, [this, latency_ms]() {
+    if (latency_ms > 0.0 && latency_ms < 30000.0) {
         emit latencyMeasured(latency_ms);
-    }, Qt::QueuedConnection);
+    }
 }
 
 void DirectorTransport::onDisconnected(livekit::Room & /*unused*/, const livekit::DisconnectedEvent &event) {
@@ -220,6 +238,8 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
 
         if (success) {
             m_session = std::make_unique<DirectorSession>();
+            connect(m_session.get(), &DirectorSession::frameArrived,
+                    this, &DirectorTransport::onFrameArrived);
             qDebug() << "[DirectorTransport] Connected.";
             emit sessionChanged();
             emit connected();
@@ -250,6 +270,8 @@ void DirectorTransport::disconnectFromRoom() {
 void DirectorTransport::shutdown() {
     m_session.reset();
     m_room.reset();
+    std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
+    while (!m_capture_queue.empty()) { m_capture_queue.pop(); }
 }
 
 void DirectorTransport::setClockOffset(qint64 ns) {

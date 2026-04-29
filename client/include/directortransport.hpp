@@ -19,6 +19,8 @@
 #include <gsl/pointers>
 
 #include <atomic>
+#include <mutex>
+#include <queue>
 
 #include "directorsession.hpp"
 
@@ -87,9 +89,17 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         void latencyMeasured(double latencyMs);
 
     private:
+        Q_SLOT void onFrameArrived(qint64 receivedNs);
+
         std::unique_ptr<livekit::Room> m_room;
         QString m_connection_state = "disconnected";
         std::unique_ptr<DirectorSession> m_session;
         gsl::owner<QFutureWatcher<bool> *> m_connectWatcher = nullptr;
         std::atomic<qint64> m_clock_offset_ns{0};
+
+        // Capture timestamps (server clock, nanoseconds) queued by
+        // onUserPacketReceived and consumed by onFrameArrived.
+        std::mutex m_capture_queue_mutex;
+        std::queue<qint64> m_capture_queue;
+        static constexpr std::size_t kMaxCaptureQueueSize = 60; // ~2 s at 30 fps
 };

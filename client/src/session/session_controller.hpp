@@ -33,6 +33,9 @@ signals:
     void sessionStopped();
     void errorOccurred(const QString &message);
     void previewSinkChanged();
+    // Emitted on the main thread for each captured frame. captureNs is the
+    // local wall-clock nanoseconds at the moment the preview callback fired.
+    void frameCaptured(qint64 captureNs);
 
 private:
     std::shared_ptr<CameraSession> session_;

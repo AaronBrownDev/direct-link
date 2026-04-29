@@ -1,10 +1,12 @@
 #include "session_controller.hpp"
 
 #include <QDebug>
+#include <QPointer>
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
 #include <QVideoSink>
 #include <QtConcurrent/QtConcurrent>
+#include <chrono>
 #include <cstring>
 
 CameraSessionController::CameraSessionController(QObject *parent)
@@ -29,7 +31,18 @@ void CameraSessionController::start(const QString &whipUrl,
     // Wire up preview callback
     if (previewSink_ != nullptr) {
         QVideoSink *sink = previewSink_;
-        session_->setPreviewCallback([sink](const videoCore::Frame &frame) {
+        QPointer<CameraSessionController> self(this);
+        session_->setPreviewCallback([sink, self](const videoCore::Frame &frame) {
+            // Record capture time first, before any rendering work.
+            const qint64 capture_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+
+            if (self) {
+                QMetaObject::invokeMethod(self, [self, capture_ns]() {
+                    if (self) { emit self->frameCaptured(capture_ns); }
+                }, Qt::QueuedConnection);
+            }
+
             if (frame.frame == nullptr) {
                 return;
             }

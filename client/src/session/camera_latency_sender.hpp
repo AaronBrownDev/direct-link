@@ -44,15 +44,21 @@ public:
     Q_INVOKABLE void stop();
     Q_INVOKABLE void setClockOffset(qint64 offsetNs);
 
+    // Called by CameraSessionController for each captured frame. Switches from
+    // the 33ms fallback timer to frame-accurate timestamps on first call.
+    Q_INVOKABLE void onFrameCaptured(qint64 captureNs);
+
 signals:
     void connected();
     void connectionFailed();
 
 private:
-    void sendTimestamp();
+    void sendTimestamp();               // fallback timer path: uses now()
+    void sendTimestampNs(qint64 serverNs); // common send path
 
     std::unique_ptr<livekit::Room> m_room;
     std::atomic<qint64> m_clock_offset_ns{0};
     QTimer *m_timer = nullptr;
     QFutureWatcher<bool> *m_connectWatcher = nullptr;
+    bool m_frame_driven = false; // true after first onFrameCaptured call
 };

@@ -43,6 +43,9 @@ class DirectorSession : public QObject {
         void tracksChanged();
         void trackAdded(qsizetype index);
         void trackRemoved(qsizetype index);
+        // Aggregates frameReceived from all attached VideoTracks. receivedNs
+        // is the local wall-clock nanoseconds from VideoTrack::readLoop.
+        void frameArrived(qint64 receivedNs);
 
     private:
         std::map<std::string, std::unique_ptr<VideoTrack>> m_trackMap;

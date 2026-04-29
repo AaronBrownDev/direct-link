@@ -31,6 +31,7 @@ void DirectorSession::attachTrack(const std::shared_ptr<livekit::Track> &track, 
         return;
     }
 
+    connect(v_track.get(), &VideoTrack::frameReceived, this, &DirectorSession::frameArrived);
     m_trackMap[trackSid] = std::move(v_track);
     auto inserted = m_trackMap.find(trackSid);
     auto index = static_cast<qsizetype>(std::distance(m_trackMap.begin(), inserted));

@@ -1,5 +1,7 @@
 #include "videotrack.hpp"
 
+#include <chrono>
+
 VideoTrack::VideoTrack(QObject *parent) : QObject{parent} {
     m_frameReader = std::make_unique<FrameReader>();
     connect(m_frameReader.get(), &FrameReader::videoSinkChanged, this, &VideoTrack::onVideoSinkChanged);
@@ -73,6 +75,11 @@ void VideoTrack::readLoop() {
     bool has_ratio = false;
 
     while (m_stream && m_stream->read(event)) {
+        // Record receive time immediately after the blocking read returns —
+        // this is when the decoded frame is first available to the application.
+        const qint64 received_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+
         if (!has_ratio) {
             int w = event.frame.width();
             int h = event.frame.height();
@@ -84,5 +91,9 @@ void VideoTrack::readLoop() {
         }
 
         m_frameReader->pushFrame(std::move(event.frame));
+
+        QMetaObject::invokeMethod(this, [this, received_ns]() {
+            emit frameReceived(received_ns);
+        }, Qt::QueuedConnection);
     }
 }
