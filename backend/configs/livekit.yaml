@@ -3,16 +3,15 @@ rtc:
   tcp_port: 7881
   port_range_start: 50200
   port_range_end: 50300
-  use_ice_lite: true
 prometheus:
   port: 9091
 redis:
-  address: redis:6379
+  address: localhost:6379
 keys:
   devkey: dev-secret-that-is-32-chars-long
 webhook:
   api_key: devkey
   urls:
-    - http://dev:8081/webhooks/livekit
+    - http://localhost:8081/webhooks/livekit
 ingress:
   whip_base_url: http://localhost:8080/whip

@@ -44,6 +44,10 @@ public:
     Q_INVOKABLE void stop();
     Q_INVOKABLE void setClockOffset(qint64 offsetNs);
 
+signals:
+    void connected();
+    void connectionFailed();
+
 private:
     void sendTimestamp();
 

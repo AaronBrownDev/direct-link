@@ -1,6 +1,7 @@
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QDebug>
+#include <QCommandLineParser>
 #include "sessionclient.hpp"
 
 
@@ -24,7 +25,10 @@ int main(int argc, char *argv[]) {
     QEventLoop c_join_loop;
     QEventLoop close_loop;
 
-    client.connectToServer(QUrl("http://34.174.71.83:50051"));
+    QCommandLineParser parser;
+    parser.addOption({"server", "Signaling server URL", "url", "http://34.174.71.83:50051"});
+    parser.process(app);
+    client.connectToServer(QUrl(parser.value("server")));
 
     // ------------------------------------
     // ERROR HANDLER
@@ -75,11 +79,12 @@ int main(int argc, char *argv[]) {
     // OPERATOR SESSION JOIN
     // ------------------------------------
 
-    QObject::connect(&client, &SessionClient::cameraJoined, &c_join_loop, [&](const QString &w, const QString &s) {
-        whip_url = w;
-        stream_key = s;
-        c_join_loop.quit();
-    });
+    QObject::connect(&client, &SessionClient::cameraJoined, &c_join_loop,
+        [&](const QString &w, const QString &s, const QString &, const QString &) {
+            whip_url = w;
+            stream_key = s;
+            c_join_loop.quit();
+        });
 
     qDebug() << "[Test] Joining Operator...";
     client.joinSession(room_code, user_id_camera, "camera");

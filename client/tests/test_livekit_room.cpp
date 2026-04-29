@@ -2,6 +2,7 @@
 #include <QEventLoop>
 #include <QDebug>
 #include <QTimer>
+#include <QCommandLineParser>
 #include "sessionclient.hpp"
 #include "directortransport.hpp"
 
@@ -27,7 +28,10 @@ int main(int argc, char *argv[]) {
     QEventLoop room_connect_loop;
     QEventLoop close_loop;
 
-    client.connectToServer(QUrl("http://34.174.71.83:50051"));
+    QCommandLineParser parser;
+    parser.addOption({"server", "Signaling server URL", "url", "http://34.174.71.83:50051"});
+    parser.process(app);
+    client.connectToServer(QUrl(parser.value("server")));
 
     // ------------------------------------
     // ERROR HANDLER

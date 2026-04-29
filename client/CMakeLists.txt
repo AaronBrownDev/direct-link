@@ -69,6 +69,10 @@ qt_add_executable(test_operator_session
     tests/test_operator_session.cpp
 )
 
+qt_add_executable(test_latency_sender
+    tests/test_latency_sender.cpp
+)
+
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
@@ -147,6 +151,14 @@ target_include_directories(test_operator_session PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../video-core/include
 )
 
+target_include_directories(test_latency_sender PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/session
+    ${LIVEKIT_DIR}/include
+    ${CMAKE_BINARY_DIR}
+)
+
 target_link_libraries(direct-link PRIVATE
     Qt6::Core
     Qt6::Quick
@@ -215,6 +227,22 @@ target_link_libraries(test_operator_session PRIVATE
     directlink_sessionplugin
     video_core
     fmt
+)
+
+target_link_libraries(test_latency_sender PRIVATE
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Concurrent
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
+    livekit
+    livekit_ffi
+    directlink_networkplugin
+    directlink_sessionplugin
+    fmt
+    Microsoft.GSL::GSL
 )
 
 if(Qt6_VERSION VERSION_LESS 6.1.0)

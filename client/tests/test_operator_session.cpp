@@ -97,11 +97,12 @@ int main(int argc, char *argv[]) {
     // OPERATOR SESSION JOIN
     // ------------------------------------
 
-    QObject::connect(&client, &SessionClient::cameraJoined, &c_join_loop, [&](const QString &w, const QString &s) {
-        whip_url = w;
-        stream_key = s;
-        c_join_loop.quit();
-    });
+    QObject::connect(&client, &SessionClient::cameraJoined, &c_join_loop,
+        [&](const QString &w, const QString &s, const QString &, const QString &) {
+            whip_url = w;
+            stream_key = s;
+            c_join_loop.quit();
+        });
 
     qDebug() << "[Test] Joining Operator...";
     client.joinSession(room_code, user_id_camera, "camera");

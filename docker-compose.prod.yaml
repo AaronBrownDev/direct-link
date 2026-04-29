@@ -2,6 +2,10 @@
 # Mirrors the deployment topology: signaling runs from its built image
 # (not source-mounted), talking to Redis, LiveKit, and Ingress.
 #
+# All services use network_mode: host so WebRTC UDP (ports 50200-50300)
+# reaches LiveKit without Docker NAT in the path. LiveKit advertises
+# 127.0.0.1 as its ICE candidate, reachable from the host.
+#
 # Usage:
 #   docker build -f backend/Dockerfile -t directlink/signaling:dev .
 #   docker compose -f docker-compose.prod.yaml up
@@ -10,12 +14,10 @@
 services:
   signaling:
     image: directlink/signaling:dev
-    ports:
-      - "8081:8081"   # HTTP: health, metrics, webhooks
-      - "50051:50051" # gRPC
+    network_mode: host
     environment:
-      - REDIS_ADDR=redis:6379
-      - LIVEKIT_HOST=http://livekit:7880
+      - REDIS_ADDR=localhost:6379
+      - LIVEKIT_HOST=http://localhost:7880
       - LIVEKIT_EXTERNAL_URL=ws://localhost:7880
       - LIVEKIT_API_KEY=devkey
       - LIVEKIT_API_SECRET=dev-secret-that-is-32-chars-long
@@ -27,13 +29,12 @@ services:
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
+    network_mode: host
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
       interval: 5s
       timeout: 2s
       retries: 5
@@ -41,16 +42,13 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
-    ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "50200-50300:50200-50300/udp"
+    network_mode: host
     volumes:
       - ./backend/configs/livekit.yaml:/etc/livekit.yaml
     command: >
       --config /etc/livekit.yaml
       --bind 0.0.0.0
-      --node-ip 0.0.0.0
+      --node-ip 127.0.0.1
     stop_grace_period: 10s
     depends_on:
       redis:

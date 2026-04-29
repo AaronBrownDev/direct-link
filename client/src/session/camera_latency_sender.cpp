@@ -34,8 +34,13 @@ void CameraLatencySender::start(const QString &token, const QString &url) {
     m_room = std::make_unique<livekit::Room>();
 
     // Data-only participant: do not auto-subscribe to any media tracks.
+    // single_peer_connection forces the v1 signal path, which makes the SDK
+    // call publisher_negotiation_needed() at session start. Without it the
+    // Rust SDK skips the initial publisher offer for data-only participants
+    // when subscriber_primary=false (livekit-ffi v0.12.x bug).
     livekit::RoomOptions opts;
     opts.auto_subscribe = false;
+    opts.single_peer_connection = true;
 
     std::string std_token = token.toStdString();
     std::string std_url = url.toStdString();
@@ -55,9 +60,11 @@ void CameraLatencySender::start(const QString &token, const QString &url) {
         if (success) {
             qDebug() << "[CameraLatencySender] Connected to LiveKit room.";
             m_timer->start();
+            emit connected();
         } else {
             qWarning() << "[CameraLatencySender] Failed to connect to LiveKit room.";
             m_room.reset();
+            emit connectionFailed();
         }
     });
 

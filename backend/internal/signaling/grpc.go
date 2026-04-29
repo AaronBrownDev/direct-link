@@ -76,13 +76,17 @@ func (s *Server) joinAsCamera(ctx context.Context, req *pb.JoinRequest, sess *se
 
 	// Generate a data-only LiveKit JWT so the camera client can connect to the
 	// room as a non-publishing participant and send latency timestamp packets.
-	canPublish, canSubscribe := false, false
+	// CanPublishData must be true so LiveKit negotiates a PeerConnection for the
+	// data channel; without it the server skips WebRTC negotiation entirely and
+	// the SDK times out waiting for wait_pc_connection.
+	canPublish, canSubscribe, canPublishData := false, false, true
 	dataAt := auth.NewAccessToken(s.cfg.LiveKitAPIKey, s.cfg.LiveKitAPISecret)
 	dataGrant := &auth.VideoGrant{
-		RoomJoin:     true,
-		Room:         sess.ID,
-		CanPublish:   &canPublish,
-		CanSubscribe: &canSubscribe,
+		RoomJoin:       true,
+		Room:           sess.ID,
+		CanPublish:     &canPublish,
+		CanSubscribe:   &canSubscribe,
+		CanPublishData: &canPublishData,
 	}
 	dataAt.SetVideoGrant(dataGrant).SetIdentity(req.UserId + "_data").SetValidFor(time.Hour)
 	dataToken, err := dataAt.ToJWT()
