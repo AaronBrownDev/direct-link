@@ -73,6 +73,10 @@ qt_add_executable(test_latency_sender
     tests/test_latency_sender.cpp
 )
 
+qt_add_executable(test_e2e_latency
+    tests/test_e2e_latency.cpp
+)
+
 # QTP0001: Changes default RESOURCE_PREFIX for qt_add_qml_module from "/"
 # to "qt/qml/". Removes the need to call addImportPath manually.
 qt_policy(SET QTP0001 NEW)
@@ -159,6 +163,18 @@ target_include_directories(test_latency_sender PRIVATE
     ${CMAKE_BINARY_DIR}
 )
 
+target_include_directories(test_e2e_latency PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/network
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/session
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${LIVEKIT_DIR}/include
+    ${CMAKE_BINARY_DIR}
+    ${GST_INCLUDE_DIRS}
+    ${FFMPEG_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../video-core/include
+)
+
 target_link_libraries(direct-link PRIVATE
     Qt6::Core
     Qt6::Quick
@@ -241,6 +257,26 @@ target_link_libraries(test_latency_sender PRIVATE
     livekit_ffi
     directlink_networkplugin
     directlink_sessionplugin
+    fmt
+    Microsoft.GSL::GSL
+)
+
+target_link_libraries(test_e2e_latency PRIVATE
+    Qt6::Core
+    Qt6::Quick
+    Qt6::Multimedia
+    Qt6::Concurrent
+    Qt6::Protobuf
+    Qt6::Grpc
+    signaling_proto
+    signaling_grpc
+    livekit
+    livekit_ffi
+    directlink_appplugin
+    directlink_networkplugin
+    directlink_sessionplugin
+    video_core
+    ${GST_LIBRARIES}
     fmt
     Microsoft.GSL::GSL
 )
