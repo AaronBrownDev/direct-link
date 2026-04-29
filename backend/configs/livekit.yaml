@@ -15,3 +15,11 @@ webhook:
     - http://localhost:8081/webhooks/livekit
 ingress:
   whip_base_url: http://localhost:8080/whip
+room:
+  # Playout delay hint sent to subscribers via RTP header extension.
+  # Caps libwebrtc's adaptive jitter buffer so it cannot grow past
+  # max_delay regardless of observed packet jitter.
+  playout_delay:
+    enabled: true
+    min_delay: 0
+    max_delay: 200

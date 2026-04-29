@@ -26,6 +26,7 @@ bool CameraSession::start(const std::string &whipUrl,
     encoderConfig.height = captureConfig.height;
     encoderConfig.framerate = captureConfig.framerate;
     encoderConfig.bitrate = 4000000;
+    encoderConfig.gopSize = 30; // Keyframe every 1 s — halves max wait for first decodable frame
     encoderConfig.preset = videoCore::encode::EncoderConfig::Preset::UltraFast;
 
     auto startResult = pipeline_.initialize(captureConfig, encoderConfig);

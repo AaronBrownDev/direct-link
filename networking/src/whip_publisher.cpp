@@ -44,11 +44,19 @@ WHIPPublisher::initialize(const std::string &whip_url,
     GstCaps *caps = gst_caps_new_simple(
         "video/x-h264", "stream-format", G_TYPE_STRING, "byte-stream",
         "alignment", G_TYPE_STRING, "au", nullptr);
+    // do-timestamp: GStreamer replaces each buffer's PTS with the pipeline's
+    // running time at the moment the buffer is pushed.  Without this, PTS values
+    // come from the CameraCapture pipeline's clock (a different GStreamer
+    // pipeline), whose epoch differs from the publish pipeline's epoch by the
+    // length of the WHIP ICE handshake (~1-3 s).  The cross-pipeline offset
+    // makes rtph264pay emit RTP timestamps that appear seconds late to the
+    // receiver, causing libwebrtc's adaptive jitter buffer to lock in at the
+    // observed offset (~1900 ms).
     g_object_set(appsrc_, "caps", caps, "is-live", TRUE, "format",
                  GST_FORMAT_TIME, "block", FALSE, "max-bytes",
                  static_cast<guint64>(512 * 1024), // 512KB cap
                  "min-latency", static_cast<gint64>(0), "max-latency",
-                 static_cast<gint64>(0), nullptr);
+                 static_cast<gint64>(0), "do-timestamp", TRUE, nullptr);
     gst_caps_unref(caps);
 
     g_object_set(rtph264pay, "config-interval", 1, nullptr);

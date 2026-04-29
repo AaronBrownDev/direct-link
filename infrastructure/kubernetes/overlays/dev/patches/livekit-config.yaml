@@ -21,3 +21,8 @@ data:
         - http://signaling.directlink-dev.svc.cluster.local:8081/webhooks/livekit
     ingress:
       whip_base_url: http://34.174.60.181:8080/whip
+    room:
+      playout_delay:
+        enabled: true
+        min_delay: 0
+        max_delay: 200
