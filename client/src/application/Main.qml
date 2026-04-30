@@ -110,7 +110,13 @@ Window {
         inputType: DLPopup.InputType.ConfirmCancel
         displayText: "Are you sure you want to close this session?"
         closeText: "Cancel"
-        onConfirmed: SessionClient.closeSession(root.pending_close_room, root.user_id)
+        onConfirmed: {
+            let page = dl_page_stack.currentItem;
+            if (page && "isClosing" in page)
+                page.isClosing = true;
+
+            SessionClient.closeSession(root.pending_close_room, root.user_id);
+        }
     }
 
     DLPopup {
@@ -325,7 +331,7 @@ Window {
         function onDisconnected(reason) {
             dl_header.connection_status = "disconnected"
 
-            if (reason != "ClientInitiated") {
+            if (reason != "ClientInitiated" && root.pending_close_room === "") {
                 dl_reconnect_popup.reason = reason;
                 dl_reconnect_popup.open();
             }
