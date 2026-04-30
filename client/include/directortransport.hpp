@@ -85,6 +85,14 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         Q_INVOKABLE void shutdown();
         Q_INVOKABLE void setClockOffset(qint64 ns);
         Q_INVOKABLE void setWindow(QObject *window);
+        // Latency measurement is filtered to a single publishing participant
+        // because the matcher's ts-offset is only valid within one sender's
+        // clock domain.  Pass the identity of the participant whose stream is
+        // currently the main preview; pass an empty string to suspend
+        // measurement (no active camera).  Switching resets the matcher and
+        // emits a blanked breakdown so the UI doesn't display a stale value
+        // attributed to the new camera.
+        Q_INVOKABLE void setActiveParticipant(const QString &identity);
         [[nodiscard]] Q_INVOKABLE double displayGapMs() const;
 
     signals:
@@ -101,14 +109,30 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         void videoResolutionChanged(int width, int height);
 
     private:
-        Q_SLOT void onFrameArrived(qint64 receivedNs, qint64 frameTimestampUs);
+        Q_SLOT void onFrameArrived(qint64 receivedNs, qint64 frameTimestampUs,
+                                   const QString &participantIdentity);
         Q_SLOT void onFrameSwapped();
+
+        // Reset matcher state and clear the capture queue.  Called from
+        // setActiveParticipant() when the user switches main preview, and on
+        // initial connection.  Also emits a blanked breakdown so the UI drops
+        // any value attributed to the previous camera while the new camera's
+        // matcher seeds.
+        void resetLatencyMatcher();
 
         std::unique_ptr<livekit::Room> m_room;
         QString m_connection_state = "disconnected";
         std::unique_ptr<DirectorSession> m_session;
         gsl::owner<QFutureWatcher<bool> *> m_connectWatcher = nullptr;
         std::atomic<qint64> m_clock_offset_ns{0};
+        // Identity of the publishing participant whose stream is currently
+        // the main preview.  Read from both the DC packet path
+        // (onUserPacketReceived, livekit-internal thread) and the frame path
+        // (onFrameArrived, Qt main thread).  Mutations happen on the Qt main
+        // thread via setActiveParticipant().  The mutex is uncontended in
+        // steady state and the critical section is a QString compare/copy.
+        mutable std::mutex m_active_participant_mutex;
+        QString m_active_participant_identity;
 
         // Capture timestamps (server clock, nanoseconds) queued by
         // onUserPacketReceived and consumed by onFrameArrived.

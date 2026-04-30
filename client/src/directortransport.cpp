@@ -64,12 +64,15 @@ void DirectorTransport::onTrackSubscribed(livekit::Room & /*unused*/, const live
 
     if (event.track && event.track->kind() == livekit::TrackKind::KIND_VIDEO) {
         auto track = event.track;
-        QMetaObject::invokeMethod(this, [this, track, track_sid]() {
+        const QString identity = (event.participant != nullptr)
+            ? QString::fromStdString(event.participant->identity())
+            : QString();
+        QMetaObject::invokeMethod(this, [this, track, track_sid, identity]() {
         if (m_session) {
-            m_session->attachTrack(track, track_sid);
+            m_session->attachTrack(track, track_sid, identity);
         }
         }, Qt::QueuedConnection);
-        
+
     }
 
 }
@@ -149,6 +152,33 @@ void DirectorTransport::onUserPacketReceived(livekit::Room & /*unused*/, const l
         return;
     }
 
+    // Drop DC packets from any participant other than the active main
+    // preview.  The matcher's ts-offset is only valid within one sender's
+    // clock domain, so mixing DCs from multiple cameras would cause every
+    // non-active camera's frame to miss the match window indefinitely.
+    //
+    // A single logical camera shows up as two LiveKit identities:
+    //   - video publisher (WHIP Ingress participant) = <UserId>
+    //   - DC publisher (camera-side SDK)             = <UserId>_data
+    // (see backend/internal/signaling/grpc.go).  The active participant
+    // identity tracked here is the video-publisher form (what onTrackSubscribed
+    // surfaces and what QML's track list exposes), so DC senders match if
+    // they're either that identity or its "_data" sibling.
+    {
+        std::lock_guard<std::mutex> lock(m_active_participant_mutex);
+        if (m_active_participant_identity.isEmpty()) {
+            return;
+        }
+        const QString sender_identity = (event.participant != nullptr)
+            ? QString::fromStdString(event.participant->identity())
+            : QString();
+        const bool matches = sender_identity == m_active_participant_identity
+            || sender_identity == m_active_participant_identity + "_data";
+        if (!matches) {
+            return;
+        }
+    }
+
     // Deserialize big-endian int64 — capture time in server clock domain.
     qint64 capture_ns = 0;
     for (int i = 0; i < 8; ++i) {
@@ -187,10 +217,23 @@ void DirectorTransport::onUserPacketReceived(livekit::Room & /*unused*/, const l
     }
 }
 
-void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampUs) {
+void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampUs,
+                                       const QString &participantIdentity) {
     // Always record for display-gap sampling even if no timestamp is queued.
     m_last_received_ns = receivedNs;
     m_frame_pending = true;
+
+    // Drop frames from any participant other than the active main preview
+    // for the same reason as the DC filter: the matcher state lives in a
+    // single sender's clock domain.  Display-gap sampling above is unaffected
+    // because it only uses receivedNs and is per-frame, not per-camera.
+    {
+        std::lock_guard<std::mutex> lock(m_active_participant_mutex);
+        if (m_active_participant_identity.isEmpty() ||
+            participantIdentity != m_active_participant_identity) {
+            return;
+        }
+    }
 
     CaptureEntry entry{};
     std::size_t qsize_before = 0;
@@ -207,6 +250,30 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampU
                 << " received_ns=" << receivedNs
                 << " qsize=0 (no DC entry — skipped)";
             return;
+        }
+
+        // Warmup gate: after a matcher reset (initial activation or camera
+        // switch), the first ~video_lag worth of frames have their matching
+        // DCs not yet in the queue (those DCs were either pre-activation, so
+        // filtered out, or pre-reset, so cleared).  Seeding the offset
+        // against whatever shallow DC happens to be available locks in a
+        // wrong offset that under-reports video_lag for the entire session.
+        // Skip frames for matching until the queue spans the expected
+        // pipeline depth — DCs keep accumulating in the meantime.
+        if (!m_ts_offset_initialized && !m_capture_queue.empty()) {
+            const qint64 oldest_dc_age = receivedNs - m_capture_queue.front().dc_arrived_ns;
+            if (oldest_dc_age < INITIAL_VIDEO_LAG_GUESS_NS) {
+                ++m_frame_count;
+                if (m_frame_count <= 3 || (m_frame_count % 30) == 0) {
+                    qDebug().nospace()
+                        << "[DT-diag] FRAME#" << m_frame_count
+                        << " warmup: oldest_dc_age_ms="
+                        << (oldest_dc_age / 1'000'000)
+                        << " qsize=" << qsize_before
+                        << " (waiting for queue to span video_lag)";
+                }
+                return;
+            }
         }
 
         // Timestamp-based matching when ts_us is populated.  ts_us is 0 in
@@ -504,8 +571,41 @@ void DirectorTransport::disconnectFromRoom() {
 void DirectorTransport::shutdown() {
     m_session.reset();
     m_room.reset();
-    std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
-    m_capture_queue.clear();
+    {
+        std::lock_guard<std::mutex> lock(m_active_participant_mutex);
+        m_active_participant_identity.clear();
+    }
+    resetLatencyMatcher();
+}
+
+void DirectorTransport::setActiveParticipant(const QString &identity) {
+    {
+        std::lock_guard<std::mutex> lock(m_active_participant_mutex);
+        if (m_active_participant_identity == identity) {
+            return;
+        }
+        m_active_participant_identity = identity;
+    }
+    qDebug() << "[DirectorTransport] Active participant set."
+             << "\n\tidentity=" << identity;
+    resetLatencyMatcher();
+}
+
+void DirectorTransport::resetLatencyMatcher() {
+    {
+        std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
+        m_capture_queue.clear();
+    }
+    m_ts_offset_initialized = false;
+    m_ts_capture_offset_ns = 0;
+    m_ts_consecutive_misses = 0;
+    m_estimated_video_lag_ns = INITIAL_VIDEO_LAG_GUESS_NS;
+    // Blank the displayed breakdown immediately so the UI doesn't keep showing
+    // a value attributed to the previous camera while the new camera's
+    // matcher seeds.  Display gap stays meaningful (it's per-render, not
+    // per-camera), so emit zero for it as well to match the blank-on-switch
+    // contract — the next valid match will refill all three.
+    emit latencyBreakdown(0.0, 0.0, 0.0);
 }
 
 void DirectorTransport::setClockOffset(qint64 ns) {

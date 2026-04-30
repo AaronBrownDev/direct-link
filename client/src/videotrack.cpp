@@ -19,6 +19,14 @@ qreal VideoTrack::aspectRatio() const {
     return m_aspectRatio.load();
 }
 
+QString VideoTrack::participantIdentity() const {
+    return m_participant_identity;
+}
+
+void VideoTrack::setParticipantIdentity(const QString &identity) {
+    m_participant_identity = identity;
+}
+
 void VideoTrack::setVideoSink(QVideoSink *sink) {
     // Same value cannot be set twice to prevent unnecessary emission
     if (m_frameReader->videoSink() != sink) {
@@ -97,8 +105,11 @@ void VideoTrack::readLoop() {
             m_frameReader->pushFrame(std::move(event.frame));
         }
 
-        QMetaObject::invokeMethod(this, [this, received_ns, frame_ts_us]() {
-            emit frameReceived(received_ns, frame_ts_us);
+        // Capture identity by value into the lambda so the signal payload is
+        // independent of any later mutation on the VideoTrack instance.
+        const QString identity = m_participant_identity;
+        QMetaObject::invokeMethod(this, [this, received_ns, frame_ts_us, identity]() {
+            emit frameReceived(received_ns, frame_ts_us, identity);
         }, Qt::QueuedConnection);
     }
 }

@@ -18,13 +18,18 @@ QList<QObject*> DirectorSession::tracks() const {
     return track_list;
 }
 
-void DirectorSession::attachTrack(const std::shared_ptr<livekit::Track> &track, const std::string &trackSid) {
+void DirectorSession::attachTrack(const std::shared_ptr<livekit::Track> &track,
+                                  const std::string &trackSid,
+                                  const QString &participantIdentity) {
     if (m_trackMap.find(trackSid) != m_trackMap.end()) {
         qWarning() << "[DirectorSession] Track already attached.\n\tsid=" << trackSid;
         return;
     }
-    
+
     auto v_track = std::make_unique<VideoTrack>(this);
+    // Identity must be set before setTrack() so the read loop captures it
+    // for every emitted frameReceived signal.
+    v_track->setParticipantIdentity(participantIdentity);
     if (!v_track->setTrack(track)) {
         qWarning() << "[DirectorSession] Failed to attach track.\n\tsid=" << trackSid;
         v_track.reset();

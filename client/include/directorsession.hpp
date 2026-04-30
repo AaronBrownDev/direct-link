@@ -35,7 +35,9 @@ class DirectorSession : public QObject {
 
         [[nodiscard]] QList<QObject*> tracks() const;
 
-        void attachTrack(const std::shared_ptr<livekit::Track> &track, const std::string &trackSid);
+        void attachTrack(const std::shared_ptr<livekit::Track> &track,
+                         const std::string &trackSid,
+                         const QString &participantIdentity);
         void detachTrack(const std::string &trackSid);
         void detachAllTracks();
 
@@ -44,10 +46,14 @@ class DirectorSession : public QObject {
         void trackAdded(qsizetype index);
         void trackRemoved(qsizetype index);
         // Aggregates frameReceived from all attached VideoTracks.
-        //   receivedNs       — local wall-clock ns from VideoTrack::readLoop.
-        //   frameTimestampUs — VideoFrameEvent::timestamp_us (sender-domain
-        //                      capture-time estimate, microseconds).
-        void frameArrived(qint64 receivedNs, qint64 frameTimestampUs);
+        //   receivedNs           — local wall-clock ns from VideoTrack::readLoop.
+        //   frameTimestampUs     — VideoFrameEvent::timestamp_us (sender-domain
+        //                          capture-time estimate, microseconds).
+        //   participantIdentity  — identity of the publishing participant; used
+        //                          by DirectorTransport to filter the latency
+        //                          matcher down to a single camera.
+        void frameArrived(qint64 receivedNs, qint64 frameTimestampUs,
+                          const QString &participantIdentity);
         // Forwarded from the first VideoTrack that reports a valid resolution.
         void videoResolutionChanged(int width, int height);
 

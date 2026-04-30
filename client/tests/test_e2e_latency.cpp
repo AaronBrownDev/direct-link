@@ -170,6 +170,11 @@ int main(int argc, char *argv[]) {
     }
     qDebug() << "[Test] Director connected.";
 
+    // The latency matcher filters DCs and frames by active participant so a
+    // single-camera test must register the camera's identity, otherwise no
+    // breakdown signal will ever fire.
+    director.setActiveParticipant("e2e-camera");
+
     // ── 6. Wire breakdown signal before camera starts ────────────────────────
     {
         QEventLoop sample_loop;

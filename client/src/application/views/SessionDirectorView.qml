@@ -28,8 +28,16 @@ RowLayout {
             let tracks = DirectorTransport.session.tracks;
             if (activeCamera >= 0 && activeCamera < tracks.length) {
                 dl_active_camera.assigned_track = tracks[activeCamera];
+                // Switch the latency matcher to the new camera's participant.
+                // The C++ side resets matcher state and emits a blanked
+                // breakdown so the UI doesn't carry the previous camera's
+                // value into the new one's measurement.
+                DirectorTransport.setActiveParticipant(tracks[activeCamera].participantIdentity);
             } else {
                 dl_active_camera.assigned_track = null;
+                // No active camera — suspend latency measurement.  Matcher
+                // stays idle until a new camera is selected.
+                DirectorTransport.setActiveParticipant("");
             }
         }
 
