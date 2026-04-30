@@ -252,6 +252,7 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampU
                 ts_match_diff_ns = best_diff;
                 used_ts_match = true;
                 ++m_ts_match_hits;
+                m_ts_consecutive_misses = 0;
                 // Drop everything up to and including the matched entry —
                 // older DCs correspond to frames that came before this one
                 // and are now orphaned (their frames either arrived earlier
@@ -270,6 +271,7 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampU
                 // a recent stall.  Don't pop the queue (a later frame may
                 // still need an older DC); just skip the latency report.
                 ++m_ts_match_misses;
+                ++m_ts_consecutive_misses;
                 ++m_frame_count;
                 if (m_ts_match_misses <= 5 || (m_ts_match_misses % 30) == 0) {
                     qDebug().nospace()
@@ -279,6 +281,20 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampU
                         << " best_diff_ms=" << (best_diff / 1'000'000)
                         << " qsize=" << qsize_before
                         << " offset_ns=" << m_ts_capture_offset_ns;
+                }
+                // If we've been missing for a sustained period the offset is
+                // desynced from the live pipeline (clock jump, encoder stall,
+                // matching entry evicted at the queue cap).  Reseed it so the
+                // next valid frame re-derives the offset from current data,
+                // which unfreezes the breakdown signal for the UI.
+                if (m_ts_consecutive_misses >= MAX_CONSECUTIVE_MISSES_BEFORE_RESEED) {
+                    qDebug().nospace()
+                        << "[DT-diag] ts offset reseed after "
+                        << m_ts_consecutive_misses << " consecutive misses"
+                        << " (qsize=" << qsize_before
+                        << " last_offset_ns=" << m_ts_capture_offset_ns << ")";
+                    m_ts_offset_initialized = false;
+                    m_ts_consecutive_misses = 0;
                 }
                 return;
             }
@@ -365,8 +381,18 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampU
              << "\n\tclock_offset=" << (static_cast<double>(offset) / 1'000'000.0) << "ms"
              << "\n\tmatch=" << (used_ts_match ? "ts_us" : "fifo");
 
-    if (total_ms > 0.0 && total_ms < 30000.0) {
-        emit latencyMeasured(total_ms);
+    // Always emit the breakdown when within sane absolute bounds, even when
+    // dc_one_way is briefly negative (clock-sync jitter, especially under WSL
+    // where the guest clock can step relative to the host between ClockSync
+    // ticks).  Suppressing the signal on negative dc froze the UI on the last
+    // good sample whenever the offset overshot.  latencyMeasured stays gated
+    // to non-negative totals because consumers treat it as a single positive
+    // health indicator, while the breakdown lets the UI surface each
+    // component honestly.
+    if (total_ms < 30000.0) {
+        if (total_ms > 0.0) {
+            emit latencyMeasured(total_ms);
+        }
         emit latencyBreakdown(dc_one_way_ms, video_lag_ms, gap_ms);
     }
 }

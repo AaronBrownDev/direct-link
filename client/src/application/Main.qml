@@ -51,7 +51,7 @@ Window {
 
     Timer {
         id: dl_latency_timer
-        interval: 2000
+        interval: 1000
         repeat: true
         running: root.inSession
         onTriggered: SessionClient.measureLatency()
@@ -248,13 +248,6 @@ Window {
                 data_token: dataToken,
                 data_livekit_url: livekitUrl
             }, StackView.Immediate);
-        }
-
-        function onLatencyMeasured(rttMs) {
-            // Camera operators show signaling RTT as a proxy for network health.
-            // Directors receive true e2e latency via DirectorTransport.latencyMeasured.
-            if (root.user_type !== UserRole.director)
-                dl_page_stack.currentItem.latency_ms = rttMs;
         }
 
         function onClockOffsetChanged() {

@@ -160,12 +160,22 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // the real lag is well above or below 1 s.
         static constexpr qint64 ESTIMATED_LAG_TOLERANCE_NS = 500'000'000;
 
+        // After this many consecutive ts-match failures, clear the seeded
+        // offset so the next frame re-seeds.  Without this, a desync (e.g.
+        // brief encoder stall, system clock jump, queue cap eviction of the
+        // matching entry) latches the matcher into permanent misses and the
+        // UI freezes on the last good sample.  ~30 frames at 30 fps is one
+        // second of misses — long enough that transient stalls don't reset,
+        // short enough that the user sees the display recover.
+        static constexpr std::uint64_t MAX_CONSECUTIVE_MISSES_BEFORE_RESEED = 30;
+
         // Diagnostic counters (no synchronization — both modified from DC and
         // frame paths but only used for log throttling, not measurement).
         std::uint64_t m_dc_count = 0;
         std::uint64_t m_frame_count = 0;
         std::uint64_t m_ts_match_hits = 0;
         std::uint64_t m_ts_match_misses = 0;
+        std::uint64_t m_ts_consecutive_misses = 0;
         std::uint64_t m_fifo_fallbacks = 0;
 
         // Display gap: time from decoded frame available → QQuickWindow swap.
