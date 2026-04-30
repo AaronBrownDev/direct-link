@@ -8,6 +8,7 @@
  */
 
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import application
 import ui.controls
@@ -58,6 +59,14 @@ RowLayout {
 
             onCameraSelected: (index) => {
                 dl_director_view.activeCamera = index;
+            }
+        }
+
+        Connections {
+            target: AppLogger.logger
+
+            function onMessageReceived(type, message) {
+                dl_session_log.logMessage(type, message);
             }
         }
 

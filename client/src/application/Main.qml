@@ -331,7 +331,7 @@ Window {
         function onDisconnected(reason) {
             dl_header.connection_status = "disconnected"
 
-            if (reason != "ClientInitiated" && root.pending_close_room === "") {
+            if ((reason != "ClientInitiated" && reason != "Unknown") && root.pending_close_room === "") {
                 dl_reconnect_popup.reason = reason;
                 dl_reconnect_popup.open();
             }

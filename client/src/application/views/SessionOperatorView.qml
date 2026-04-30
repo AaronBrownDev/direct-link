@@ -8,6 +8,7 @@
 
 import QtQuick
 import QtQuick.Layouts
+import application
 import session
 import ui.controls
 
@@ -37,5 +38,13 @@ RowLayout {
             Layout.minimumHeight: implicitWidth / aspect_ratio
             Layout.maximumWidth: dl_operator_view.height * aspect_ratio
             implicitWidth: 500
+        }
+
+        Connections {
+            target: AppLogger.logger
+
+            function onMessageReceived(type, message) {
+                dl_session_log.logMessage(type, message);
+            }
         }
     }
