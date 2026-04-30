@@ -84,6 +84,9 @@ void VideoTrack::readLoop() {
             if (h > 0) {
                 m_aspectRatio.store(static_cast<qreal>(w) / h);
                 QMetaObject::invokeMethod(this, &VideoTrack::aspectRatioChanged, Qt::QueuedConnection);
+                QMetaObject::invokeMethod(this, [this, w, h]() {
+                    emit trackResolutionChanged(w, h);
+                }, Qt::QueuedConnection);
                 has_ratio = true;
             }
         }

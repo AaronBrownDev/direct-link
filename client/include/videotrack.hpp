@@ -47,6 +47,9 @@ class VideoTrack : public QObject {
     signals:
         void videoSinkChanged();
         void aspectRatioChanged();
+        // Emitted once (via QueuedConnection) the first time a frame with valid
+        // dimensions is decoded. width and height are in pixels.
+        void trackResolutionChanged(int width, int height);
         // Emitted (via QueuedConnection) on the main thread each time a decoded
         // frame arrives in the read loop. receivedNs is the local wall-clock
         // nanoseconds captured immediately after VideoStream::read() returns.

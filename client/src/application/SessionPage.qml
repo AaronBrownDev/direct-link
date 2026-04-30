@@ -50,10 +50,11 @@ ColumnLayout {
     property string data_token: ""
     property string data_livekit_url: ""
 
-    property double latency_ms: 0.0
     property double dc_one_way_ms: 0.0
     property double video_lag_ms: 0.0
     property double display_gap_ms: 0.0
+    property int video_width: 0
+    property int video_height: 0
 
     property bool isClosing: false
 
@@ -87,10 +88,13 @@ ColumnLayout {
         Layout.topMargin: 10
 
         room_code: dl_root_layout.room_code
-        latency_ms: dl_root_layout.latency_ms
+        latency_ms: dl_root_layout.dc_one_way_ms + dl_root_layout.video_lag_ms + dl_root_layout.display_gap_ms
         dc_one_way_ms: dl_root_layout.dc_one_way_ms
         video_lag_ms: dl_root_layout.video_lag_ms
         display_gap_ms: dl_root_layout.display_gap_ms
+        show_latency: dl_root_layout.user_type === UserRole.director
+        video_width: dl_root_layout.video_width
+        video_height: dl_root_layout.video_height
     }
 
     Loader {
@@ -137,6 +141,11 @@ ColumnLayout {
             dl_root_layout.dc_one_way_ms = dcMs;
             dl_root_layout.video_lag_ms = videoMs;
             dl_root_layout.display_gap_ms = gapMs;
+        }
+
+        function onVideoResolutionChanged(w, h) {
+            dl_root_layout.video_width = w;
+            dl_root_layout.video_height = h;
         }
     }
 

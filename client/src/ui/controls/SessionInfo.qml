@@ -11,6 +11,9 @@ RowLayout {
     property double dc_one_way_ms: 0.0
     property double video_lag_ms: 0.0
     property double display_gap_ms: 0.0
+    property bool show_latency: true
+    property int video_width: 0
+    property int video_height: 0
 
     Layout.alignment: Qt.AlignHCenter
 
@@ -39,6 +42,7 @@ RowLayout {
 
     ColumnLayout {
         spacing: 4
+        visible: dl_layout_session_info.show_latency
 
         Rectangle {
             id: dl_bg_label_latency
@@ -87,7 +91,9 @@ RowLayout {
 
         Text {
             id: dl_label_quality
-            text: "4K60"
+            text: (dl_layout_session_info.video_width > 0 && dl_layout_session_info.video_height > 0)
+                  ? (dl_layout_session_info.video_width + "×" + dl_layout_session_info.video_height)
+                  : "—"
             color: Theme.textBlack
             font.pointSize: 18
             anchors.centerIn: parent

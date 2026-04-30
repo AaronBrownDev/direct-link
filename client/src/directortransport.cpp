@@ -282,6 +282,8 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
             m_session = std::make_unique<DirectorSession>();
             connect(m_session.get(), &DirectorSession::frameArrived,
                     this, &DirectorTransport::onFrameArrived);
+            connect(m_session.get(), &DirectorSession::videoResolutionChanged,
+                    this, &DirectorTransport::videoResolutionChanged);
             qDebug() << "[DirectorTransport] Connected.";
             emit sessionChanged();
             emit connected();

@@ -96,6 +96,8 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // video_lag_ms:  DC packet arrived → video frame decoded  (jitter + decode)
         // display_gap_ms: video frame decoded → QQuickWindow swap
         void latencyBreakdown(double dcOneWayMs, double videoLagMs, double displayGapMs);
+        // Emitted once when the first decoded frame with valid dimensions arrives.
+        void videoResolutionChanged(int width, int height);
 
     private:
         Q_SLOT void onFrameArrived(qint64 receivedNs);

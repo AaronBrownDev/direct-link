@@ -26,7 +26,7 @@ bool CameraSession::start(const std::string &whipUrl,
     encoderConfig.height = captureConfig.height;
     encoderConfig.framerate = captureConfig.framerate;
     encoderConfig.bitrate = 4000000;
-    encoderConfig.gopSize = 3; // Keyframe every 100ms — test to verify jitter buffer waits 1 GOP
+    encoderConfig.gopSize = 30; // One keyframe per second at 30fps
     encoderConfig.preset = videoCore::encode::EncoderConfig::Preset::UltraFast;
 
     auto startResult = pipeline_.initialize(captureConfig, encoderConfig);
