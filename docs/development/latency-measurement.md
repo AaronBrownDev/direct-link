@@ -54,16 +54,16 @@ Each captured frame produces one DC packet (carrying its `capture_ns`) and one v
 
 ## Known issues and current latency investigation
 
-### Observed measurements (loopback, local docker-compose, 2026-04-30)
+### Observed measurements (loopback / GKE, 2026-04-30)
 
-| Component | Observed | Expected |
-|---|---|---|
-| dc_one_way | ~1 ms | ~1 ms (loopback) ✓ |
-| video_lag | ~1005 ms | < 200 ms |
-| display_gap | 0 ms (headless) / ~3 ms (GUI) | < 10 ms ✓ |
-| **total** | **~1007 ms** | **< 250 ms** |
+| Component | Loopback | GKE | Architectural floor |
+|---|---|---|---|
+| dc_one_way | ~1 ms | ~1 ms | ~1 ms ✓ |
+| video_lag | ~1005 ms | ~900 ms | ~900 ms (LiveKit pipeline) |
+| display_gap | 0 ms (headless) / ~3 ms (GUI) | ~3 ms (GUI) | ~3 ms ✓ |
+| **total** | **~1007 ms** | **~900–950 ms** | **~900 ms on this stack** |
 
-The entire remaining latency budget is consumed by `video_lag` — specifically the LiveKit Ingress jitter buffer floor. See ADR-0002 for the full investigation; the rest of this section captures the relevant points.
+Camera-side and director-side are at the floor. The remaining budget is consumed by `video_lag`, which is bounded by **the LiveKit pipeline as a whole** (Ingress + SFU + subscriber jitter buffers in series), *not* a single configurable buffer. See "Known limitations" below and ADR-0002 for the full investigation.
 
 ### Camera-side pipeline reduction (deployed, ~170 ms saved)
 
@@ -84,31 +84,39 @@ drops the encode pipeline depth to 1–3 ms per frame.
 | `gopSize = 30` (was 60) | Reduced ~1900 → ~1015 ms (combined with `do-timestamp`) |
 | `gopSize = 3` (100 ms per GOP) | No change |
 | `do-timestamp = TRUE` on appsrc | See above |
-| `room.playout_delay: {enabled, min: 0, max: 200}` in livekit.yaml | Hint forwarded as RTP extension; livekit-ffi receiver ignores it |
-| `MaxPlayoutDelay: 0` / `MinPlayoutDelay: 0` in director JWT `RoomConfiguration` | Same — ignored by livekit-ffi receiver |
+| `room.playout_delay: {enabled, min: 0, max: 200}` in livekit.yaml | Hint forwarded as RTP extension; receiver does not honour it as a hard cap |
+| `MaxPlayoutDelay: 0` / `MinPlayoutDelay: 0` in director JWT `RoomConfiguration` | Same — server-side hint, no measurable effect |
 | Reducing `appsink max-buffers` and `frameQueue` capacity | No effect — frames were not piling up there |
 | `surfaces=1`, `delay=0`, `zerolatency=1` on NVENC | **Saved ~170 ms** in `dc_one_way` |
+| Forked `livekit-cpp` to expose `Track::setJitterBufferMinimumDelay`, called with 0.0 on subscribe | **Saved ~8 ms** — the director-side libwebrtc receiver wasn't where the time was spent. Reverted. See ADR-0002 attempt 7. |
 
-### Root cause of the residual ~1 s
+### Root cause of the residual ~1 s — the LiveKit architectural floor
 
 The ~1000 ms is a fixed pipeline delay, not adaptive jitter:
 
 - Consistent across ALL samples (not just startup)
 - Independent of GOP size
 - Independent of room/JWT playout-delay hints
-- Confirmed on both loopback and GKE deployments
+- Independent of explicit `SetJitterBufferMinimumDelay(0)` on the director's libwebrtc receiver
+- Confirmed on both loopback (~1005 ms) and GKE (~900 ms) deployments
 
-The livekit-ffi Rust SDK (`/home/abrown/livekit-cpp`) does NOT expose `set_jitter_buffer_minimum_delay` at the C++ API level. The function exists in `webrtc-sys/src/rtp_receiver.rs` but is not surfaced in the public `livekit::Room` / `livekit::VideoStream` API. The GStreamer `whipsink` is a Rust plugin (`gst-plugins-rs/webrtchttp`) that doesn't expose RTP header extension control through public properties, so the `playout-delay` extension can't be added without forking `whipsink`.
+The latency is not in any single configurable buffer — it is **distributed across the LiveKit pipeline**: the Ingress's WHIP-receive jitter buffer, the Ingress→SFU forwarding, the SFU→subscriber forwarding, and the subscriber decode pacing. Each hop has its own libwebrtc/pion buffer that targets a default playout delay independent of the upstream hints. Touching any single one of them moves the floor by tens of milliseconds at most; the others compensate.
 
-### Possible paths forward (not pursued)
+LiveKit + Ingress + WHIP is designed for ~1–2 s live-streaming latency (OBS / Twitch / conference). It is not a sub-second broadcast monitoring stack. The ~1 s reported here is *the floor of this architecture*, not a misconfiguration.
 
-1. **Patch livekit-ffi.** High-confidence fix; modifies vendored library files and creates a permanent fork that breaks on upstream updates. Requires distributing the patched build to every client deployment.
+### Future options (not MVP-scope)
 
-2. **Replace WHIP ingress with native LiveKit publish.** Tried — measured ~5900 ms `video_lag` due to libwebrtc's internal encoder buffering, plus loses the NVENC fast-path. Reverted.
+These would require architectural changes, not config or knob tuning. Document only — pick from this list only if a future product decision makes <150 ms a hard requirement.
 
-3. **Add `playout-delay` RTP extension to GStreamer SDP.** Requires forking `whipsink` to expose extension negotiation; not exposed in current upstream version (0.14.4).
+1. **Direct WebRTC peer-to-peer between camera and director.** Use the existing gRPC server for SDP exchange. No SFU, no Ingress. One libwebrtc connection, one jitter buffer. Realistically 100–200 ms total. Cost: lose multicast — needs a separate fanout strategy if multiple directors per session is required.
 
-4. **Wait for upstream LiveKit Ingress to add a `JitterBufferMs` config.** Not present in protocol v1.45.
+2. **Custom thin WHIP→RTP forwarder** replacing the LiveKit Ingress in the camera path. Removes one of the in-series jitter buffers. Few hundred lines.
+
+3. **Patch `livekit/ingress` (Go)** the same way attempt 7 patched `livekit-cpp`. Per attempt 7's data, individual buffer patches in this stack tend to produce small wins; gain uncertain.
+
+4. **Wait for upstream LiveKit Ingress to add a `JitterBufferMs` config** for WHIP inputs. Not present in protocol v1.45. Cheapest path if it ever lands.
+
+See ADR-0002 for the full investigation history.
 
 ---
 

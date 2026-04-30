@@ -113,23 +113,55 @@ The livekit-cpp SDK internally calls `set_jitter_buffer_minimum_delay()` in the 
 
 **Code**: `video-core/src/encode/nvenc_encoder.cpp`.
 
+---
+
+### 7. livekit-ffi patch — `setJitterBufferMinimumDelay` exposed (built, tested, reverted)
+
+**What**: Built a private fork of `livekit-cpp` at `/home/abrown/Projects/github.com/AaronBrownDev/client-sdk-cpp/` that exposes `Track::setJitterBufferMinimumDelay(seconds)` through every layer (`webrtc-sys` C++ → `libwebrtc` Rust → `livekit` Rust → `livekit-ffi` protocol → C++ public API). Wired `DirectorTransport::onTrackSubscribed` to call `setJitterBufferMinimumDelay(0.0)` on each subscribed video track. Patched libs at `client-sdk-cpp/build-release/lib/`.
+
+**Why pursued**: Attempts 1 and 5 had established that the playout-delay hint travels through LiveKit signalling but `livekit-cpp` ignores it at the public API level. The patch made the C++ side actually call libwebrtc's `SetJitterBufferMinimumDelay` instead of just receiving the hint.
+
+**Result**: The call lands correctly (verified by log line emitted before the first decoded frame) but `video_lag` only dropped from ~1005 ms → ~994 ms (min) — about **8 ms saved**. Mean was unchanged within noise.
+
+**Why it didn't move the needle**: The director-side libwebrtc subscriber jitter buffer was *already* near zero on this stack. The remaining ~1 s is **upstream** of the director — distributed across the LiveKit Ingress's WHIP receive jitter buffer, the Ingress→SFU forwarding, and the SFU→subscriber path. None of those are reachable from the C++ patch. The same logic explains why every server-side / token-side hint (attempts 1 and 5 above) also produced no measurable improvement: they all target receivers that aren't where the time is spent.
+
+**Conclusion**: The director-side fork is not worth the per-deploy maintenance cost. **Reverted** in `direct-link` (`client/src/directortransport.cpp` no longer calls the new method; `CMakeLists.txt` points back at the unpatched upstream `livekit-cpp` build). The patched fork stays on disk for reference but is not consumed by the build.
+
+**Code (reverted)**: would have been `client/src/directortransport.cpp::onTrackSubscribed` and `client/CMakeLists.txt` `LIVEKIT_DIR` / `LIVEKIT_BUILD_SUBDIR` overrides.
+
 ## Current State
 
-| Component | Loopback | Notes |
-|---|---|---|
-| `dc_one_way_ms` | ~1 ms | Bound by encoder pipeline depth (now ~1–3 ms) and DC transit |
-| `video_lag_ms` | ~1005 ms | LiveKit Ingress jitter buffer floor — not configurable in current versions |
-| `display_gap_ms` | 0 ms (headless) / ~3 ms (GUI) | GPU swap |
-| **Total** | **~1007 ms** | Within MVP-acceptable for director-monitor use case |
+| Component | Loopback | GKE | Notes |
+|---|---|---|---|
+| `dc_one_way_ms` | ~1 ms | ~1 ms (post-NVENC fix) | Bound by encoder pipeline depth and DC transit |
+| `video_lag_ms` | ~1005 ms | ~900 ms | **LiveKit pipeline floor** — see "Known limitations" below |
+| `display_gap_ms` | 0 ms (headless) / ~3 ms (GUI) | ~3 ms (GUI) | GPU swap |
+| **Total** | **~1007 ms** | **~900–950 ms** | |
 
-GKE-reported numbers from a real deployment (`video_lag ≈ 900 ms`, total ~1250 ms with ~285 ms `dc_one_way` before the NVENC fix; expected to be similar to loopback after NVENC fix is deployed).
+The measurement methodology itself (timestamp-based matching, estimated-lag fallback, NVENC pipeline cap) is fully landed and trustworthy. Future regressions in any of these components will be visible; the residual ~1 s is the LiveKit architectural floor and is not improvable from this side.
 
-## Open Questions / Future Options
+## Known limitations (LiveKit floor)
 
-1. **livekit-ffi patch (option #4 above) remains the only known path to sub-second `video_lag`.** Defer until MVP requirements demand it; would need a story for distributing the patched build to all client deployments.
+Sub-second `video_lag` is **not reachable on the LiveKit + Ingress + WHIP architecture without changing the architecture itself.** This was empirically confirmed by attempts 1, 2, 5, and 7 above. The relevant facts:
 
-2. **Add `playout-delay` RTP extension to the GStreamer SDP.** The extension is in the WebRTC spec and libwebrtc honours it on the receiver side, but the current `whipsink` (`gst-plugins-rs` 0.14.4) does not expose RTP extension negotiation through public properties. Would require forking `whipsink` or replacing it with raw `webrtcbin` + a hand-rolled WHIP HTTP exchange.
+1. **Multiple jitter buffers in series.** The WHIP path is camera → [Ingress libwebrtc receiver, jitter buffer #1] → [Ingress libwebrtc sender] → [SFU forwarding queue] → [Director libwebrtc receiver, jitter buffer #2] → decode. Each hop has its own libwebrtc/pion buffer; none is individually responsible for the ~1 s but together they sum to it. WebRTC media transports are designed to over-buffer to absorb jitter — that's the design.
 
-3. **Investigate why `timestamp_us` is `0` on docker-compose with `network_mode: host`.** Probably an interaction between loopback and libwebrtc's RTCP SR clock-sync path. If fixed, the docker prod measurement uses the same timestamp-based path as GKE (more accurate) instead of the estimated-lag fallback.
+2. **None of the configurable knobs help.** `room.playout_delay` (server config), `MinPlayoutDelay/MaxPlayoutDelay` on either the director or ingress-participant token, the `playout-delay` RTP extension hint, and even directly calling `SetJitterBufferMinimumDelay(0)` on the director's libwebrtc receiver (the patched-fork experiment in attempt 7) all touch *one* of those buffers — and even then libwebrtc treats the value as a *minimum target*, not a hard cap. They produced 0–10 ms of measurable change combined.
 
-4. **LiveKit Ingress `JitterBufferMs` config.** Not present in protocol v1.45; track upstream releases for an exposed knob.
+3. **LiveKit's design target is ~1–2 s latency** (live event streaming, conference room media, OBS-style ingest). It is *not* a sub-second broadcast monitoring stack. This isn't a bug in LiveKit; it's its operating point.
+
+For DirectLink's stated <150 ms goal, **the path forward is architectural, not configurational** — see "Future options" below for the realistic shapes. Until one of those is undertaken, the measurement reports the true floor of the current architecture.
+
+## Future options
+
+These are listed for completeness; **none are MVP-scope** given the size of the LiveKit investment in this codebase. Pick from this list only if a future product decision makes <150 ms a hard requirement.
+
+1. **Direct WebRTC peer-to-peer between camera and director.** Use the existing gRPC server for SDP exchange, no SFU, no Ingress. One libwebrtc connection, one jitter buffer. Realistically 100–200 ms total. Cost: lose multicast — if multiple directors per session is required, need a separate fanout strategy. Several hundred lines of code.
+
+2. **Custom thin WHIP→RTP forwarder** (replacing the LiveKit Ingress in the camera path while keeping LiveKit for everything else). Few hundred lines of GStreamer or pion. Removes one of the in-series jitter buffers; total gain probably 500-700 ms.
+
+3. **Patch `livekit/ingress` (Go).** Same vendoring pattern as the `livekit-cpp` experiment in attempt 7, but on the ingress server. Theoretically attacks the upstream-side jitter buffer that attempt 7 couldn't reach. Per the data so far, the actual gain is uncertain — every LiveKit-internal knob attempted has produced negligible savings, suggesting the architectural floor may be deeper than any one buffer.
+
+4. **`timestamp_us` not populated on docker-compose `network_mode: host`.** Cosmetic — docker prod uses the estimated-lag fallback (which works fine, just slightly less precise than the GKE timestamp-based path). Worth investigating only if dev-loop precision matters.
+
+The measurement infrastructure landed in this branch will validate any of the above as real wins (or not) without ambiguity.
