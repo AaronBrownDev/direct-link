@@ -329,9 +329,14 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampU
                 // ~1.78e18 ns (different epochs of capture_ns and ts_us*1000),
                 // so the delta form is required — `prior * 7` would overflow
                 // int64.  The delta itself is small (a few ms) for matches.
+                // Use the larger settling-window step while convergence is
+                // happening (post-reset), then drop to the steady divisor.
                 const qint64 observed_offset = frameTimestampUs * 1000 - entry.capture_ns;
                 const qint64 delta = observed_offset - m_ts_capture_offset_ns;
-                m_ts_capture_offset_ns += delta / 8;
+                const qint64 ewma_divisor = (m_settling_samples_remaining > 0)
+                    ? SETTLING_EWMA_DIVISOR
+                    : STEADY_EWMA_DIVISOR;
+                m_ts_capture_offset_ns += delta / ewma_divisor;
             } else {
                 // No DC within tolerance.  This frame's matching DC was
                 // probably lost in transit, or our offset is still off after
@@ -385,8 +390,12 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampU
                 m_capture_queue.erase(m_capture_queue.begin(), std::next(best));
                 ++m_fifo_fallbacks;
                 // EWMA refinement: pull the estimate toward the observed lag.
+                // Larger step inside the post-reset settling window.
                 const qint64 observed_lag = receivedNs - entry.dc_arrived_ns;
-                m_estimated_video_lag_ns += (observed_lag - m_estimated_video_lag_ns) / 8;
+                const qint64 ewma_divisor = (m_settling_samples_remaining > 0)
+                    ? SETTLING_EWMA_DIVISOR
+                    : STEADY_EWMA_DIVISOR;
+                m_estimated_video_lag_ns += (observed_lag - m_estimated_video_lag_ns) / ewma_divisor;
             } else {
                 // No DC within tolerance.  Fall back to oldest-pop so the
                 // measurement still emits something for this frame, but it
@@ -447,6 +456,17 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampU
              << "\n\ttotal=" << total_ms << "ms"
              << "\n\tclock_offset=" << (static_cast<double>(offset) / 1'000'000.0) << "ms"
              << "\n\tmatch=" << (used_ts_match ? "ts_us" : "fifo");
+
+    // Settling window after a matcher reset: suppress emits while the EWMA
+    // converges so the UI doesn't display the convergence walk (e.g. a slow
+    // decrease from ~1000 ms toward the new camera's true lag of ~60 ms).
+    // The matcher state above keeps updating, so by the time the window
+    // closes the EWMAs have reached their fixed point at the larger
+    // SETTLING_EWMA_DIVISOR step.  After settling, normal emits resume.
+    if (m_settling_samples_remaining > 0) {
+        --m_settling_samples_remaining;
+        return;
+    }
 
     // Always emit the breakdown when within sane absolute bounds, even when
     // dc_one_way is briefly negative (clock-sync jitter, especially under WSL
@@ -600,11 +620,12 @@ void DirectorTransport::resetLatencyMatcher() {
     m_ts_capture_offset_ns = 0;
     m_ts_consecutive_misses = 0;
     m_estimated_video_lag_ns = INITIAL_VIDEO_LAG_GUESS_NS;
+    m_settling_samples_remaining = SETTLING_SAMPLES;
     // Blank the displayed breakdown immediately so the UI doesn't keep showing
     // a value attributed to the previous camera while the new camera's
     // matcher seeds.  Display gap stays meaningful (it's per-render, not
     // per-camera), so emit zero for it as well to match the blank-on-switch
-    // contract — the next valid match will refill all three.
+    // contract — the next valid match will refill all three after settling.
     emit latencyBreakdown(0.0, 0.0, 0.0);
 }
 

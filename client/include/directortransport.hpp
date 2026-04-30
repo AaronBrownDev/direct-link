@@ -193,6 +193,24 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // short enough that the user sees the display recover.
         static constexpr std::uint64_t MAX_CONSECUTIVE_MISSES_BEFORE_RESEED = 30;
 
+        // After a matcher reset (camera switch), the first matches pair the
+        // arriving frame against a DC near the warmup-target offset (~1 s
+        // old) regardless of the new camera's true video_lag.  The TS-path
+        // offset and EST-path estimated_video_lag then converge toward truth
+        // via EWMA, but at the steady-state α=1/8 that takes long enough to
+        // be visible on screen as a slow walk from ~1000 ms down to whatever
+        // the new camera actually has.  Two coupled tweaks fix the visible
+        // walk:
+        //  1. Suppress emits for SETTLING_SAMPLES matches after the reset so
+        //     the UI stays blank instead of showing the convergence walk.
+        //  2. Use SETTLING_EWMA_DIVISOR (smaller divisor = larger α) on the
+        //     EST and TS EWMAs while settling so they reach their fixed
+        //     point inside the suppression window, then drop back to the
+        //     stable steady-state divisor.
+        static constexpr std::uint64_t SETTLING_SAMPLES = 30;
+        static constexpr qint64 SETTLING_EWMA_DIVISOR = 2;
+        static constexpr qint64 STEADY_EWMA_DIVISOR = 8;
+
         // Diagnostic counters (no synchronization — both modified from DC and
         // frame paths but only used for log throttling, not measurement).
         std::uint64_t m_dc_count = 0;
@@ -201,6 +219,11 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         std::uint64_t m_ts_match_misses = 0;
         std::uint64_t m_ts_consecutive_misses = 0;
         std::uint64_t m_fifo_fallbacks = 0;
+        // Counts down from SETTLING_SAMPLES after each matcher reset.  While
+        // non-zero, emits are suppressed (UI stays blank) and the EWMA divisor
+        // is the smaller SETTLING_EWMA_DIVISOR so the offset/estimate
+        // converges quickly inside the suppression window.
+        std::uint64_t m_settling_samples_remaining = 0;
 
         // Display gap: time from decoded frame available → QQuickWindow swap.
         // Sampled via frameSwapped; rolling average used as correction factor.
