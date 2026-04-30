@@ -43,9 +43,11 @@ class DirectorSession : public QObject {
         void tracksChanged();
         void trackAdded(qsizetype index);
         void trackRemoved(qsizetype index);
-        // Aggregates frameReceived from all attached VideoTracks. receivedNs
-        // is the local wall-clock nanoseconds from VideoTrack::readLoop.
-        void frameArrived(qint64 receivedNs);
+        // Aggregates frameReceived from all attached VideoTracks.
+        //   receivedNs       — local wall-clock ns from VideoTrack::readLoop.
+        //   frameTimestampUs — VideoFrameEvent::timestamp_us (sender-domain
+        //                      capture-time estimate, microseconds).
+        void frameArrived(qint64 receivedNs, qint64 frameTimestampUs);
         // Forwarded from the first VideoTrack that reports a valid resolution.
         void videoResolutionChanged(int width, int height);
 

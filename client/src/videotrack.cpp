@@ -91,12 +91,14 @@ void VideoTrack::readLoop() {
             }
         }
 
+        const qint64 frame_ts_us = event.timestamp_us;
+
         if (m_frameReader->videoSink() != nullptr) {
             m_frameReader->pushFrame(std::move(event.frame));
         }
 
-        QMetaObject::invokeMethod(this, [this, received_ns]() {
-            emit frameReceived(received_ns);
+        QMetaObject::invokeMethod(this, [this, received_ns, frame_ts_us]() {
+            emit frameReceived(received_ns, frame_ts_us);
         }, Qt::QueuedConnection);
     }
 }

@@ -68,6 +68,14 @@ bool CameraSession::start(const std::string &whipUrl,
 
     auto pipelineResult =
         pipeline_.start([this](std::unique_ptr<videoCore::Packet> pkt) {
+            // Notify upstream listeners (e.g. CameraSessionController) that a
+            // packet was just produced by the encoder, so they can drive
+            // capture-rate-locked work — like sending the latency DC packet —
+            // off the transmit rate instead of the capture rate.  Done before
+            // moving pkt into pushPacket so we still have access to its pts.
+            if (packetEncodedCb_) {
+                packetEncodedCb_(pkt->pts);
+            }
             whipPublisher_.pushPacket(std::move(pkt));
         });
 
@@ -84,6 +92,10 @@ bool CameraSession::start(const std::string &whipUrl,
 
 void CameraSession::setPreviewCallback(std::function<void(const videoCore::Frame &)> cb) {
     pipeline_.setPreviewCallback(std::move(cb));
+}
+
+void CameraSession::setPacketEncodedCallback(std::function<void(int64_t)> cb) {
+    packetEncodedCb_ = std::move(cb);
 }
 
 void CameraSession::stop() {

@@ -6,6 +6,9 @@
 #include <livekit/room.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <iterator>
+#include <limits>
 
 static std::string_view disconnectReasonToString(livekit::DisconnectReason reason) {
     switch (reason) {
@@ -160,24 +163,156 @@ void DirectorTransport::onUserPacketReceived(livekit::Room & /*unused*/, const l
     // Enqueue for consumption by onFrameArrived when the corresponding decoded
     // video frame arrives. Drop the oldest entry if the queue is full (e.g.
     // video pipeline stalled).
-    std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
-    if (m_capture_queue.size() >= MAX_CAPTURE_QUEUE_SIZE) {
-        m_capture_queue.pop();
+    std::size_t qsize_after = 0;
+    bool dropped_oldest = false;
+    {
+        std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
+        if (m_capture_queue.size() >= MAX_CAPTURE_QUEUE_SIZE) {
+            m_capture_queue.pop_front();
+            dropped_oldest = true;
+        }
+        m_capture_queue.push_back({capture_ns, dc_arrived_ns});
+        qsize_after = m_capture_queue.size();
     }
-    m_capture_queue.push({capture_ns, dc_arrived_ns});
+
+    // Diagnostic: log every Nth packet to see queue behavior without spam.
+    ++m_dc_count;
+    if (m_dc_count <= 5 || (m_dc_count % 30) == 0 || dropped_oldest) {
+        qDebug().nospace()
+            << "[DT-diag] DC#" << m_dc_count
+            << " capture_ns=" << capture_ns
+            << " dc_arrived_ns=" << dc_arrived_ns
+            << " qsize_after=" << qsize_after
+            << (dropped_oldest ? " DROPPED_OLDEST" : "");
+    }
 }
 
-void DirectorTransport::onFrameArrived(qint64 receivedNs) {
+void DirectorTransport::onFrameArrived(qint64 receivedNs, qint64 frameTimestampUs) {
     // Always record for display-gap sampling even if no timestamp is queued.
     m_last_received_ns = receivedNs;
     m_frame_pending = true;
 
     CaptureEntry entry{};
+    std::size_t qsize_before = 0;
+    bool used_ts_match = false;
+    qint64 ts_match_diff_ns = 0;
     {
         std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
-        if (m_capture_queue.empty()) { return; }
-        entry = m_capture_queue.front();
-        m_capture_queue.pop();
+        qsize_before = m_capture_queue.size();
+        if (m_capture_queue.empty()) {
+            ++m_frame_count;
+            qDebug().nospace()
+                << "[DT-diag] FRAME#" << m_frame_count
+                << " ts_us=" << frameTimestampUs
+                << " received_ns=" << receivedNs
+                << " qsize=0 (no DC entry — skipped)";
+            return;
+        }
+
+        // Timestamp-based matching when ts_us is populated.  ts_us is 0 in
+        // the first few frames before RTCP SR arrives at the receiver, so we
+        // fall back to FIFO until libwebrtc fills it in.
+        if (frameTimestampUs > 0) {
+            // Seed the offset on first valid ts_us.  We don't know which DC
+            // is the true match, but we can guess: the matching DC arrived
+            // ~INITIAL_VIDEO_LAG_GUESS_NS ago.  Pick the queue entry whose
+            // dc_arrived_ns is closest to (receivedNs - INITIAL_VIDEO_LAG_GUESS).
+            // Compute offset from that pairing; the EWMA below will refine.
+            if (!m_ts_offset_initialized) {
+                const qint64 target_dc_arrived = receivedNs - INITIAL_VIDEO_LAG_GUESS_NS;
+                auto seed = m_capture_queue.begin();
+                qint64 seed_diff = std::numeric_limits<qint64>::max();
+                for (auto it = m_capture_queue.begin(); it != m_capture_queue.end(); ++it) {
+                    const qint64 d = std::abs(it->dc_arrived_ns - target_dc_arrived);
+                    if (d < seed_diff) { seed_diff = d; seed = it; }
+                }
+                m_ts_capture_offset_ns = frameTimestampUs * 1000 - seed->capture_ns;
+                m_ts_offset_initialized = true;
+                qDebug().nospace()
+                    << "[DT-diag] ts_us offset seeded: offset_ns=" << m_ts_capture_offset_ns
+                    << " from queue entry " << std::distance(m_capture_queue.begin(), seed)
+                    << "/" << m_capture_queue.size()
+                    << " (seed_dc_age_ms=" << ((receivedNs - seed->dc_arrived_ns) / 1'000'000)
+                    << ")";
+            }
+
+            // Find the DC whose capture_ns is closest to the predicted value
+            // for this frame's ts_us.  Linear scan — queue is bounded by
+            // MAX_CAPTURE_QUEUE_SIZE so this is O(queue_size) per frame.
+            const qint64 target_capture_ns = frameTimestampUs * 1000 - m_ts_capture_offset_ns;
+            auto best = m_capture_queue.end();
+            qint64 best_diff = std::numeric_limits<qint64>::max();
+            for (auto it = m_capture_queue.begin(); it != m_capture_queue.end(); ++it) {
+                const qint64 d = std::abs(it->capture_ns - target_capture_ns);
+                if (d < best_diff) { best_diff = d; best = it; }
+            }
+
+            if (best != m_capture_queue.end() && best_diff <= TS_MATCH_TOLERANCE_NS) {
+                entry = *best;
+                ts_match_diff_ns = best_diff;
+                used_ts_match = true;
+                ++m_ts_match_hits;
+                // Drop everything up to and including the matched entry —
+                // older DCs correspond to frames that came before this one
+                // and are now orphaned (their frames either arrived earlier
+                // or were dropped between sender and decoder).
+                m_capture_queue.erase(m_capture_queue.begin(), std::next(best));
+                // EWMA refinement of the offset.  The offset is naturally
+                // ~1.78e18 ns (different epochs of capture_ns and ts_us*1000),
+                // so the delta form is required — `prior * 7` would overflow
+                // int64.  The delta itself is small (a few ms) for matches.
+                const qint64 observed_offset = frameTimestampUs * 1000 - entry.capture_ns;
+                const qint64 delta = observed_offset - m_ts_capture_offset_ns;
+                m_ts_capture_offset_ns += delta / 8;
+            } else {
+                // No DC within tolerance.  This frame's matching DC was
+                // probably lost in transit, or our offset is still off after
+                // a recent stall.  Don't pop the queue (a later frame may
+                // still need an older DC); just skip the latency report.
+                ++m_ts_match_misses;
+                ++m_frame_count;
+                if (m_ts_match_misses <= 5 || (m_ts_match_misses % 30) == 0) {
+                    qDebug().nospace()
+                        << "[DT-diag] FRAME#" << m_frame_count
+                        << " ts_us=" << frameTimestampUs
+                        << " ts-match MISS#" << m_ts_match_misses
+                        << " best_diff_ms=" << (best_diff / 1'000'000)
+                        << " qsize=" << qsize_before
+                        << " offset_ns=" << m_ts_capture_offset_ns;
+                }
+                return;
+            }
+        } else {
+            // ts_us not populated (e.g. docker prod loopback path).  Pick
+            // the DC whose age is closest to our running estimate of the
+            // video pipeline latency, rather than FIFO-popping the oldest
+            // (which is the queue-cap artifact we're trying to avoid).
+            const qint64 target_dc_arrived = receivedNs - m_estimated_video_lag_ns;
+            auto best = m_capture_queue.end();
+            qint64 best_diff = std::numeric_limits<qint64>::max();
+            for (auto it = m_capture_queue.begin(); it != m_capture_queue.end(); ++it) {
+                const qint64 d = std::abs(it->dc_arrived_ns - target_dc_arrived);
+                if (d < best_diff) { best_diff = d; best = it; }
+            }
+            if (best != m_capture_queue.end() && best_diff <= ESTIMATED_LAG_TOLERANCE_NS) {
+                entry = *best;
+                ts_match_diff_ns = best_diff;
+                // Erase up to and including the matched entry — older DCs
+                // correspond to frames that came before this one.
+                m_capture_queue.erase(m_capture_queue.begin(), std::next(best));
+                ++m_fifo_fallbacks;
+                // EWMA refinement: pull the estimate toward the observed lag.
+                const qint64 observed_lag = receivedNs - entry.dc_arrived_ns;
+                m_estimated_video_lag_ns += (observed_lag - m_estimated_video_lag_ns) / 8;
+            } else {
+                // No DC within tolerance.  Fall back to oldest-pop so the
+                // measurement still emits something for this frame, but it
+                // will be the queue-cap artifact value.
+                entry = m_capture_queue.front();
+                m_capture_queue.pop_front();
+                ++m_fifo_fallbacks;
+            }
+        }
     }
 
     const qint64 offset = m_clock_offset_ns.load(std::memory_order_relaxed);
@@ -194,12 +329,41 @@ void DirectorTransport::onFrameArrived(qint64 receivedNs) {
     const double gap_ms = displayGapMs();
     const double total_ms = dc_one_way_ms + video_lag_ms + gap_ms;
 
+    // Diagnostics: how stale is the DC entry we just popped?  This reveals
+    // queue mismatch (entries piling up while frames are slow to arrive).
+    //   popped_age_ms — time between popped DC's arrival at director and now
+    //                   (≈ video_lag for this frame, modulo queue mismatch).
+    //   ts_to_capture_skew — frame.timestamp_us (libwebrtc capture estimate,
+    //                       sender domain) minus popped DC capture_ns/1000.
+    //                       If frame & DC are correctly paired, this is a
+    //                       small constant offset between the two clocks.
+    //                       If varying wildly, FIFO is matching wrong frames.
+    ++m_frame_count;
+    const qint64 popped_age_ns = receivedNs - entry.dc_arrived_ns;
+    const qint64 ts_to_capture_skew_us =
+        frameTimestampUs - (entry.capture_ns / 1000);
+    if (m_frame_count <= 10 || (m_frame_count % 5) == 0) {
+        qDebug().nospace()
+            << "[DT-diag] FRAME#" << m_frame_count
+            << (used_ts_match ? " [TS]" : " [FIFO]")
+            << " ts_us=" << frameTimestampUs
+            << " popped_capture_ns=" << entry.capture_ns
+            << " popped_dc_arrived_ns=" << entry.dc_arrived_ns
+            << " qsize_before_pop=" << qsize_before
+            << " video_lag_ms=" << (static_cast<double>(popped_age_ns) / 1'000'000.0)
+            << " ts_match_diff_ms=" << (ts_match_diff_ns / 1'000'000)
+            << " hits=" << m_ts_match_hits
+            << " misses=" << m_ts_match_misses
+            << " fifo_fb=" << m_fifo_fallbacks;
+    }
+
     qDebug() << "[DirectorTransport] Latency breakdown:"
              << "\n\tdc_one_way=" << dc_one_way_ms << "ms"
              << "\n\tvideo_lag=" << video_lag_ms << "ms"
              << "\n\tdisplay_gap=" << gap_ms << "ms"
              << "\n\ttotal=" << total_ms << "ms"
-             << "\n\tclock_offset=" << (static_cast<double>(offset) / 1'000'000.0) << "ms";
+             << "\n\tclock_offset=" << (static_cast<double>(offset) / 1'000'000.0) << "ms"
+             << "\n\tmatch=" << (used_ts_match ? "ts_us" : "fifo");
 
     if (total_ms > 0.0 && total_ms < 30000.0) {
         emit latencyMeasured(total_ms);
@@ -315,7 +479,7 @@ void DirectorTransport::shutdown() {
     m_session.reset();
     m_room.reset();
     std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
-    while (!m_capture_queue.empty()) { m_capture_queue.pop(); }
+    m_capture_queue.clear();
 }
 
 void DirectorTransport::setClockOffset(qint64 ns) {

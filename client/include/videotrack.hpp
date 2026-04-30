@@ -51,9 +51,14 @@ class VideoTrack : public QObject {
         // dimensions is decoded. width and height are in pixels.
         void trackResolutionChanged(int width, int height);
         // Emitted (via QueuedConnection) on the main thread each time a decoded
-        // frame arrives in the read loop. receivedNs is the local wall-clock
-        // nanoseconds captured immediately after VideoStream::read() returns.
-        void frameReceived(qint64 receivedNs);
+        // frame arrives in the read loop.
+        //   receivedNs       — local wall-clock ns captured immediately after
+        //                      VideoStream::read() returns (director clock).
+        //   frameTimestampUs — VideoFrameEvent::timestamp_us from livekit-cpp;
+        //                      libwebrtc-aligned capture-time estimate (sender
+        //                      domain, microseconds). Used by DirectorTransport
+        //                      to match frames to DC packets by timestamp.
+        void frameReceived(qint64 receivedNs, qint64 frameTimestampUs);
 
     private:
         std::unique_ptr<FrameReader> m_frameReader;

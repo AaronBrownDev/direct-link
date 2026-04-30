@@ -3,6 +3,8 @@
 #include "../../include/encode/nvenc_encoder.hpp"
 #include "../../include/encode/software_encoder.hpp"
 
+#include <iostream>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/mathematics.h>
@@ -44,8 +46,10 @@ std::unique_ptr<Encoder> createEncoder(const EncoderConfig &config) {
 
     switch (resolved.type) {
     case EncoderConfig::Type::Software:
+        std::cerr << "[Encoder] selected: Software (libx264)\n";
         return std::make_unique<SoftwareEncoder>();
     case EncoderConfig::Type::Hardware:
+        std::cerr << "[Encoder] selected: Hardware (h264_nvenc)\n";
         return std::make_unique<NVENCEncoder>();
     default:
         return nullptr;

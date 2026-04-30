@@ -226,6 +226,27 @@ Result WHIPPublisher::start() {
         }
     }
 
+    // The pipeline clock has been running since gst_element_set_state was
+    // called, which includes the ICE + DTLS handshake time (up to ~2 s on
+    // real networks).  With do-timestamp=TRUE on appsrc, the first encoded
+    // frame would receive a PTS equal to that elapsed time, causing
+    // libwebrtc's jitter buffer at the receiver to lock in that duration as
+    // its permanent playout offset.
+    //
+    // Fix: reset the appsrc base_time to "right now" so that the first
+    // pushed buffer gets PTS ≈ 0 (one frame period ~33 ms) regardless of
+    // how long ICE took.  No RTP data has been sent yet at this point, so
+    // the receiver jitter buffer has no prior state to invalidate.
+    {
+        GstClock *clk = gst_pipeline_get_clock(GST_PIPELINE(pipeline_));
+        if (clk != nullptr) {
+            const GstClockTime now = gst_clock_get_time(clk);
+            gst_element_set_base_time(GST_ELEMENT(pipeline_), now);
+            gst_element_set_base_time(GST_ELEMENT(appsrc_), now);
+            gst_object_unref(clk);
+        }
+    }
+
     running_ = true;
     return Result::Success;
 }

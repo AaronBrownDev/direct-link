@@ -2,6 +2,10 @@
 #include "../../include/common/types.hpp"
 #include "../../include/encode/encoder_config.hpp"
 
+#include <chrono>
+#include <cstdint>
+#include <iostream>
+
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libswscale/swscale.h>
@@ -71,6 +75,16 @@ Result NVENCEncoder::initialize(
     // disables encoder features that add latency (e.g., B-frames, lookahead)
     av_dict_set(&options, "tune", "ull", 0);
 
+    // NVENC defaults to ~16 input surfaces, which means a buffer ~16 frames
+    // deep before output emerges.  Even with `tune=ull`, observed pipeline
+    // depth was ~6 frames (~200 ms at 30 fps).  Forcing the surface count to
+    // a small value caps internal queueing.  delay=0 ensures NVENC never
+    // intentionally holds a packet to satisfy a future rate-control window.
+    // zerolatency=1 disables any remaining latency-adding features.
+    av_dict_set(&options, "surfaces", "1", 0);
+    av_dict_set(&options, "delay", "0", 0);
+    av_dict_set(&options, "zerolatency", "1", 0);
+
     if (avcodec_open2(codecCtx_, encoder, &options) < 0) {
         av_dict_free(&options);
         return Result::ErrorInitFailed;
@@ -124,7 +138,9 @@ Result NVENCEncoder::encodeFrame(AVFrame *frame) {
         );
 
     // Send frame to encoder
+    const auto t_send = std::chrono::steady_clock::now();
     int ret = avcodec_send_frame(codecCtx_, input_frame);
+    const auto t_after_send = std::chrono::steady_clock::now();
     if (converted_frame != nullptr) {
         av_frame_free(&converted_frame);
     }
@@ -134,7 +150,23 @@ Result NVENCEncoder::encodeFrame(AVFrame *frame) {
 
     // Receive packets from encoder
     AVPacket *pkt = av_packet_alloc();
+    int packets_received = 0;
+    const auto t_before_recv = std::chrono::steady_clock::now();
     while (avcodec_receive_packet(codecCtx_, pkt) == 0) {
+        ++packets_received;
+        const auto t_packet_ready = std::chrono::steady_clock::now();
+        static thread_local std::uint64_t encode_log_count = 0;
+        ++encode_log_count;
+        if (encode_log_count <= 5 || (encode_log_count % 60) == 0) {
+            const auto send_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                t_after_send - t_send).count();
+            const auto wait_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                t_packet_ready - t_before_recv).count();
+            std::cerr << "[NVENC-diag] frame " << encode_log_count
+                      << " send_ms=" << send_ms
+                      << " wait_for_pkt_ms=" << wait_ms
+                      << " pkts_in_call=" << packets_received << "\n";
+        }
         auto wrapped_packet = std::make_unique<Packet>();
         wrapped_packet->packet.reset(av_packet_clone(pkt));
 

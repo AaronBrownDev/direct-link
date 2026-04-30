@@ -6,8 +6,12 @@
 #include <QVideoFrameFormat>
 #include <QVideoSink>
 #include <QtConcurrent/QtConcurrent>
+#include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstring>
+#include <iterator>
+#include <limits>
 
 CameraSessionController::CameraSessionController(QObject *parent)
     : QObject(parent)
@@ -28,9 +32,14 @@ void CameraSessionController::start(const QString &whipUrl,
     std::string std_url = whipUrl.toStdString();
     std::string std_key = streamKey.toStdString();
 
-    // Always register the preview callback so frameCaptured is emitted even
-    // when there is no display sink (e.g. headless tests). Video rendering
-    // to the sink is only attempted when previewSink_ is non-null.
+    // Preview callback runs on the capture thread once per incoming raw
+    // frame.  We do two things here:
+    //   1) Record the wall-clock capture_ns keyed by the frame's pipeline
+    //      pts.  The matching pts comes back to us out of the encoder, and
+    //      that's where we actually emit frameCaptured (so DC sends are
+    //      paced by the encoder's output rate, not the camera's bursty
+    //      capture rate — see CameraSession::setPacketEncodedCallback below).
+    //   2) Render to the optional preview sink for the operator UI.
     {
         QVideoSink *sink = previewSink_;
         QPointer<CameraSessionController> self(this);
@@ -39,9 +48,13 @@ void CameraSessionController::start(const QString &whipUrl,
                 std::chrono::system_clock::now().time_since_epoch()).count();
 
             if (self) {
-                QMetaObject::invokeMethod(self, [self, capture_ns]() {
-                    if (self) { emit self->frameCaptured(capture_ns); }
-                }, Qt::QueuedConnection);
+                std::lock_guard<std::mutex> lock(self->pts_to_capture_ns_mutex_);
+                if (self->pts_to_capture_ns_.size() >= MAX_PTS_MAP_ENTRIES) {
+                    // Encoder is dropping faster than we can prune; remove
+                    // oldest to bound memory.  Should be rare in practice.
+                    self->pts_to_capture_ns_.erase(self->pts_to_capture_ns_.begin());
+                }
+                self->pts_to_capture_ns_[frame.pts] = capture_ns;
             }
 
             if (sink == nullptr || frame.frame == nullptr) {
@@ -69,6 +82,93 @@ void CameraSessionController::start(const QString &whipUrl,
             }
             qFrame.unmap();
             sink->setVideoFrame(qFrame);
+        });
+    }
+
+    // Encoder-output callback runs on the encode thread once per packet.
+    // Look up the original capture_ns by the packet's pts.  The encoder
+    // rescales ns → (1/fps integer) → ns, which rounds, so an exact find()
+    // would silently miss most packets and starve the DC stream — we use
+    // nearest-match within ENCODER_PTS_TOLERANCE_NS instead.  Anything older
+    // than the matched entry is now orphaned (its frame was dropped before
+    // encode) and is erased to keep the map bounded.
+    {
+        QPointer<CameraSessionController> self(this);
+        session_->setPacketEncodedCallback([self](int64_t pts) {
+            if (!self) { return; }
+            qint64 capture_ns = 0;
+            bool found = false;
+            std::int64_t matched_pts_diff = 0;
+            {
+                std::lock_guard<std::mutex> lock(self->pts_to_capture_ns_mutex_);
+                if (!self->pts_to_capture_ns_.empty()) {
+                    // Find the entry whose key is closest to pts.  lower_bound
+                    // gives the first key >= pts; the candidate just before
+                    // it (if any) might be closer.
+                    auto upper = self->pts_to_capture_ns_.lower_bound(pts);
+                    auto best  = self->pts_to_capture_ns_.end();
+                    std::int64_t best_diff = std::numeric_limits<std::int64_t>::max();
+                    if (upper != self->pts_to_capture_ns_.end()) {
+                        const std::int64_t diff = std::abs(upper->first - pts);
+                        if (diff < best_diff) { best = upper; best_diff = diff; }
+                    }
+                    if (upper != self->pts_to_capture_ns_.begin()) {
+                        auto prev = std::prev(upper);
+                        const std::int64_t diff = std::abs(prev->first - pts);
+                        if (diff < best_diff) { best = prev; best_diff = diff; }
+                    }
+                    if (best != self->pts_to_capture_ns_.end()
+                        && best_diff <= ENCODER_PTS_TOLERANCE_NS) {
+                        capture_ns = best->second;
+                        matched_pts_diff = best->first - pts;
+                        found = true;
+                        self->pts_to_capture_ns_.erase(self->pts_to_capture_ns_.begin(),
+                                                        std::next(best));
+                    }
+                }
+            }
+            if (found) {
+                self->packet_lookup_hits_.fetch_add(1, std::memory_order_relaxed);
+                // Profile: capture → encoder packet output (encode_pipeline_ms)
+                // and capture → dispatched-to-UI (encode_to_dispatch_ms).  The
+                // latter is the moment we ask the UI thread to fire frameCaptured;
+                // the actual publishData call happens after one Qt event-loop hop.
+                const qint64 now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+                const qint64 encode_pipeline_ms = (now_ns - capture_ns) / 1'000'000;
+                const auto hits = self->packet_lookup_hits_.load(std::memory_order_relaxed);
+                if (hits <= 5 || (hits % 60) == 0) {
+                    qDebug().nospace()
+                        << "[CSC-diag] enc pkt hit#" << hits
+                        << " pts=" << pts
+                        << " encode_pipeline_ms=" << encode_pipeline_ms
+                        << " matched_pts_diff_ns=" << matched_pts_diff
+                        << " misses=" << self->packet_lookup_misses_.load(std::memory_order_relaxed);
+                }
+                QMetaObject::invokeMethod(self, [self, capture_ns, now_ns]() {
+                    if (!self) { return; }
+                    const qint64 dispatch_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    const qint64 ui_hop_ms = (dispatch_ns - now_ns) / 1'000'000;
+                    static std::atomic<std::uint64_t> ui_hop_log_count{0};
+                    const auto n = ui_hop_log_count.fetch_add(1, std::memory_order_relaxed) + 1;
+                    if (n <= 5 || (n % 60) == 0) {
+                        qDebug().nospace()
+                            << "[CSC-diag] frame#" << n
+                            << " ui_hop_ms=" << ui_hop_ms
+                            << " total_capture_to_emit_ms=" << ((dispatch_ns - capture_ns) / 1'000'000);
+                    }
+                    emit self->frameCaptured(capture_ns);
+                }, Qt::QueuedConnection);
+            } else {
+                const auto misses = self->packet_lookup_misses_.fetch_add(1, std::memory_order_relaxed) + 1;
+                if (misses <= 5 || (misses % 30) == 0) {
+                    qWarning().nospace()
+                        << "[CSC-diag] enc pkt MISS#" << misses
+                        << " pts=" << pts
+                        << " (no map entry within tolerance — DC will not fire for this frame)";
+                }
+            }
         });
     }
 

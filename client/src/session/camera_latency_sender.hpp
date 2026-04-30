@@ -17,6 +17,7 @@
 #include <QtConcurrent/QtConcurrent>
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <gsl/pointers>
 
@@ -61,4 +62,11 @@ private:
     QTimer *m_timer = nullptr;
     QFutureWatcher<bool> *m_connectWatcher = nullptr;
     bool m_frame_driven = false; // true after first onFrameCaptured call
+
+    // Diagnostic counters: distinguishes DC sends driven by the encoder's
+    // frameCaptured path from the fallback timer path, and helps detect
+    // when DC throughput drops below the encoder's output rate (which
+    // inflates the receiver-side FIFO queue and the reported video_lag).
+    std::atomic<std::uint64_t> m_frame_driven_sends{0};
+    std::atomic<std::uint64_t> m_timer_driven_sends{0};
 };

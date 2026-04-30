@@ -26,7 +26,7 @@ Window {
     property string user_id: ""
     property int user_type: UserRole.director
 
-    property url channel: "http://34.174.71.83:50051"
+    property url channel: "http://localhost:50051"
     property bool connected: false
 
     property string last_room: ""

@@ -88,9 +88,17 @@ void CameraLatencySender::onFrameCaptured(qint64 captureNs) {
     if (!m_frame_driven) {
         m_frame_driven = true;
         m_timer->stop();
+        qDebug() << "[CLS-diag] switched to frame-driven DC sends "
+                    "(timer fallback stopped)";
     }
     if (!m_room || !m_room->localParticipant()) {
         return;
+    }
+    const auto n = m_frame_driven_sends.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (n <= 5 || (n % 60) == 0) {
+        qDebug().nospace()
+            << "[CLS-diag] frame-driven send#" << n
+            << " timer-driven=" << m_timer_driven_sends.load(std::memory_order_relaxed);
     }
     sendTimestampNs(captureNs + m_clock_offset_ns.load(std::memory_order_relaxed));
 }
@@ -105,6 +113,10 @@ void CameraLatencySender::sendTimestamp() {
     }
     const qint64 local_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::system_clock::now().time_since_epoch()).count();
+    const auto n = m_timer_driven_sends.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (n <= 5 || (n % 60) == 0) {
+        qDebug().nospace() << "[CLS-diag] timer-driven send#" << n;
+    }
     sendTimestampNs(local_ns + m_clock_offset_ns.load(std::memory_order_relaxed));
 }
 
@@ -117,7 +129,13 @@ void CameraLatencySender::sendTimestampNs(qint64 serverNs) {
         tmp >>= 8;
     }
     try {
-        m_room->localParticipant()->publishData(payload, /*reliable=*/false, {}, "latency");
+        // reliable=true: latency timestamps are tiny (8 bytes) and infrequent
+        // enough that the cost of TCP-style retransmit is negligible, but
+        // packet loss directly distorts the FIFO match in DirectorTransport
+        // (queue stays at MAX_CAPTURE_QUEUE_SIZE while DC arrival rate at
+        // the receiver drops below the video frame rate, which falsely
+        // inflates video_lag_ms — observed as ~6000 ms over Ethernet).
+        m_room->localParticipant()->publishData(payload, /*reliable=*/true, {}, "latency");
     } catch (const std::exception &e) {
         qWarning() << "[CameraLatencySender] publishData failed:" << e.what();
     }

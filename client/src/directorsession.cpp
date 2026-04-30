@@ -31,7 +31,8 @@ void DirectorSession::attachTrack(const std::shared_ptr<livekit::Track> &track, 
         return;
     }
 
-    connect(v_track.get(), &VideoTrack::frameReceived, this, &DirectorSession::frameArrived);
+    connect(v_track.get(), &VideoTrack::frameReceived,
+            this, &DirectorSession::frameArrived);
     connect(v_track.get(), &VideoTrack::trackResolutionChanged, this, &DirectorSession::videoResolutionChanged);
     m_trackMap[trackSid] = std::move(v_track);
     auto inserted = m_trackMap.find(trackSid);
