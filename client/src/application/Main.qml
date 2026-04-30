@@ -328,10 +328,6 @@ Window {
         function onConnectionStateChanged(newState) {
             dl_header.connection_status = newState
         }
-
-        function onLatencyMeasured(latencyMs) {
-            dl_page_stack.currentItem.latency_ms = latencyMs;
-        }
     }
 
     // Camera Session Connections
