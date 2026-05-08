@@ -15,7 +15,11 @@ public:
     CameraSession(CameraSession &&) = delete;
     CameraSession &operator=(CameraSession &&) = delete;
 
-    bool start(const std::string &whipUrl, const std::string &streamKey);
+    // deviceId is optional; when empty the default camera (first v4l2 device
+    // with parseable formats) is auto-selected.  When non-empty it must
+    // match a CameraDevice::id returned by CameraEnumerator::listDevices().
+    bool start(const std::string &whipUrl, const std::string &streamKey,
+               const std::string &deviceId = "");
     void stop();
     void setPreviewCallback(std::function<void(const videoCore::Frame &)> cb);
 

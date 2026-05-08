@@ -1,7 +1,9 @@
 #include "session_controller.hpp"
+#include "../../../video-core/include/capture/camera_enumerator.hpp"
 
 #include <QDebug>
 #include <QPointer>
+#include <QVariantMap>
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
 #include <QVideoSink>
@@ -190,13 +192,38 @@ void CameraSessionController::start(const QString &whipUrl,
     });
 
     std::shared_ptr<CameraSession> session = session_;
+    std::string std_device_id = selectedCameraId_.toStdString();
 
-    startFuture_ = QtConcurrent::run([this, std_url, std_key]() {
+    startFuture_ = QtConcurrent::run([this, std_url, std_key, std_device_id]() {
         qDebug() << "[CameraSessionController] Starting session.";
-        return session_->start(std_url, std_key);
+        return session_->start(std_url, std_key, std_device_id);
     });
 
     startWatcher_->setFuture(startFuture_);
+}
+
+QVariantList CameraSessionController::listCameras() {
+    QVariantList result;
+    for (const auto &device :
+         videoCore::capture::CameraEnumerator::listDevices()) {
+        QVariantMap entry;
+        entry["id"] = QString::fromStdString(device.id);
+        entry["name"] = QString::fromStdString(device.displayName);
+        entry["source"] = QString::fromStdString(device.source);
+        // Light summary so a UI can show "1280x720 @ 30fps + 4 more" without
+        // a second round-trip; full caps remain in C++ for now.
+        entry["formatCount"] = static_cast<int>(device.formats.size());
+        result.append(entry);
+    }
+    return result;
+}
+
+void CameraSessionController::setSelectedCamera(const QString &id) {
+    if (selectedCameraId_ == id) {
+        return;
+    }
+    selectedCameraId_ = id;
+    emit selectedCameraChanged();
 }
 
 void CameraSessionController::stop() {

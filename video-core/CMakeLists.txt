@@ -35,6 +35,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 # =================================================================
 add_library(video_core STATIC
     src/capture/camera_capture.cpp
+    src/capture/camera_enumerator.cpp
     src/encode/encoder.cpp
     src/encode/software_encoder.cpp
     src/encode/nvenc_encoder.cpp

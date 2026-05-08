@@ -3,6 +3,8 @@
 #include <QQmlEngine>
 #include <QFuture>
 #include <QFutureWatcher>
+#include <QString>
+#include <QVariantList>
 #include <QVideoSink>
 #include <atomic>
 #include <cstdint>
@@ -17,6 +19,10 @@ class CameraSessionController : public QObject {
     QML_SINGLETON
 
     Q_PROPERTY(QVideoSink *previewSink READ previewSink WRITE setPreviewSink NOTIFY previewSinkChanged)
+    // The camera that start() will use.  Empty string means "auto-pick the
+    // default camera at session start".  Set this from QML before start();
+    // changing it after the session is running has no effect until restart.
+    Q_PROPERTY(QString selectedCamera READ selectedCamera WRITE setSelectedCamera NOTIFY selectedCameraChanged)
 
 public:
     explicit CameraSessionController(QObject *parent = nullptr);
@@ -29,14 +35,24 @@ public:
     Q_INVOKABLE void start(const QString &whipUrl, const QString &streamKey);
     Q_INVOKABLE void stop();
 
+    // Enumerate available cameras.  Returns a list of QVariantMap entries
+    // with keys: "id" (string, opaque identifier), "name" (display name),
+    // "source" (e.g. "v4l2", "pipewire").  Safe to call from QML; performs
+    // a fresh GstDeviceMonitor scan on each invocation.
+    Q_INVOKABLE QVariantList listCameras();
+
     QVideoSink *previewSink() const;
     void setPreviewSink(QVideoSink *sink);
+
+    QString selectedCamera() const { return selectedCameraId_; }
+    void setSelectedCamera(const QString &id);
 
 signals:
     void sessionStarted();
     void sessionStopped();
     void errorOccurred(const QString &message);
     void previewSinkChanged();
+    void selectedCameraChanged();
     // Emitted on the main thread for each captured frame. captureNs is the
     // local wall-clock nanoseconds at the moment the preview callback fired.
     void frameCaptured(qint64 captureNs);
@@ -46,6 +62,7 @@ private:
     QFuture<bool> startFuture_;
     QFutureWatcher<bool> *startWatcher_ = nullptr;
     QVideoSink *previewSink_ = nullptr;
+    QString selectedCameraId_;  // empty → auto-pick at start time
 
     // Maps a pipeline-clock pts (ns) to the wall-clock capture_ns recorded in
     // the preview callback at that frame.  Looked up from the encode thread

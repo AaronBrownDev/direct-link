@@ -1,25 +1,86 @@
 #include "camera_session.hpp"
+#include "../../../video-core/include/capture/camera_enumerator.hpp"
 #include "../../../video-core/include/common/types.hpp"
+
+#include <cmath>
 #include <iostream>
 
 bool CameraSession::start(const std::string &whipUrl,
-                          const std::string &streamKey) {
+                          const std::string &streamKey,
+                          const std::string &deviceId) {
     if (isRunning_) {
         return false; // Already running
     }
 
     videoCore::capture::CaptureConfig captureConfig;
-    #ifdef _WIN32
-        captureConfig.devicePath = "video=0";
-        captureConfig.inputFormat = "dshow";
-    #else
-        captureConfig.devicePath = "/dev/video0";
-        captureConfig.inputFormat = "v4l2";
-        captureConfig.pixelFormat = "mjpeg";
-    #endif
+
+#ifdef _WIN32
+    // Windows still uses the legacy hard-coded path; DirectShow enumeration
+    // would slot in here once we add it to CameraEnumerator.
+    captureConfig.devicePath = "video=0";
+    captureConfig.inputFormat = "dshow";
     captureConfig.width = 1280;
     captureConfig.height = 720;
     captureConfig.framerate = 30;
+#else
+    using videoCore::capture::CameraDevice;
+    using videoCore::capture::CameraEnumerator;
+    using videoCore::capture::CameraFormat;
+
+    std::optional<CameraDevice> device;
+    if (deviceId.empty()) {
+        device = CameraEnumerator::pickDefaultDevice();
+        if (!device) {
+            std::cerr << "[CameraSession] no camera devices detected\n";
+            return false;
+        }
+    }
+    else {
+        for (auto &d : CameraEnumerator::listDevices()) {
+            if (d.id == deviceId) {
+                device = std::move(d);
+                break;
+            }
+        }
+        if (!device) {
+            std::cerr << "[CameraSession] camera device not found: "
+                      << deviceId << "\n";
+            return false;
+        }
+    }
+
+    std::optional<CameraFormat> format =
+        CameraEnumerator::pickBestFormat(device->formats);
+    if (!format) {
+        // Device exposed no parseable formats — fall back to a sensible
+        // default; downstream candidate probing will still validate it.
+        std::cerr << "[CameraSession] no formats advertised for "
+                  << device->displayName << "; falling back to 1280x720@30\n";
+        format = CameraFormat{
+            "image/jpeg", 1280, 720, 30, 1,
+        };
+    }
+
+    std::cerr << "[CameraSession] using " << device->displayName << " ("
+              << device->id << ") @ " << format->width << "x" << format->height
+              << " " << format->fps() << "fps " << format->mediaType << "\n";
+
+    captureConfig.devicePath = device->id;
+    captureConfig.inputFormat = device->source;
+    captureConfig.pixelFormat =
+        format->mediaType == "image/jpeg" ? "mjpeg" : "raw";
+    captureConfig.width = format->width;
+    captureConfig.height = format->height;
+    // Round framerate to the nearest integer; the encoder timebase only
+    // accepts whole frames per second.
+    captureConfig.framerate =
+        format->framerateDen > 0
+            ? static_cast<int>(std::lround(format->fps()))
+            : 30;
+    if (captureConfig.framerate <= 0) {
+        captureConfig.framerate = 30;
+    }
+#endif
 
     videoCore::encode::EncoderConfig encoderConfig;
     encoderConfig.width = captureConfig.width;
