@@ -33,5 +33,10 @@ protected:
     static int64_t rescaleToNs(int64_t value, AVRational src_tb);
 };
 
-std::unique_ptr<Encoder> createEncoder(const EncoderConfig &config);
+// allowHardware controls whether createEncoder may upgrade a Software request
+// to Hardware when NVENC is compiled into FFmpeg.  Pass false to force a
+// software encoder (e.g. when an earlier hardware initialize() failed at
+// runtime because libcuda.so.1 wasn't loadable).
+std::unique_ptr<Encoder>
+createEncoder(const EncoderConfig &config, bool allowHardware = true);
 } // namespace videoCore::encode

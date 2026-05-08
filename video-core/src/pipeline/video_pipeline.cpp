@@ -1,5 +1,8 @@
 #include "../../include/pipeline/video_pipeline.hpp"
 #include "../../include/common/types.hpp"
+#include "../../include/encode/encoder.hpp"
+
+#include <iostream>
 
 namespace videoCore::pipeline {
 
@@ -33,17 +36,33 @@ Result VideoPipeline::start(
     }
     packetCallback_ = std::move(packetCallback);
 
-    // Initialize encoder with callback
-    auto encoder_result = encoder_->initialize(
-        encoderConfig_, [this](std::unique_ptr<Packet> pkt) {
-            bitrate_ += pkt->size;
-            framesEncoded_++;
-            if (packetCallback_) {
-                packetCallback_(std::move(pkt));
-            }
-        });
+    // Encoder packet callback; reused across the initial hardware attempt and
+    // any software fallback so each path observes identical accounting.
+    auto onEncodedPacket = [this](std::unique_ptr<Packet> pkt) {
+        bitrate_ += pkt->size;
+        framesEncoded_++;
+        if (packetCallback_) {
+            packetCallback_(std::move(pkt));
+        }
+    };
+
+    auto encoder_result = encoder_->initialize(encoderConfig_, onEncodedPacket);
     if (encoder_result != Result::Success) {
-        return Result::ErrorInitFailed; // Failed to initialize encoder
+        // Hardware encoder open can fail at runtime when the FFmpeg build
+        // advertises NVENC but the host lacks the NVIDIA userspace
+        // (libcuda.so.1) — common on machines without an NVIDIA GPU or the
+        // proprietary driver installed.  Retry once forcing a software
+        // encoder so the session still publishes.
+        std::cerr << "[Pipeline] Encoder initialize failed; "
+                     "retrying with software encoder\n";
+        encoder_ = encode::createEncoder(encoderConfig_, /*allowHardware=*/false);
+        if (!encoder_) {
+            return Result::ErrorInitFailed;
+        }
+        encoder_result = encoder_->initialize(encoderConfig_, onEncodedPacket);
+        if (encoder_result != Result::Success) {
+            return Result::ErrorInitFailed;
+        }
     }
 
     startTime_ = std::chrono::steady_clock::now();

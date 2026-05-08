@@ -28,18 +28,21 @@ int64_t Encoder::rescaleToNs(int64_t value, AVRational src_tb) {
     return av_rescale_q(value, src_tb, ns_tb);
 }
 
-std::unique_ptr<Encoder> createEncoder(const EncoderConfig &config) {
+std::unique_ptr<Encoder> createEncoder(const EncoderConfig &config,
+                                       bool allowHardware) {
     EncoderConfig resolved = config;
 
-    if (resolved.type == EncoderConfig::Type::Software) {
+    if (resolved.type == EncoderConfig::Type::Software && allowHardware) {
         // Probe for NVENC — upgrade if available
         if (avcodec_find_encoder_by_name("h264_nvenc") != nullptr) {
             resolved.type = EncoderConfig::Type::Hardware;
         }
     }
     else if (resolved.type == EncoderConfig::Type::Hardware) {
-        // Requested hardware but verify it's actually available
-        if (avcodec_find_encoder_by_name("h264_nvenc") == nullptr) {
+        // Requested hardware but verify it's actually available, or that the
+        // caller still wants it.
+        if (!allowHardware ||
+            avcodec_find_encoder_by_name("h264_nvenc") == nullptr) {
             resolved.type = EncoderConfig::Type::Software;
         }
     }
