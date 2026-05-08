@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string_view>
 #include <utility>
 
 namespace videoCore::capture {
@@ -131,9 +132,25 @@ CameraDevice fromGstDevice(GstDevice *device) {
 
     GstStructure *props = gst_device_get_properties(device);
     if (props != nullptr) {
-        // v4l2: device.path = "/dev/video0".
+        // The v4l2 device path is exposed under different keys depending on
+        // which GStreamer device provider populated this entry:
+        //   - gst-plugins-good's v4l2deviceprovider sets "device.path"
+        //   - pipewiredeviceprovider (when PipeWire mediates v4l2) sets
+        //     "api.v4l2.path" and reports device.api == "v4l2"
+        //   - some older builds use "object.path" prefixed with "v4l2:"
         std::string v4l2_path = getStringProperty(props, "device.path");
-        std::string api = getStringProperty(props, "device.api");
+        if (v4l2_path.empty()) {
+            v4l2_path = getStringProperty(props, "api.v4l2.path");
+        }
+        if (v4l2_path.empty()) {
+            const std::string object_path =
+                getStringProperty(props, "object.path");
+            constexpr std::string_view kV4l2Prefix = "v4l2:";
+            if (object_path.rfind(kV4l2Prefix, 0) == 0) {
+                v4l2_path = object_path.substr(kV4l2Prefix.size());
+            }
+        }
+        const std::string api = getStringProperty(props, "device.api");
 
         if (!v4l2_path.empty()) {
             out.id = v4l2_path;
@@ -179,34 +196,48 @@ std::vector<CameraDevice> CameraEnumerator::listDevices() {
 
     std::vector<CameraDevice> result;
 
-    GstDeviceMonitor *monitor = gst_device_monitor_new();
-    if (monitor == nullptr) {
-        return result;
-    }
+    // Enumerate factories directly rather than going through GstDeviceMonitor.
+    // The monitor relies on async udev events to populate its device list,
+    // which silently miss devices that already exist before the monitor
+    // starts — a common case inside containers and sandboxed runtimes (the
+    // udev "add" events fired before the process began, so the monitor never
+    // sees them).  Direct factory invocation does a synchronous probe and
+    // returns the current set immediately.
+    GList *factories = gst_device_provider_factory_list_get_device_providers(
+        GST_RANK_NONE);
 
-    // Filter to Video/Source so we don't pick up audio devices or sinks.
-    // Empty caps = "any caps" so each device contributes its full advertised
-    // format set.
-    gst_device_monitor_add_filter(monitor, "Video/Source", nullptr);
+    for (GList *fl = factories; fl != nullptr; fl = fl->next) {
+        auto *factory = static_cast<GstDeviceProviderFactory *>(fl->data);
 
-    if (gst_device_monitor_start(monitor) == FALSE) {
-        gst_object_unref(monitor);
-        return result;
-    }
-
-    GList *devices = gst_device_monitor_get_devices(monitor);
-    for (GList *l = devices; l != nullptr; l = l->next) {
-        auto *device = static_cast<GstDevice *>(l->data);
-        CameraDevice info = fromGstDevice(device);
-        // Drop anonymous entries — we can't drive a pipeline without an id.
-        if (!info.id.empty()) {
-            result.push_back(std::move(info));
+        // Skip factories that don't claim to provide video sources.  The
+        // klass strings vary between providers ("Source/Video" for v4l2,
+        // "Video/Source" for some others), so accept either ordering.
+        if (gst_device_provider_factory_has_classes(factory,
+                                                    "Source/Video") == FALSE &&
+            gst_device_provider_factory_has_classes(factory,
+                                                    "Video/Source") == FALSE) {
+            continue;
         }
-    }
-    g_list_free_full(devices, gst_object_unref);
 
-    gst_device_monitor_stop(monitor);
-    gst_object_unref(monitor);
+        GstDeviceProvider *provider =
+            gst_device_provider_factory_get(factory);
+        if (provider == nullptr) {
+            continue;
+        }
+
+        GList *devices = gst_device_provider_get_devices(provider);
+        for (GList *dl = devices; dl != nullptr; dl = dl->next) {
+            auto *device = static_cast<GstDevice *>(dl->data);
+            CameraDevice info = fromGstDevice(device);
+            if (!info.id.empty()) {
+                result.push_back(std::move(info));
+            }
+        }
+        g_list_free_full(devices, gst_object_unref);
+        gst_object_unref(provider);
+    }
+
+    gst_plugin_feature_list_free(factories);
 
     return result;
 }
