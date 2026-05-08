@@ -56,159 +56,10 @@ Result CameraCapture::initialize(const CaptureConfig &config) {
     return buildPipeline();
 }
 
-Result CameraCapture::buildPipeline() {
-    const int w = config_.width;
-    const int h = config_.height;
-    const int f = config_.framerate;
-    const std::string dev = config_.devicePath;
-
-    const std::string raw_caps = "video/x-raw,format=I420"
-                                 ",width=" +
-                                 std::to_string(w) +
-                                 ",height=" + std::to_string(h) +
-                                 ",framerate=" + std::to_string(f) + "/1";
-    const std::string sink_props = "appsink name=sink sync=false max-buffers=4 "
-                                   "drop=true emit-signals=false";
-
-    // Ordered candidates. Each is probed to READY state; the first that
-    // succeeds is kept. READY is sufficient to check device availability — it
-    // avoids the cleanup hang caused by stopping a live streaming thread
-    // mid-flight.
-    //
-    // Candidate ordering rationale:
-    //  - v4l2src comes first: it is universally compatible and works whether
-    //    PipeWire is present or absent (via the pipewire-v4l2 compat layer).
-    //    pipewiresrc requires the session manager (WirePlumber) to have
-    //    registered video nodes; when no nodes exist it hangs indefinitely at
-    //    PLAYING.
-    //  - pipewiresrc variants are kept as fallbacks for environments where
-    //  native
-    //    PipeWire video nodes are available and v4l2 compat is disabled.
-    std::vector<std::string> candidates;
-
-    // V4L2 MJPEG — preferred; most USB cameras expose MJPEG at 720p+/30fps.
-    candidates.push_back(
-        "v4l2src device=" + dev + " ! image/jpeg,width=" + std::to_string(w) +
-        ",height=" + std::to_string(h) + ",framerate=" + std::to_string(f) +
-        "/1"
-        " ! jpegdec ! videoconvert ! video/x-raw,format=I420 ! " +
-        sink_props);
-
-    // V4L2 raw — fallback for cameras without MJPEG.
-    candidates.push_back(
-        "v4l2src device=" + dev + " ! video/x-raw,width=" + std::to_string(w) +
-        ",height=" + std::to_string(h) + ",framerate=" + std::to_string(f) +
-        "/1"
-        " ! videoconvert ! video/x-raw,format=I420 ! " +
-        sink_props);
-
-    GstElementFactory *pw_factory = gst_element_factory_find("pipewiresrc");
-    if (pw_factory != nullptr) {
-        gst_object_unref(pw_factory);
-        candidates.push_back("pipewiresrc target-object=" + dev +
-                             " do-timestamp=true"
-                             " ! jpegdec ! videoconvert ! videoscale ! " +
-                             raw_caps + " ! " + sink_props);
-        candidates.push_back("pipewiresrc do-timestamp=true"
-                             " ! jpegdec ! videoconvert ! videoscale ! " +
-                             raw_caps + " ! " + sink_props);
-        candidates.push_back("pipewiresrc target-object=" + dev +
-                             " do-timestamp=true"
-                             " ! videoconvert ! videoscale ! " +
-                             raw_caps + " ! " + sink_props);
-        candidates.push_back("pipewiresrc do-timestamp=true"
-                             " ! videoconvert ! videoscale ! " +
-                             raw_caps + " ! " + sink_props);
-    }
-
-    for (const auto &pipeline_str : candidates) {
-        std::cerr << "[CameraCapture] trying: " << pipeline_str << "\n";
-
-        GError *parse_err = nullptr;
-        GstElement *pipeline =
-            gst_parse_launch(pipeline_str.c_str(), &parse_err);
-        if (parse_err != nullptr || pipeline == nullptr) {
-            std::cerr << "[CameraCapture] parse error: "
-                      << (parse_err != nullptr ? parse_err->message
-                                               : "null pipeline")
-                      << "\n";
-            if (parse_err != nullptr) {
-                g_error_free(parse_err);
-            }
-            if (pipeline != nullptr) {
-                gst_object_unref(pipeline);
-            }
-            continue;
-        }
-
-        // Probe to READY — this allocates device resources without starting the
-        // streaming thread. PLAYING validation is deferred to start() so that
-        // we never need to tear down a live source mid-flight during candidate
-        // probing, which can cause pipewiresrc to hang on cleanup.
-        GstStateChangeReturn ret =
-            gst_element_set_state(pipeline, GST_STATE_READY);
-        GstState reached = GST_STATE_NULL;
-        if (ret != GST_STATE_CHANGE_FAILURE) {
-            ret =
-                gst_element_get_state(pipeline, &reached, nullptr, GST_SECOND);
-        }
-
-        if (ret != GST_STATE_CHANGE_FAILURE && reached == GST_STATE_READY) {
-            GstElement *appsink =
-                gst_bin_get_by_name(GST_BIN(pipeline), "sink");
-            if (appsink != nullptr) {
-                pipeline_ = pipeline;
-                appsink_ = appsink;
-                width_ = w;
-                height_ = h;
-                framerate_ = f;
-                std::cerr << "[CameraCapture] pipeline ready\n";
-                return Result::Success;
-            }
-            // appsink was null — pipeline built but sink not found
-            std::cerr
-                << "[CameraCapture] appsink element not found in pipeline\n";
-            gst_element_set_state(pipeline, GST_STATE_NULL);
-            gst_object_unref(pipeline);
-        }
-
-        // Candidate failed — drain the bus for a diagnostic message then move
-        // on.
-        GstBus *bus = gst_element_get_bus(pipeline);
-        if (bus != nullptr) {
-            GstMessage *msg = gst_bus_timed_pop_filtered(bus, 500 * GST_MSECOND,
-                                                         GST_MESSAGE_ERROR);
-            if (msg != nullptr) {
-                GError *bus_err = nullptr;
-                gchar *dbg = nullptr;
-                gst_message_parse_error(msg, &bus_err, &dbg);
-                std::cerr << "[CameraCapture] error: "
-                          << (bus_err != nullptr ? bus_err->message : "?");
-                if (dbg != nullptr) {
-                    std::cerr << " | " << dbg;
-                }
-                std::cerr << "\n";
-                if (bus_err != nullptr) {
-                    g_error_free(bus_err);
-                }
-                if (dbg != nullptr) {
-                    g_free(dbg);
-                }
-                gst_message_unref(msg);
-            }
-            gst_object_unref(bus);
-        }
-        gst_element_set_state(pipeline, GST_STATE_NULL);
-        gst_object_unref(pipeline);
-    }
-
-    std::cerr << "[CameraCapture] all pipeline candidates failed\n";
-    return Result::ErrorDeviceNotFound;
-}
-
 // Drain the GStreamer bus and log the first ERROR message, if any.
-// Uses a 500 ms timed wait because pipewiresrc posts its error asynchronously —
-// a non-blocking pop races with the message delivery and silently misses it.
+// Uses a 500 ms timed wait because some sources (notably pipewiresrc) post
+// errors asynchronously — a non-blocking pop races with delivery and silently
+// misses the message.
 static void logPipelineError(GstElement *pipeline) {
     GstBus *bus = gst_element_get_bus(pipeline);
     if (bus == nullptr) {
@@ -236,6 +87,182 @@ static void logPipelineError(GstElement *pipeline) {
         gst_message_unref(msg);
     }
     gst_object_unref(bus);
+}
+
+Result CameraCapture::buildPipeline() {
+    const int w = config_.width;
+    const int h = config_.height;
+    const int f = config_.framerate;
+    const std::string dev = config_.devicePath;
+
+    const std::string raw_caps = "video/x-raw,format=I420"
+                                 ",width=" +
+                                 std::to_string(w) +
+                                 ",height=" + std::to_string(h) +
+                                 ",framerate=" + std::to_string(f) + "/1";
+    const std::string sink_props = "appsink name=sink sync=false max-buffers=4 "
+                                   "drop=true emit-signals=false";
+
+    // Ordered candidates.  Each candidate carries the GstState it should be
+    // probed to; v4l2src candidates are additionally validated by pulling a
+    // sample at PLAYING because v4l2 may advertise a format (e.g. MJPEG) that
+    // it doesn't actually deliver.  OBS Virtual Camera is the canonical
+    // offender: V4L2_QUERYCAP claims MJPEG is supported, PAUSED negotiates
+    // cleanly, but the streaming thread immediately errors with
+    // "not-negotiated" once PLAYING begins.
+    //
+    // Probe state rationale:
+    //  - v4l2src is probed to PLAYING + first-sample.  READY/PAUSED are too
+    //    lenient: they don't catch streaming-time format mismatches.  v4l2
+    //    cleanup from PLAYING back to NULL is reliable, so this is safe.
+    //  - pipewiresrc is probed to READY only.  Going further can hang
+    //    indefinitely when WirePlumber has registered no video nodes; the
+    //    real liveness check is deferred to start() under a 5 s timeout.
+    //
+    // Candidate ordering rationale:
+    //  - v4l2src comes first: it is universally compatible and works whether
+    //    PipeWire is present or absent (via the pipewire-v4l2 compat layer).
+    //  - pipewiresrc variants are kept as fallbacks for environments where
+    //    native PipeWire video nodes are available and v4l2 compat is disabled.
+    struct Candidate {
+        std::string pipeline;
+        GstState probeState;
+        bool validateSample;  // pull a sample at PLAYING to confirm streaming
+    };
+    std::vector<Candidate> candidates;
+
+    // V4L2 MJPEG — preferred; most USB cameras expose MJPEG at 720p+/30fps.
+    candidates.push_back(
+        {"v4l2src device=" + dev + " ! image/jpeg,width=" + std::to_string(w) +
+             ",height=" + std::to_string(h) + ",framerate=" + std::to_string(f) +
+             "/1"
+             " ! jpegdec ! videoconvert ! video/x-raw,format=I420 ! " +
+             sink_props,
+         GST_STATE_PLAYING, /*validateSample=*/true});
+
+    // V4L2 raw — fallback for cameras without MJPEG (OBS Virtual Camera and
+    // many integrated webcams expose only YUYV/NV12).  videoconvert will
+    // negotiate the actual source format on the v4l2src side.
+    candidates.push_back(
+        {"v4l2src device=" + dev + " ! video/x-raw,width=" + std::to_string(w) +
+             ",height=" + std::to_string(h) +
+             ",framerate=" + std::to_string(f) +
+             "/1"
+             " ! videoconvert ! video/x-raw,format=I420 ! " +
+             sink_props,
+         GST_STATE_PLAYING, /*validateSample=*/true});
+
+    GstElementFactory *pw_factory = gst_element_factory_find("pipewiresrc");
+    if (pw_factory != nullptr) {
+        gst_object_unref(pw_factory);
+        candidates.push_back({"pipewiresrc target-object=" + dev +
+                                  " do-timestamp=true"
+                                  " ! jpegdec ! videoconvert ! videoscale ! " +
+                                  raw_caps + " ! " + sink_props,
+                              GST_STATE_READY, /*validateSample=*/false});
+        candidates.push_back({"pipewiresrc do-timestamp=true"
+                              " ! jpegdec ! videoconvert ! videoscale ! " +
+                                  raw_caps + " ! " + sink_props,
+                              GST_STATE_READY, /*validateSample=*/false});
+        candidates.push_back({"pipewiresrc target-object=" + dev +
+                                  " do-timestamp=true"
+                                  " ! videoconvert ! videoscale ! " +
+                                  raw_caps + " ! " + sink_props,
+                              GST_STATE_READY, /*validateSample=*/false});
+        candidates.push_back({"pipewiresrc do-timestamp=true"
+                              " ! videoconvert ! videoscale ! " +
+                                  raw_caps + " ! " + sink_props,
+                              GST_STATE_READY, /*validateSample=*/false});
+    }
+
+    for (const auto &candidate : candidates) {
+        std::cerr << "[CameraCapture] trying: " << candidate.pipeline << "\n";
+
+        GError *parse_err = nullptr;
+        GstElement *pipeline =
+            gst_parse_launch(candidate.pipeline.c_str(), &parse_err);
+        if (parse_err != nullptr || pipeline == nullptr) {
+            std::cerr << "[CameraCapture] parse error: "
+                      << (parse_err != nullptr ? parse_err->message
+                                               : "null pipeline")
+                      << "\n";
+            if (parse_err != nullptr) {
+                g_error_free(parse_err);
+            }
+            if (pipeline != nullptr) {
+                gst_object_unref(pipeline);
+            }
+            continue;
+        }
+
+        const GstState target = candidate.probeState;
+        GstStateChangeReturn ret = gst_element_set_state(pipeline, target);
+        GstState reached = GST_STATE_NULL;
+        // PLAYING probes need the longest wait — they negotiate caps,
+        // preroll, and start the streaming thread.  READY probes return
+        // effectively synchronously.
+        const GstClockTime timeout =
+            (target == GST_STATE_PLAYING ? 5 * GST_SECOND : GST_SECOND);
+        if (ret != GST_STATE_CHANGE_FAILURE) {
+            ret = gst_element_get_state(pipeline, &reached, nullptr, timeout);
+        }
+
+        bool ok = (ret != GST_STATE_CHANGE_FAILURE && reached == target);
+        GstElement *appsink = nullptr;
+        if (ok) {
+            appsink = gst_bin_get_by_name(GST_BIN(pipeline), "sink");
+            if (appsink == nullptr) {
+                std::cerr << "[CameraCapture] appsink element not found in "
+                             "pipeline\n";
+                ok = false;
+            }
+        }
+
+        // Streaming-time validation for v4l2src: pull a sample to confirm the
+        // negotiated format actually flows.  A camera can advertise a format
+        // (e.g. OBS Virtual Camera advertising MJPEG) that PAUSED accepts but
+        // PLAYING rejects with "not-negotiated"; only an actual buffer pull
+        // exposes the lie.
+        if (ok && candidate.validateSample) {
+            GstSample *sample = gst_app_sink_try_pull_sample(
+                GST_APP_SINK(appsink), 2 * GST_SECOND);
+            if (sample == nullptr) {
+                // Drain the bus to surface the underlying GStreamer error.
+                logPipelineError(pipeline);
+                std::cerr << "[CameraCapture] no sample within 2s — "
+                             "candidate cannot stream\n";
+                ok = false;
+            }
+            else {
+                gst_sample_unref(sample);
+            }
+        }
+
+        if (ok) {
+            pipeline_ = pipeline;
+            appsink_ = appsink;
+            width_ = w;
+            height_ = h;
+            framerate_ = f;
+            std::cerr << "[CameraCapture] pipeline ready\n";
+            return Result::Success;
+        }
+
+        // Candidate didn't pass.  Drain the bus for a diagnostic if we
+        // haven't already (logPipelineError ran for the validateSample
+        // failure path), tear down, and move to the next candidate.
+        if (!candidate.validateSample) {
+            logPipelineError(pipeline);
+        }
+        if (appsink != nullptr) {
+            gst_object_unref(appsink);
+        }
+        gst_element_set_state(pipeline, GST_STATE_NULL);
+        gst_object_unref(pipeline);
+    }
+
+    std::cerr << "[CameraCapture] all pipeline candidates failed\n";
+    return Result::ErrorDeviceNotFound;
 }
 
 Result CameraCapture::start(
