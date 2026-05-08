@@ -37,9 +37,16 @@ RUN apt-get update && apt-get install -y \
 RUN ln -sf /usr/bin/clang-tidy-18 /usr/bin/clang-tidy \
     && ln -sf /usr/bin/clang-format-18 /usr/bin/clang-format
 
-# Install FFmpeg dev libraries
+# Install FFmpeg dev libraries.
+#
+# Debian's default libavcodec is the LGPL build; it does NOT include the
+# libx264/libopenh264 encoders, only h264_nvenc / h264_vaapi.  That leaves
+# software fallback (used when CUDA isn't available at runtime) without an
+# H.264 encoder.  libavcodec-extra is a drop-in replacement for libavcodec
+# that adds libx264, libopenh264, and other codec wrappers.
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    libavcodec-extra \
     libavcodec-dev \
     libavformat-dev \
     libavutil-dev \

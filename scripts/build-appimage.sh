@@ -170,7 +170,16 @@ export LDAI_OUTPUT="${APPIMAGE_OUT}"
 export LINUXDEPLOY_OUTPUT_VERSION="${VERSION}"
 
 # Help linuxdeploy resolve transitive deps of the binary it's scanning.
-export LD_LIBRARY_PATH="${LIVEKIT_DIR}/build/lib:${QT_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
+#
+# The system lib path is prepended so that libavcodec.so.61 resolves to the
+# distro's libavcodec-extra rather than Qt 6's bundled FFmpeg.  Qt ships an
+# LGPL-only libavcodec at ${QT_PREFIX}/lib that lacks libx264 / libopenh264
+# codec wrappers, which breaks the software encoder fallback used when
+# NVENC isn't available at runtime (e.g. on a host without an NVIDIA GPU).
+# Qt's libraries use DT_RUNPATH (not DT_RPATH), so LD_LIBRARY_PATH takes
+# precedence over their $ORIGIN search.
+SYSTEM_LIB_DIR="$(dirname "$(realpath "$(ldconfig -p | grep 'libc.so.6 ' | awk '{print $4}' | head -1)")")"
+export LD_LIBRARY_PATH="${SYSTEM_LIB_DIR}:${LIVEKIT_DIR}/build/lib:${QT_PREFIX}/lib:${LD_LIBRARY_PATH:-}"
 
 # Tell the Qt plugin where the QML source tree lives so QML imports get scanned.
 export QML_SOURCES_PATHS="${CLIENT_DIR}/src"
