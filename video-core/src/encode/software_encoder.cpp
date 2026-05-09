@@ -78,6 +78,33 @@ Result SoftwareEncoder::initialize(
 
     av_dict_set(&options, "profile", "baseline", 0);
 
+    // libx264 defaults are tuned for offline transcoding, not WebRTC.  These
+    // overrides match what Chrome's libwebrtc wrapper applies for software
+    // H.264 — they convert libx264 from "huge frames, big IDRs, multiple
+    // reference frames" into a stream the receiver can actually recover
+    // from on packet loss.
+    //
+    //   slice-max-size=1200  — limits each NAL to one MTU.  Without this,
+    //     a 1080p IDR (~100-200 KB) fragments across 70+ RTP packets and a
+    //     single loss destroys the entire frame.  With it, each slice is
+    //     one packet; a loss damages one slice only and the rest of the
+    //     frame still decodes.
+    //
+    //   ref=1                — keep only the immediately previous frame as
+    //     a reference.  libx264's default of 3 increases compression but
+    //     also propagates errors across more frames; ref=1 matches
+    //     NVENC/VAAPI zerolatency mode.
+    //
+    //   intra-refresh=1      — gradual periodic intra refresh instead of
+    //     monolithic IDRs at GOP boundaries.  Each frame ends up similarly
+    //     sized so packet loss has less catastrophic effect.
+    //
+    //   no-scenecut=1        — disables libx264's automatic IDR insertion
+    //     on scene changes; we want the encoder to be deterministic and
+    //     respect intra-refresh's pattern.
+    av_dict_set(&options, "x264-params",
+                "slice-max-size=1200:ref=1:intra-refresh=1:no-scenecut=1", 0);
+
     if (avcodec_open2(codecCtx_, encoder, &options) < 0) {
         av_dict_free(&options);
         return Result::ErrorInitFailed; // Failed to open codec

@@ -2,6 +2,7 @@
 #include "../../../video-core/include/capture/camera_enumerator.hpp"
 #include "../../../video-core/include/common/types.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 
@@ -86,8 +87,27 @@ bool CameraSession::start(const std::string &whipUrl,
     encoderConfig.width = captureConfig.width;
     encoderConfig.height = captureConfig.height;
     encoderConfig.framerate = captureConfig.framerate;
-    encoderConfig.bitrate = 4000000;
-    encoderConfig.gopSize = 30; // One keyframe per second at 30fps
+
+    // Scale bitrate with pixel-rate.  ~0.1 bit per pixel per second is the
+    // commonly recommended floor for camera-style content at H.264 baseline;
+    // anything substantially below that produces visible compression
+    // artefacts and large IDRs that fragment poorly over WebRTC.  4 Mbps
+    // works for 720p30 (27M pix/s) but starves 1080p60 (124M pix/s).  Cap
+    // at 12 Mbps so we don't saturate typical home upstream pipes.
+    const long long pixelRate = static_cast<long long>(captureConfig.width) *
+                                captureConfig.height *
+                                captureConfig.framerate;
+    long long bitrate = pixelRate / 10;  // 0.1 bit/pixel/sec
+    if (bitrate < 2'000'000) {
+        bitrate = 2'000'000;
+    }
+    if (bitrate > 12'000'000) {
+        bitrate = 12'000'000;
+    }
+    encoderConfig.bitrate = static_cast<int>(bitrate);
+
+    // ~0.5 s between keyframes regardless of framerate.
+    encoderConfig.gopSize = std::max(1, captureConfig.framerate / 2);
     encoderConfig.preset = videoCore::encode::EncoderConfig::Preset::UltraFast;
 
     auto startResult = pipeline_.initialize(captureConfig, encoderConfig);
