@@ -119,7 +119,18 @@ Window {
 
         inputType: DLPopup.InputType.ConfirmCancel
         displayText: "Are you sure you want to close this session?"
-        onConfirmed: SessionClient.closeSession(root.pending_close_room, root.user_id)
+        onConfirmed: {
+            // Tell the SessionPage (if it's the one issuing the close) that
+            // the upcoming LiveKit disconnect is expected.  Without this,
+            // SessionPage.onDisconnected sees isClosing=false, fires a
+            // closePage that races sessionClosed, and pops past the dashboard
+            // back to login when the LiveKit disconnect arrives first.
+            if (dl_page_stack.currentItem
+                    && dl_page_stack.currentItem.isClosing !== undefined) {
+                dl_page_stack.currentItem.isClosing = true;
+            }
+            SessionClient.closeSession(root.pending_close_room, root.user_id);
+        }
     }
 
     DLPopup {
