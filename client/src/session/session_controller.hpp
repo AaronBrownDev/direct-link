@@ -73,8 +73,20 @@ private:
     // The encoder rescales pts: ns → (1/fps timebase, integer) → ns, which is
     // lossy.  Lookup uses nearest-match within ENCODER_PTS_TOLERANCE_NS to
     // tolerate that round-trip rather than failing silently and starving DCs.
+    // Per-frame capture timestamps in two clock domains.  capture_wall_ns is
+    // system_clock — the value the camera ships over the data channel so the
+    // director can compute dc_one_way against the camera's offset-corrected
+    // wall clock.  capture_steady_ns is steady_clock — used for any interval
+    // local to this machine (encode pipeline, UI hop) so an NTP/`chronyd`
+    // step on the wall clock between capture and packet emit doesn't corrupt
+    // the diagnostic numbers.
+    struct CaptureTimes {
+        qint64 wall_ns;
+        qint64 steady_ns;
+    };
+
     std::mutex pts_to_capture_ns_mutex_;
-    std::map<int64_t, qint64> pts_to_capture_ns_;
+    std::map<int64_t, CaptureTimes> pts_to_capture_ns_;
     static constexpr std::size_t MAX_PTS_MAP_ENTRIES = 240; // ~4 s at 60 fps
     // Half of one frame interval at 30 fps; encoder rescaling rounds to the
     // nearest integer in 1/fps units, so a 16 ms tolerance is generous.

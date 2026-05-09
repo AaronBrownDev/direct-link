@@ -12,6 +12,8 @@
 #include "sessionclient.hpp"
 
 #include <chrono>
+#include <cstddef>
+#include <limits>
 
 using namespace directlink::signaling;
 
@@ -195,19 +197,37 @@ void SessionClient::measureLatency() {
                 t2_steady - t1_steady).count();
 
             // Clock offset formula: server_time - (t1 + t2) / 2
-            const qint64 sample = resp->serverTimeNs() - ((t1_ns + t2_ns) / 2);
+            const qint64 sample_offset_ns = resp->serverTimeNs() - ((t1_ns + t2_ns) / 2);
 
-            if (m_offset_initialized) {
-                m_clock_offset_ns = static_cast<qint64>(
-                    (OFFSET_EMA_ALPHA * static_cast<double>(sample))
-                    + ((1.0 - OFFSET_EMA_ALPHA) * static_cast<double>(m_clock_offset_ns)));
-            } else {
-                m_clock_offset_ns = sample;
-                m_offset_initialized = true;
+            // Append (rtt, offset) to the ring buffer, then publish the
+            // offset of the lowest-RTT sample currently in the buffer.  No
+            // EMA: every sample is either the best-so-far (becomes the new
+            // published offset) or it isn't (offset unchanged).  Higher-RTT
+            // samples don't dilute the best measurement.
+            m_sync_window.at(m_sync_window_idx) = {rtt_ms, sample_offset_ns};
+            m_sync_window_idx = (m_sync_window_idx + 1) % SYNC_WINDOW_SIZE;
+            if (m_sync_window_count < SYNC_WINDOW_SIZE) { ++m_sync_window_count; }
+
+            double best_rtt_ms = std::numeric_limits<double>::max();
+            qint64 best_offset_ns = sample_offset_ns;
+            for (std::size_t i = 0; i < m_sync_window_count; ++i) {
+                const auto &s = m_sync_window.at(i);
+                if (s.rtt_ms < best_rtt_ms) {
+                    best_rtt_ms = s.rtt_ms;
+                    best_offset_ns = s.offset_ns;
+                }
             }
 
-            emit latencyMeasured(rtt_ms);
+            m_clock_offset_ns = best_offset_ns;
+            m_offset_initialized = true;
+            // Always emit, even when the underlying value hasn't moved.
+            // Callers (test harness, downstream forwarding to camera/director)
+            // use this as the "a sync round just completed" signal — gating it
+            // on a value change leaves them waiting forever once the min-RTT
+            // sample stabilises.
             emit clockOffsetChanged();
+
+            emit latencyMeasured(rtt_ms);
         }
     );
 }

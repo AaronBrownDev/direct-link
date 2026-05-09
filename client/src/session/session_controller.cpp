@@ -47,8 +47,15 @@ void CameraSessionController::start(const QString &whipUrl,
         QVideoSink *sink = previewSink_;
         QPointer<CameraSessionController> self(this);
         session_->setPreviewCallback([sink, self](const videoCore::Frame &frame) {
-            const qint64 capture_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            // Two clocks paired at the same instant.  Wall is sent over the DC
+            // (cross-machine — director needs it to apply clock_offset).  Steady
+            // is used for any interval that stays on this machine (encode
+            // pipeline, UI hop) so a wall-clock step between capture and emit
+            // doesn't fold into the diagnostic numbers.
+            const qint64 capture_wall_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
+            const qint64 capture_steady_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
 
             if (self) {
                 std::lock_guard<std::mutex> lock(self->pts_to_capture_ns_mutex_);
@@ -57,7 +64,7 @@ void CameraSessionController::start(const QString &whipUrl,
                     // oldest to bound memory.  Should be rare in practice.
                     self->pts_to_capture_ns_.erase(self->pts_to_capture_ns_.begin());
                 }
-                self->pts_to_capture_ns_[frame.pts] = capture_ns;
+                self->pts_to_capture_ns_[frame.pts] = {capture_wall_ns, capture_steady_ns};
             }
 
             if (sink == nullptr || frame.frame == nullptr) {
@@ -99,7 +106,7 @@ void CameraSessionController::start(const QString &whipUrl,
         QPointer<CameraSessionController> self(this);
         session_->setPacketEncodedCallback([self](int64_t pts) {
             if (!self) { return; }
-            qint64 capture_ns = 0;
+            CaptureTimes capture_times{};
             bool found = false;
             std::int64_t matched_pts_diff = 0;
             {
@@ -122,7 +129,7 @@ void CameraSessionController::start(const QString &whipUrl,
                     }
                     if (best != self->pts_to_capture_ns_.end()
                         && best_diff <= ENCODER_PTS_TOLERANCE_NS) {
-                        capture_ns = best->second;
+                        capture_times = best->second;
                         matched_pts_diff = best->first - pts;
                         found = true;
                         self->pts_to_capture_ns_.erase(self->pts_to_capture_ns_.begin(),
@@ -136,9 +143,11 @@ void CameraSessionController::start(const QString &whipUrl,
                 // and capture → dispatched-to-UI (encode_to_dispatch_ms).  The
                 // latter is the moment we ask the UI thread to fire frameCaptured;
                 // the actual publishData call happens after one Qt event-loop hop.
-                const qint64 now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    std::chrono::system_clock::now().time_since_epoch()).count();
-                const qint64 encode_pipeline_ms = (now_ns - capture_ns) / 1'000'000;
+                // Both intervals come from steady_clock so a wall-clock step
+                // can't masquerade as encoder lag.
+                const qint64 packet_steady_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count();
+                const qint64 encode_pipeline_ms = (packet_steady_ns - capture_times.steady_ns) / 1'000'000;
                 const auto hits = self->packet_lookup_hits_.load(std::memory_order_relaxed);
                 if (hits <= 5 || (hits % 60) == 0) {
                     qDebug().nospace()
@@ -148,20 +157,22 @@ void CameraSessionController::start(const QString &whipUrl,
                         << " matched_pts_diff_ns=" << matched_pts_diff
                         << " misses=" << self->packet_lookup_misses_.load(std::memory_order_relaxed);
                 }
-                QMetaObject::invokeMethod(self, [self, capture_ns, now_ns]() {
+                const qint64 capture_wall_ns = capture_times.wall_ns;
+                const qint64 capture_steady_ns = capture_times.steady_ns;
+                QMetaObject::invokeMethod(self, [self, capture_wall_ns, capture_steady_ns]() {
                     if (!self) { return; }
-                    const qint64 dispatch_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                        std::chrono::system_clock::now().time_since_epoch()).count();
-                    const qint64 ui_hop_ms = (dispatch_ns - now_ns) / 1'000'000;
+                    const qint64 dispatch_steady_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch()).count();
+                    const qint64 ui_hop_ms = (dispatch_steady_ns - capture_steady_ns) / 1'000'000;
                     static std::atomic<std::uint64_t> ui_hop_log_count{0};
                     const auto n = ui_hop_log_count.fetch_add(1, std::memory_order_relaxed) + 1;
                     if (n <= 5 || (n % 60) == 0) {
                         qDebug().nospace()
                             << "[CSC-diag] frame#" << n
                             << " ui_hop_ms=" << ui_hop_ms
-                            << " total_capture_to_emit_ms=" << ((dispatch_ns - capture_ns) / 1'000'000);
+                            << " total_capture_to_emit_ms=" << ((dispatch_steady_ns - capture_steady_ns) / 1'000'000);
                     }
-                    emit self->frameCaptured(capture_ns);
+                    emit self->frameCaptured(capture_wall_ns);
                 }, Qt::QueuedConnection);
             } else {
                 const auto misses = self->packet_lookup_misses_.fetch_add(1, std::memory_order_relaxed) + 1;

@@ -1,10 +1,19 @@
 #include "videotrack.hpp"
 
+#include <QDebug>
+#include <QPointer>
+#include <livekit/stats.h>
+
 #include <chrono>
+#include <variant>
+#include <vector>
 
 VideoTrack::VideoTrack(QObject *parent) : QObject{parent} {
     m_frameReader = std::make_unique<FrameReader>();
     connect(m_frameReader.get(), &FrameReader::videoSinkChanged, this, &VideoTrack::onVideoSinkChanged);
+    m_stats_timer = new QTimer(this);
+    m_stats_timer->setInterval(STATS_POLL_INTERVAL_MS);
+    connect(m_stats_timer, &QTimer::timeout, this, &VideoTrack::pollStats);
 }
 
 VideoTrack::~VideoTrack() {
@@ -47,12 +56,39 @@ bool VideoTrack::setTrack(const std::shared_ptr<livekit::Track> &track) {
         return false;
     }
 
+    // Hold the track for getStats() polling.  fromTrack() above only stores
+    // the FFI handle, so without this the Track object would go out of scope
+    // and stats polling would have no live receiver to query.
+    m_track = track;
+    // Bump generation again now that the new track is in place — any worker
+    // dispatched after this sees the new value, while any in-flight worker
+    // from the old track has already had its captured generation invalidated
+    // by the unsetTrack() above.
+    m_track_generation.fetch_add(1, std::memory_order_relaxed);
+
     startRead();
+    m_stats_timer->start();
 
     return true;
 }
 
 void VideoTrack::unsetTrack() {
+    if (m_stats_timer != nullptr) {
+        m_stats_timer->stop();
+    }
+    // Invalidate any in-flight stats workers BEFORE tearing down state, so
+    // their main-thread continuations bail at the generation check instead
+    // of mutating m_prev_* / m_stats_initialized.
+    m_track_generation.fetch_add(1, std::memory_order_relaxed);
+    m_stats_initialized = false;
+    // Wait for the in-flight stats worker (if any) to return from the FFI
+    // getStats().get() blocking call before letting livekit::Room get torn
+    // down by the caller — otherwise the worker can crash inside libwebrtc
+    // mid-call.  The worker's main-thread continuation will still run after
+    // this wait, but it bails at the generation check above.
+    if (m_stats_future.isValid() && m_stats_future.isRunning()) {
+        m_stats_future.waitForFinished();
+    }
     if (m_stream) {
         m_stream->close();
     }
@@ -60,6 +96,7 @@ void VideoTrack::unsetTrack() {
         m_readFuture.waitForFinished();
     }
     m_stream.reset();
+    m_track.reset();
 }
 
 void VideoTrack::onVideoSinkChanged() {
@@ -76,6 +113,107 @@ void VideoTrack::startRead() {
     });
 }
 
+void VideoTrack::pollStats() {
+    if (!m_track) { return; }
+
+    // Skip this tick if the previous worker is still in flight.  Stats are
+    // a low-priority diagnostic — losing one sample is fine, and it keeps
+    // the QFuture single-slot so unsetTrack() only has to wait on one
+    // outstanding worker.
+    if (m_stats_future.isValid() && m_stats_future.isRunning()) {
+        return;
+    }
+
+    // getStats() returns a std::future; .get() blocks waiting for the FFI
+    // round-trip.  Run on a worker thread to avoid stalling the QML thread,
+    // then post the parsed result back here.  Capture the track by shared_ptr
+    // copy so the receiver stays alive even if unsetTrack() races with this.
+    auto track = m_track;
+    QPointer<VideoTrack> self(this);
+    const QString identity = m_participant_identity;
+    const std::uint64_t generation = m_track_generation.load(std::memory_order_relaxed);
+    m_stats_future = QtConcurrent::run([self, track, identity, generation]() {
+        std::vector<livekit::RtcStats> stats_vec;
+        try {
+            stats_vec = track->getStats().get();
+        } catch (const std::exception &e) {
+            qWarning() << "[VideoTrack] getStats failed:" << e.what();
+            return;
+        }
+
+        // Find the inbound-RTP video stream stats.  A track typically has
+        // exactly one inbound-RTP entry; pick the first one whose stream.kind
+        // is "video" so we ignore any audio entries on a hypothetical
+        // multi-track track in the future.
+        const livekit::InboundRtpStreamStats *inbound = nullptr;
+        const livekit::ReceivedRtpStreamStats *received = nullptr;
+        for (const auto &rtc : stats_vec) {
+            if (const auto *in = std::get_if<livekit::RtcInboundRtpStats>(&rtc.stats)) {
+                if (in->stream.kind == "video") {
+                    inbound = &in->inbound;
+                    received = &in->received;
+                    break;
+                }
+            }
+        }
+        if (inbound == nullptr) { return; }
+
+        const double jitter_buffer_delay_s = inbound->jitter_buffer_delay;
+        const std::uint64_t jitter_buffer_emitted = inbound->jitter_buffer_emitted_count;
+        const double total_decode_time_s = inbound->total_decode_time;
+        const std::uint32_t frames_decoded = inbound->frames_decoded;
+        const double network_jitter_s = (received != nullptr) ? received->jitter : 0.0;
+        const double frames_per_second = inbound->frames_per_second;
+
+        QMetaObject::invokeMethod(self.data(), [self, identity, generation,
+                                                jitter_buffer_delay_s,
+                                                jitter_buffer_emitted,
+                                                total_decode_time_s,
+                                                frames_decoded,
+                                                network_jitter_s,
+                                                frames_per_second]() {
+            if (!self) { return; }
+            // Drop stale results from a track that was already replaced.
+            // Without this, this lambda would mutate the m_prev_* state of
+            // the *new* track using the old track's stats values.
+            if (self->m_track_generation.load(std::memory_order_relaxed) != generation) {
+                return;
+            }
+
+            // First sample only seeds the baseline — no delta to emit yet.
+            if (!self->m_stats_initialized) {
+                self->m_prev_jitter_buffer_delay_s = jitter_buffer_delay_s;
+                self->m_prev_jitter_buffer_emitted = jitter_buffer_emitted;
+                self->m_prev_total_decode_time_s = total_decode_time_s;
+                self->m_prev_frames_decoded = frames_decoded;
+                self->m_stats_initialized = true;
+                return;
+            }
+
+            const double djbd_s = jitter_buffer_delay_s - self->m_prev_jitter_buffer_delay_s;
+            const std::uint64_t djbe = jitter_buffer_emitted - self->m_prev_jitter_buffer_emitted;
+            const double dtdt_s = total_decode_time_s - self->m_prev_total_decode_time_s;
+            const std::uint32_t dfd = frames_decoded - self->m_prev_frames_decoded;
+
+            self->m_prev_jitter_buffer_delay_s = jitter_buffer_delay_s;
+            self->m_prev_jitter_buffer_emitted = jitter_buffer_emitted;
+            self->m_prev_total_decode_time_s = total_decode_time_s;
+            self->m_prev_frames_decoded = frames_decoded;
+
+            // Per-frame means.  Emit zero rather than NaN when the
+            // denominator is zero — the polling interval can fall in a
+            // gap with no decoded frames during a freeze.
+            const double jitter_buffer_ms = (djbe > 0) ? (djbd_s / static_cast<double>(djbe)) * 1000.0 : 0.0;
+            const double decode_ms = (dfd > 0) ? (dtdt_s / dfd) * 1000.0 : 0.0;
+            const double network_jitter_ms = network_jitter_s * 1000.0;
+
+            emit self->videoStats(jitter_buffer_ms, decode_ms,
+                                  network_jitter_ms, frames_per_second,
+                                  identity);
+        }, Qt::QueuedConnection);
+    });
+}
+
 void VideoTrack::readLoop() {
     livekit::VideoFrameEvent event;
     bool has_ratio = false;
@@ -83,8 +221,11 @@ void VideoTrack::readLoop() {
     while (m_stream && m_stream->read(event)) {
         // Record receive time immediately after the blocking read returns —
         // this is when the decoded frame is first available to the application.
-        const qint64 received_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
+        // steady_clock so director-local intervals (video_lag = received -
+        // dc_arrived; display_gap = swap - received) survive an NTP step on
+        // the wall clock.
+        const qint64 received_steady_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
 
         if (!has_ratio) {
             int w = event.frame.width();
@@ -108,8 +249,8 @@ void VideoTrack::readLoop() {
         // Capture identity by value into the lambda so the signal payload is
         // independent of any later mutation on the VideoTrack instance.
         const QString identity = m_participant_identity;
-        QMetaObject::invokeMethod(this, [this, received_ns, frame_ts_us, identity]() {
-            emit frameReceived(received_ns, frame_ts_us, identity);
+        QMetaObject::invokeMethod(this, [this, received_steady_ns, frame_ts_us, identity]() {
+            emit frameReceived(received_steady_ns, frame_ts_us, identity);
         }, Qt::QueuedConnection);
     }
 }

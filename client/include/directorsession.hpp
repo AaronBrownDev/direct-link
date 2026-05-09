@@ -46,14 +46,20 @@ class DirectorSession : public QObject {
         void trackAdded(qsizetype index);
         void trackRemoved(qsizetype index);
         // Aggregates frameReceived from all attached VideoTracks.
-        //   receivedNs           — local wall-clock ns from VideoTrack::readLoop.
+        //   receivedSteadyNs     — local steady_clock ns from VideoTrack::readLoop.
         //   frameTimestampUs     — VideoFrameEvent::timestamp_us (sender-domain
         //                          capture-time estimate, microseconds).
         //   participantIdentity  — identity of the publishing participant; used
         //                          by DirectorTransport to filter the latency
         //                          matcher down to a single camera.
-        void frameArrived(qint64 receivedNs, qint64 frameTimestampUs,
+        void frameArrived(qint64 receivedSteadyNs, qint64 frameTimestampUs,
                           const QString &participantIdentity);
+        // Forwarded from each VideoTrack on its stats-poll tick.  Carries
+        // participantIdentity so DirectorTransport can filter to the active
+        // main-preview camera.
+        void videoStats(double jitterBufferMs, double decodeMs,
+                        double networkJitterMs, double framesPerSecond,
+                        const QString &participantIdentity);
         // Forwarded from the first VideoTrack that reports a valid resolution.
         void videoResolutionChanged(int width, int height);
 

@@ -12,6 +12,8 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QtGrpc/QGrpcHttp2Channel>
+#include <array>
+#include <cstddef>
 #include "signaling_client.grpc.qpb.h"
 #include "signaling.qpb.h"
 
@@ -61,10 +63,27 @@ signals:
     void error(const QString &message);
 
 private:
-    static constexpr double OFFSET_EMA_ALPHA = 0.25;
+    // PTP-style minimum-RTT clock-offset tracking.  Each GetServerTime call
+    // produces an (rtt, offset) sample where the offset is accurate to
+    // roughly ±rtt/2 (Cristian's algorithm bound, assuming path symmetry).
+    // A small ring buffer of recent samples is kept; the published offset
+    // is the offset of the sample with the lowest RTT in the buffer.  No
+    // EMA — averaging in higher-RTT samples only dilutes the best
+    // measurement we have.  Window of 16 ≈ 16 s of one-per-second samples,
+    // long enough to keep a representative low-RTT sample around but short
+    // enough to track real clock drift.
+    static constexpr std::size_t SYNC_WINDOW_SIZE = 16;
+
+    struct SyncSample {
+        double rtt_ms;
+        qint64 offset_ns;
+    };
 
     directlink::signaling::SignalingService::Client m_client;
     qint64 m_clock_offset_ns = 0;
     bool m_offset_initialized = false;
+    std::array<SyncSample, SYNC_WINDOW_SIZE> m_sync_window{};
+    std::size_t m_sync_window_count = 0;
+    std::size_t m_sync_window_idx = 0;
 };
 

@@ -53,6 +53,13 @@ ColumnLayout {
     property double dc_one_way_ms: 0.0
     property double video_lag_ms: 0.0
     property double display_gap_ms: 0.0
+    // Sub-components of video_lag, sampled from libwebrtc getStats() at 1 Hz.
+    // upstream_video_ms is derived (video_lag - jitter_buffer - decode) so the
+    // sum dc + upstream + jitter + decode + gap == total.
+    property double jitter_buffer_ms: 0.0
+    property double decode_ms: 0.0
+    property double network_jitter_ms: 0.0
+    property double frames_per_second: 0.0
     property int video_width: 0
     property int video_height: 0
 
@@ -92,6 +99,15 @@ ColumnLayout {
         dc_one_way_ms: dl_root_layout.dc_one_way_ms
         video_lag_ms: dl_root_layout.video_lag_ms
         display_gap_ms: dl_root_layout.display_gap_ms
+        jitter_buffer_ms: dl_root_layout.jitter_buffer_ms
+        decode_ms: dl_root_layout.decode_ms
+        // upstream = everything in video_lag that is not the local jitter
+        // buffer or the local decode (i.e. camera encode + WHIP + Ingress +
+        // SFU).  Floor at zero so a stats-vs-frame timing skew can't push
+        // a small negative onto the screen.
+        upstream_video_ms: Math.max(0, dl_root_layout.video_lag_ms
+                                       - dl_root_layout.jitter_buffer_ms
+                                       - dl_root_layout.decode_ms)
         show_latency: dl_root_layout.user_type === UserRole.director
         video_width: dl_root_layout.video_width
         video_height: dl_root_layout.video_height
@@ -141,6 +157,13 @@ ColumnLayout {
             dl_root_layout.dc_one_way_ms = dcMs;
             dl_root_layout.video_lag_ms = videoMs;
             dl_root_layout.display_gap_ms = gapMs;
+        }
+
+        function onVideoStatsBreakdown(jitterMs, decMs, netJitterMs, fps) {
+            dl_root_layout.jitter_buffer_ms = jitterMs;
+            dl_root_layout.decode_ms = decMs;
+            dl_root_layout.network_jitter_ms = netJitterMs;
+            dl_root_layout.frames_per_second = fps;
         }
 
         function onVideoResolutionChanged(w, h) {

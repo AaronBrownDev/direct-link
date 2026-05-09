@@ -39,6 +39,17 @@ struct Sample {
     double vid_ms;
     double gap_ms;
     double total_ms;
+    // Carried over from the most recent videoStatsBreakdown emit.  Stats
+    // poll runs at 1 Hz while frames arrive at ~30 Hz, so consecutive
+    // samples within a 1 s window share the same stats values.  Zero until
+    // the first stats poll completes (typically the first 1–2 s of a run).
+    double jitter_buffer_ms;
+    double decode_ms;
+    // upstream_ms = max(0, vid_ms - jitter_buffer_ms - decode_ms)
+    // — the portion of video_lag spent before the director-side receiver
+    // (camera encode + WHIP + Ingress + SFU).  Computed at sample-emit time
+    // so it's based on the same vid_ms the matcher just produced.
+    double upstream_ms;
 };
 
 static void printStats(const std::vector<Sample> &s) {
@@ -69,10 +80,13 @@ static void printStats(const std::vector<Sample> &s) {
     };
 
     qDebug() << "\n[Stats] N=" << s.size();
-    row("dc_one_way ", stat([](const auto &x) { return x.dc_ms; }));
-    row("video_lag  ", stat([](const auto &x) { return x.vid_ms; }));
-    row("display_gap", stat([](const auto &x) { return x.gap_ms; }));
-    row("total      ", stat([](const auto &x) { return x.total_ms; }));
+    row("dc_one_way   ", stat([](const auto &x) { return x.dc_ms; }));
+    row("upstream_vid ", stat([](const auto &x) { return x.upstream_ms; }));
+    row("jitter_buffer", stat([](const auto &x) { return x.jitter_buffer_ms; }));
+    row("decode       ", stat([](const auto &x) { return x.decode_ms; }));
+    row("video_lag    ", stat([](const auto &x) { return x.vid_ms; }));
+    row("display_gap  ", stat([](const auto &x) { return x.gap_ms; }));
+    row("total        ", stat([](const auto &x) { return x.total_ms; }));
 }
 
 int main(int argc, char *argv[]) {
@@ -175,18 +189,41 @@ int main(int argc, char *argv[]) {
     // breakdown signal will ever fire.
     director.setActiveParticipant("e2e-camera");
 
-    // ── 6. Wire breakdown signal before camera starts ────────────────────────
+    // ── 6. Wire breakdown signals before camera starts ───────────────────────
     {
         QEventLoop sample_loop;
+        // Latest stats from videoStatsBreakdown (1 Hz).  Updated in place by
+        // the slot below; each latencyBreakdown sample (30 Hz) snapshots
+        // these into the Sample so the per-sample row carries the most
+        // recent stats reading.  Zero until the first stats poll lands.
+        double latest_jitter_buffer_ms = 0.0;
+        double latest_decode_ms = 0.0;
+        // Bind the lifetime of these connections to sample_loop, not &app.
+        // The lambdas capture sample_loop and latest_* by reference, both of
+        // which die when this block exits.  director.disconnectFromRoom() in
+        // the cleanup path then fires a final latencyBreakdown(0,0,0) from
+        // resetLatencyMatcher; without this scoping, that emit would still
+        // dispatch the lambda and crash on the dangling references.
+        QObject::connect(&director, &DirectorTransport::videoStatsBreakdown,
+            &sample_loop, [&](double jb, double dec, double /*netJitter*/, double /*fps*/) {
+                latest_jitter_buffer_ms = jb;
+                latest_decode_ms = dec;
+            });
         QObject::connect(&director, &DirectorTransport::latencyBreakdown,
-            &app, [&](double dc, double vid, double gap) {
-                Sample s{dc, vid, gap, dc + vid + gap};
+            &sample_loop, [&](double dc, double vid, double gap) {
+                const double upstream = std::max(0.0,
+                    vid - latest_jitter_buffer_ms - latest_decode_ms);
+                Sample s{dc, vid, gap, dc + vid + gap,
+                         latest_jitter_buffer_ms, latest_decode_ms, upstream};
                 samples.push_back(s);
                 qDebug().nospace()
                     << "[Sample " << samples.size() << "/" << target << "]"
-                    << "  dc="    << static_cast<int>(dc)  << "ms"
-                    << "  vid="   << static_cast<int>(vid) << "ms"
-                    << "  gap="   << static_cast<int>(gap) << "ms"
+                    << "  dc="    << static_cast<int>(dc)        << "ms"
+                    << "  up="    << static_cast<int>(upstream)  << "ms"
+                    << "  jb="    << static_cast<int>(latest_jitter_buffer_ms) << "ms"
+                    << "  dec="   << static_cast<int>(latest_decode_ms)        << "ms"
+                    << "  vid="   << static_cast<int>(vid)       << "ms"
+                    << "  gap="   << static_cast<int>(gap)       << "ms"
                     << "  total=" << static_cast<int>(dc + vid + gap) << "ms";
                 if (static_cast<int>(samples.size()) >= target) sample_loop.quit();
             });
@@ -232,8 +269,13 @@ int main(int argc, char *argv[]) {
         }
         qDebug() << "[Test] Data channel connected. Collecting" << target << "samples...";
 
-        // ── 9. Collect samples (hard 120s timeout) ────────────────────────────
-        QTimer::singleShot(120000, &sample_loop, &QEventLoop::quit);
+        // ── 9. Collect samples (hard timeout scaled to target) ────────────────
+        // Empirical post-settling sample rate is ~10/s on GKE WAN paths
+        // (matcher emits per frame, but rate-limited by network timing).
+        // 200 ms/sample + 30 s slack gives comfortable headroom and keeps
+        // small runs at a sensible floor.  At 1800 samples this is 6.5 min.
+        const int max_wait_ms = std::max(120000, target * 200 + 30000);
+        QTimer::singleShot(max_wait_ms, &sample_loop, &QEventLoop::quit);
         sample_loop.exec();
 
         if (static_cast<int>(samples.size()) >= target) {

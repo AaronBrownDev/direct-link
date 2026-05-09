@@ -11,6 +11,11 @@ RowLayout {
     property double dc_one_way_ms: 0.0
     property double video_lag_ms: 0.0
     property double display_gap_ms: 0.0
+    // Sub-components of video_lag (sampled from libwebrtc getStats() at 1 Hz).
+    // upstream_video_ms = video_lag - jitter_buffer - decode (computed by parent).
+    property double upstream_video_ms: 0.0
+    property double jitter_buffer_ms: 0.0
+    property double decode_ms: 0.0
     property bool show_latency: true
     property int video_width: 0
     property int video_height: 0
@@ -70,7 +75,17 @@ RowLayout {
                 font.pointSize: 9
             }
             Text {
-                text: "Vid " + Math.round(dl_layout_session_info.video_lag_ms) + "ms"
+                text: "Up " + Math.round(dl_layout_session_info.upstream_video_ms) + "ms"
+                color: Theme.textWhite
+                font.pointSize: 9
+            }
+            Text {
+                text: "JB " + Math.round(dl_layout_session_info.jitter_buffer_ms) + "ms"
+                color: Theme.textWhite
+                font.pointSize: 9
+            }
+            Text {
+                text: "Dec " + Math.round(dl_layout_session_info.decode_ms) + "ms"
                 color: Theme.textWhite
                 font.pointSize: 9
             }

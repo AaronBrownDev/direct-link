@@ -105,13 +105,37 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // video_lag_ms:  DC packet arrived → video frame decoded  (jitter + decode)
         // display_gap_ms: video frame decoded → QQuickWindow swap
         void latencyBreakdown(double dcOneWayMs, double videoLagMs, double displayGapMs);
+        // Periodic per-frame attribution of where the time inside video_lag
+        // is being spent.  Sampled from libwebrtc getStats() on a 1 Hz
+        // cadence so values update slower than latencyBreakdown but lag
+        // much less than the EWMA in the matcher.
+        //   jitterBufferMs   — mean ms each emitted frame waited in the
+        //                      director-side jitter buffer
+        //   decodeMs         — mean H.264 decode time per frame
+        //   networkJitterMs  — RFC inter-arrival jitter on the inbound RTP
+        //   framesPerSecond  — decoded fps over the polling interval
+        // The "upstream" portion of video_lag (everything before the
+        // director-side receiver — camera encode, WHIP, Ingress, SFU) is
+        // computed in QML as: video_lag - jitter_buffer - decode.
+        void videoStatsBreakdown(double jitterBufferMs, double decodeMs,
+                                 double networkJitterMs, double framesPerSecond);
         // Emitted once when the first decoded frame with valid dimensions arrives.
         void videoResolutionChanged(int width, int height);
 
     private:
-        Q_SLOT void onFrameArrived(qint64 receivedNs, qint64 frameTimestampUs,
+        Q_SLOT void onFrameArrived(qint64 receivedSteadyNs, qint64 frameTimestampUs,
                                    const QString &participantIdentity);
-        Q_SLOT void onFrameSwapped();
+        // Bookkeeping slot for swap events; runs on the main thread.  The swap
+        // timestamp itself is captured on the render thread (Qt::DirectConnection
+        // lambda installed by setWindow()) and delivered here as a parameter.
+        Q_SLOT void onFrameSwapped(qint64 swapSteadyNs);
+        // Filtered per-track stats forwarded from DirectorSession.  Drops
+        // samples from any participant other than the active main preview
+        // (same reason the matcher does — keeps the breakdown consistent
+        // with whatever frame is on screen).
+        Q_SLOT void onVideoStats(double jitterBufferMs, double decodeMs,
+                                 double networkJitterMs, double framesPerSecond,
+                                 const QString &participantIdentity);
 
         // Reset matcher state and clear the capture queue.  Called from
         // setActiveParticipant() when the user switches main preview, and on
@@ -134,11 +158,15 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         mutable std::mutex m_active_participant_mutex;
         QString m_active_participant_identity;
 
-        // Capture timestamps (server clock, nanoseconds) queued by
-        // onUserPacketReceived and consumed by onFrameArrived.
+        // Capture timestamps queued by onUserPacketReceived and consumed by
+        // onFrameArrived.  Two arrival timestamps because dc_one_way needs a
+        // wall-clock value (offset-corrected against the camera's wall clock)
+        // while video_lag needs a director-local interval that survives an
+        // NTP step.
         struct CaptureEntry {
-            qint64 capture_ns;    // server-clock timestamp sent by camera
-            qint64 dc_arrived_ns; // director local wall-clock when DC packet arrived
+            qint64 capture_ns;           // server-domain wall ns from camera
+            qint64 dc_arrived_wall_ns;   // director system_clock — for dc_one_way only
+            qint64 dc_arrived_steady_ns; // director steady_clock — for matching + video_lag
         };
 
         std::mutex m_capture_queue_mutex;
@@ -227,8 +255,10 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
 
         // Display gap: time from decoded frame available → QQuickWindow swap.
         // Sampled via frameSwapped; rolling average used as correction factor.
+        // Both timestamps are steady_clock (director-local interval, never
+        // crosses a machine boundary).
         QQuickWindow *m_window = nullptr;
-        qint64 m_last_received_ns = 0;
+        qint64 m_last_received_steady_ns = 0;
         bool m_frame_pending = false;
         static constexpr int DISPLAY_GAP_SAMPLES = 30;
         std::array<qint64, DISPLAY_GAP_SAMPLES> m_display_gap_buf{};
