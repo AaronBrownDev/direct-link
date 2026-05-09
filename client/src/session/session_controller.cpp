@@ -3,6 +3,7 @@
 
 #include <QDebug>
 #include <QPointer>
+#include <QThreadPool>
 #include <QVariantMap>
 #include <QVideoFrame>
 #include <QVideoFrameFormat>
@@ -227,7 +228,23 @@ void CameraSessionController::setSelectedCamera(const QString &id) {
 }
 
 void CameraSessionController::stop() {
-    session_->stop();
+    // CameraSession::stop blocks waiting for the WHIP pipeline to flush —
+    // EOS propagation through whipsink triggers an HTTP DELETE to the WHIP
+    // ingress whose handler can take several seconds.  Run that on a worker
+    // thread so the QML thread (which calls stop() from
+    // Component.onDestruction when the user leaves the session page) isn't
+    // frozen for the duration.
+    //
+    // session_ is held by shared_ptr; capturing a copy keeps it alive across
+    // the worker even if a subsequent start() has already replaced our local
+    // reference.  Pipeline construction/teardown inside CameraSession is
+    // serialised by its own state, so concurrent start+stop on the same
+    // session would still be undefined — but the controller serializes
+    // through QFutureWatcher anyway.
+    auto session = session_;
+    // QThreadPool::start (rather than QtConcurrent::run) — we don't need the
+    // QFuture, and ignoring it triggers a [[nodiscard]] warning.
+    QThreadPool::globalInstance()->start([session]() { session->stop(); });
     emit sessionStopped();
 }
 
