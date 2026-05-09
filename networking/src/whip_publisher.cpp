@@ -85,13 +85,35 @@ WHIPPublisher::initialize(const std::string &whip_url,
 
     // whipsink wraps webrtcbin internally; webrtcbin requires explicit caps
     // when requesting a sink pad — gst_element_link won't work without them.
-    GstCaps *rtp_caps = gst_caps_new_simple(
-        "application/x-rtp",
-        "media", G_TYPE_STRING, "video",
-        "encoding-name", G_TYPE_STRING, "H264",
-        "payload", G_TYPE_INT, 96,
-        "clock-rate", G_TYPE_INT, 90000,
-        nullptr);
+    //
+    // Two payload types are advertised:
+    //   PT 96 — H.264 video, the actual encoded stream.
+    //   PT 97 — RTX (RFC 4588), retransmissions for PT 96.
+    //
+    // Including the RTX cap is what flips on receiver-driven loss recovery:
+    // webrtcbin's internal rtprtxsend buffers recently-sent H.264 packets,
+    // and when the peer (LiveKit ingress) reports lost sequence numbers via
+    // an RTCP NACK feedback, rtprtxsend re-emits those packets on PT 97.
+    // The receiver re-orders them into the original stream with a single
+    // RTT of extra delay instead of stalling on a missing fragment until
+    // the next IDR/PLI cycle.  See docs/development/webrtc-packet-recovery.md
+    // for the full picture.
+    GstCaps *rtp_caps = gst_caps_new_empty();
+    gst_caps_append_structure(rtp_caps,
+        gst_structure_new("application/x-rtp",
+            "media",         G_TYPE_STRING, "video",
+            "encoding-name", G_TYPE_STRING, "H264",
+            "payload",       G_TYPE_INT,    96,
+            "clock-rate",    G_TYPE_INT,    90000,
+            nullptr));
+    gst_caps_append_structure(rtp_caps,
+        gst_structure_new("application/x-rtp",
+            "media",         G_TYPE_STRING, "video",
+            "encoding-name", G_TYPE_STRING, "rtx",
+            "payload",       G_TYPE_INT,    97,
+            "clock-rate",    G_TYPE_INT,    90000,
+            "apt",           G_TYPE_INT,    96,
+            nullptr));
     GstPadTemplate *templ = gst_element_class_get_pad_template(
         GST_ELEMENT_GET_CLASS(whipsink), "sink_%u");
     GstPad *whip_sink_pad =
@@ -118,6 +140,36 @@ WHIPPublisher::initialize(const std::string &whip_url,
         gst_object_unref(pipeline_);
         pipeline_ = nullptr;
         return Result::ErrorPipelineFailed;
+    }
+
+    // Reach into whipsink's internal webrtcbin to flip on transceiver-level
+    // NACK handling.  Modern GStreamer (≥ 1.22) exposes do-nack on each
+    // GstWebRTCRTPTransceiver — when set on a sendonly transceiver, the
+    // webrtcbin element honours incoming RTCP NACK by retransmitting via
+    // the RTX payload type negotiated above.  Without this, NACK feedback
+    // received from the peer would be ignored even though our SDP advertises
+    // both `nack` and the rtx codec, leaving us with PLI-only recovery
+    // (i.e. wait for the next IDR).  See docs/development/webrtc-packet-recovery.md.
+    GstElement *webrtcbin =
+        gst_bin_get_by_name(GST_BIN(whipsink), "whip-webrtcbin");
+    if (webrtcbin != nullptr) {
+        GArray *transceivers = nullptr;
+        g_signal_emit_by_name(webrtcbin, "get-transceivers", &transceivers);
+        if (transceivers != nullptr) {
+            for (guint i = 0; i < transceivers->len; ++i) {
+                GObject *t =
+                    g_array_index(transceivers, GObject *, i);
+                if (t == nullptr) {
+                    continue;
+                }
+                if (g_object_class_find_property(
+                        G_OBJECT_GET_CLASS(t), "do-nack") != nullptr) {
+                    g_object_set(t, "do-nack", TRUE, nullptr);
+                }
+            }
+            g_array_unref(transceivers);
+        }
+        gst_object_unref(webrtcbin);
     }
 
     GstBus *bus = gst_element_get_bus(pipeline_);
