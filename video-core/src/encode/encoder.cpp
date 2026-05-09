@@ -2,6 +2,7 @@
 #include "../../include/encode/encoder_config.hpp"
 #include "../../include/encode/nvenc_encoder.hpp"
 #include "../../include/encode/software_encoder.hpp"
+#include "../../include/encode/vaapi_encoder.hpp"
 
 #include <iostream>
 
@@ -32,17 +33,43 @@ std::unique_ptr<Encoder> createEncoder(const EncoderConfig &config,
                                        bool allowHardware) {
     EncoderConfig resolved = config;
 
+    // Default policy when caller asks for Software: pick the best hardware
+    // encoder compiled into FFmpeg if one is available, falling back to
+    // Software if none are.  Probe order:
+    //   1. NVENC  — fastest on NVIDIA, lowest latency profile (~1 ms/frame).
+    //   2. VAAPI — AMD VCN / Intel Quick Sync.  Comparable latency to NVENC.
+    //   3. Software (libx264) — fallback that always exists in libavcodec-extra.
+    //
+    // The actual avcodec_open2 still happens in each Encoder::initialize, so
+    // the codec being "found" here is necessary but not sufficient — we may
+    // still fall back at runtime (e.g. NVENC compiled in but libcuda.so.1
+    // not loadable).  VideoPipeline::start retries with allowHardware=false
+    // when initialize fails, so the worst case is one wasted open attempt.
     if (resolved.type == EncoderConfig::Type::Software && allowHardware) {
-        // Probe for NVENC — upgrade if available
         if (avcodec_find_encoder_by_name("h264_nvenc") != nullptr) {
-            resolved.type = EncoderConfig::Type::Hardware;
+            resolved.type = EncoderConfig::Type::NVENC;
+        }
+        else if (avcodec_find_encoder_by_name("h264_vaapi") != nullptr) {
+            resolved.type = EncoderConfig::Type::VAAPI;
         }
     }
-    else if (resolved.type == EncoderConfig::Type::Hardware) {
-        // Requested hardware but verify it's actually available, or that the
-        // caller still wants it.
+    else if (resolved.type == EncoderConfig::Type::NVENC) {
         if (!allowHardware ||
             avcodec_find_encoder_by_name("h264_nvenc") == nullptr) {
+            // NVENC unavailable — try VAAPI before falling all the way back
+            // to software so AMD/Intel hosts still get GPU encoding.
+            if (allowHardware &&
+                avcodec_find_encoder_by_name("h264_vaapi") != nullptr) {
+                resolved.type = EncoderConfig::Type::VAAPI;
+            }
+            else {
+                resolved.type = EncoderConfig::Type::Software;
+            }
+        }
+    }
+    else if (resolved.type == EncoderConfig::Type::VAAPI) {
+        if (!allowHardware ||
+            avcodec_find_encoder_by_name("h264_vaapi") == nullptr) {
             resolved.type = EncoderConfig::Type::Software;
         }
     }
@@ -51,9 +78,12 @@ std::unique_ptr<Encoder> createEncoder(const EncoderConfig &config,
     case EncoderConfig::Type::Software:
         std::cerr << "[Encoder] selected: Software (libx264)\n";
         return std::make_unique<SoftwareEncoder>();
-    case EncoderConfig::Type::Hardware:
+    case EncoderConfig::Type::NVENC:
         std::cerr << "[Encoder] selected: Hardware (h264_nvenc)\n";
         return std::make_unique<NVENCEncoder>();
+    case EncoderConfig::Type::VAAPI:
+        std::cerr << "[Encoder] selected: Hardware (h264_vaapi)\n";
+        return std::make_unique<VAAPIEncoder>();
     default:
         return nullptr;
     }

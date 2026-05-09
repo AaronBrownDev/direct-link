@@ -46,21 +46,45 @@ Result VideoPipeline::start(
         }
     };
 
+    // Try the initial encoder choice from createEncoder.  If it fails
+    // (advertised at compile time, not actually loadable at runtime — common
+    // when the FFmpeg build has NVENC compiled in but libcuda.so.1 is
+    // missing, or has VAAPI but no DRI render node), fall through the
+    // remaining hardware encoders before giving up to software.
+    //
+    // Using an explicit Type chain instead of relying on createEncoder's
+    // own selection inside the retry, because `allowHardware=false` forces
+    // Software directly and would skip VAAPI on hosts where NVENC was
+    // probed first but isn't actually usable.
     auto encoder_result = encoder_->initialize(encoderConfig_, onEncodedPacket);
     if (encoder_result != Result::Success) {
-        // Hardware encoder open can fail at runtime when the FFmpeg build
-        // advertises NVENC but the host lacks the NVIDIA userspace
-        // (libcuda.so.1) — common on machines without an NVIDIA GPU or the
-        // proprietary driver installed.  Retry once forcing a software
-        // encoder so the session still publishes.
-        std::cerr << "[Pipeline] Encoder initialize failed; "
-                     "retrying with software encoder\n";
-        encoder_ = encode::createEncoder(encoderConfig_, /*allowHardware=*/false);
-        if (!encoder_) {
-            return Result::ErrorInitFailed;
+        const encode::EncoderConfig::Type fallbackChain[] = {
+            encode::EncoderConfig::Type::VAAPI,
+            encode::EncoderConfig::Type::Software,
+        };
+        for (auto type : fallbackChain) {
+            std::cerr << "[Pipeline] Encoder init failed; trying next "
+                         "encoder in fallback chain\n";
+            auto cfg = encoderConfig_;
+            cfg.type = type;
+            // allowHardware controls createEncoder's auto-upgrade rules:
+            //  - VAAPI: pass true so the codec lookup runs but doesn't
+            //    downgrade VAAPI to Software.
+            //  - Software: pass false so createEncoder doesn't auto-upgrade
+            //    Software→NVENC/VAAPI right back to a path we already failed.
+            const bool allowHardware =
+                type != encode::EncoderConfig::Type::Software;
+            encoder_ = encode::createEncoder(cfg, allowHardware);
+            if (!encoder_) {
+                continue;
+            }
+            encoder_result = encoder_->initialize(cfg, onEncodedPacket);
+            if (encoder_result == Result::Success) {
+                break;
+            }
+            encoder_.reset();
         }
-        encoder_result = encoder_->initialize(encoderConfig_, onEncodedPacket);
-        if (encoder_result != Result::Success) {
+        if (!encoder_ || encoder_result != Result::Success) {
             return Result::ErrorInitFailed;
         }
     }

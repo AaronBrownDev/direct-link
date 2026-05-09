@@ -39,6 +39,7 @@ add_library(video_core STATIC
     src/encode/encoder.cpp
     src/encode/software_encoder.cpp
     src/encode/nvenc_encoder.cpp
+    src/encode/vaapi_encoder.cpp
     src/decode/decoder.cpp
     src/decode/software_decoder.cpp
     src/decode/nvdec_decoder.cpp
