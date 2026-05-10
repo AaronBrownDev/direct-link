@@ -23,10 +23,10 @@ This is broken into three components reported independently:
 
 ### 2. Video lag (data channel arrival → frame decoded)
 
-- `video_lag_ms = (frame_received_ns - dc_arrived_ns) / 1e6`.
-- Both timestamps are from the director's local clock; no clock offset is needed.
-- Captures: WHIP WebRTC pipeline + LiveKit ingress buffering + SFU forwarding + **jitter buffer** + H.264 decode.
-- **This is the dominant latency component**, ~1000 ms loopback, governed by the LiveKit Ingress jitter buffer floor. See the investigation section below.
+- `video_lag_ms = (frame_received_steady_ns - dc_arrived_steady_ns) / 1e6`.
+- Both timestamps are from the director's `steady_clock`, so the measurement survives any NTP step on the system clock.
+- Captures: WHIP encode + upload + LiveKit Ingress + SFU → director libwebrtc + **director-side jitter buffer** + H.264 decode, minus the DC's direct camera→SFU path (DC bypasses Ingress).
+- Dominated by libwebrtc's adaptive playout buffer at the director — typically tracks the `jitter_buffer_delay` stat reported by `getStats()` within ~20 ms. On a healthy GKE WAN path with the matcher correctly calibrated this is ~150–180 ms.
 
 ### 3. Display gap (decoded frame available → screen swap)
 
@@ -38,32 +38,85 @@ This is broken into three components reported independently:
 
 ## Component matching
 
-Each captured frame produces one DC packet (carrying its `capture_ns`) and one video frame (carrying libwebrtc's `timestamp_us` capture-time estimate, when populated). Both arrive at the director through different paths and may arrive at different rates if there is loss or rate adaptation. Naive FIFO matching breaks when those rates differ, so `DirectorTransport` uses a three-tier strategy:
+Each captured frame produces one DC packet (carrying its `capture_ns`) and one video frame (carrying libwebrtc's `timestamp_us` capture-time estimate). Both arrive at the director through different paths and may arrive at different rates if there is loss or rate adaptation. Naive FIFO matching breaks when those rates differ, so `DirectorTransport` matches by capture timestamp:
 
-1. **Timestamp-based match (preferred).** When `VideoFrameEvent::timestamp_us > 0` (libwebrtc populates this once an RTCP SR-based clock sync arrives — typically within the first few frames in a real deployment), match each frame to the DC entry whose `capture_ns` is closest to `frame.ts_us * 1000 − offset`. The constant offset between the two clock domains is seeded from the first valid frame and refined each subsequent frame via an EWMA (delta form, since the absolute offset is ~1.78×10¹⁸ ns and a naïve `prior * 7` would overflow `int64`). Tolerance: 100 ms. Match accuracy in practice: typically <30 ms `ts_match_diff`.
+1. **Timestamp-based match.** When `VideoFrameEvent::timestamp_us > 0` (libwebrtc populates this once an RTCP SR-based clock sync arrives — typically within the first few frames), match each frame to the DC entry whose `capture_ns` is closest to `frame.ts_us * 1000 − offset`. Tolerance: 250 ms. Match accuracy in practice: <15 ms `ts_match_diff`.
 
-2. **Estimated-lag fallback.** When `ts_us` is never populated (observed on `network_mode: host` docker-compose where libwebrtc's clock-sync path doesn't fire), match each frame to the DC whose age (`received_ns − dc_arrived_ns`) is closest to a running estimate of `video_lag` (seeded at 1 s, refined via EWMA). Tolerance: 500 ms. Approximate but stable; suitable for local development.
+2. **Estimated-lag fallback.** When `ts_us` is never populated (observed on `network_mode: host` docker-compose where libwebrtc's clock-sync path doesn't fire), match each frame to the DC whose arrival age is closest to a running estimate of `video_lag`. Tolerance: 500 ms. Suitable for local development.
 
-3. **FIFO fallback.** Used only during the first few frames before either of the above can establish itself. Pops the oldest entry. Subject to the queue-cap artifact when DC and frame rates differ.
+### The offset is a constant, not refined
 
-`m_capture_queue` is a `std::deque` capped at 60 entries (~2 s at 30 fps). Diagnostic logs annotate each frame with `[TS]`, `[FIFO]`, or a miss reason.
+The offset between `ts_us * 1000` and `capture_ns` is the epoch difference between two camera-local clocks (libwebrtc's RTP-derived microsecond timestamp and `std::chrono::system_clock` nanoseconds). It is a constant on the timescale of a session. The matcher therefore **computes the offset once at seed time and does not refine it**.
+
+An earlier EWMA-refinement loop was found to drift monotonically: sub-millisecond match jitter biased each refinement, the next match's predicted target shifted by the refinement, and the system found a stable equilibrium far from truth. Disabling the refinement eliminated the drift while leaving residual seed bias within a frame interval, which is acceptable.
+
+If the camera-local clocks ever drift relative to each other over a long session, the matcher will start missing tolerance and the reseed path (below) will recompute the offset.
+
+### Seed and reseed
+
+The first valid `ts_us` frame seeds the offset by picking the DC whose arrival age is closest to a `video_lag` guess:
+
+- **`currentVideoLagGuessNs()`** returns `m_latest_jb_ms` (libwebrtc's own jitter-buffer reading) when available, falling back to `INITIAL_VIDEO_LAG_GUESS_NS` (1 s) only for the very first seed when the 1 Hz video-stats poll has not yet produced its first delta sample.
+- **Race recovery for lean startups (e.g. `test_e2e_latency`).** If the seed ran with the 1 s fallback (no JB stat available), the matcher records `m_seeded_with_warmup_guess = true` and waits for `JB_STATS_BEFORE_RESEED` (3) non-zero JB readings before forcing a single reseed. The wait keeps the reseed from picking up an early-warmup JB value (~10–50 ms) and locking in an under-counted offset; by the third reading the libwebrtc buffer has typically converged. Gated by the flag so transient `JB=0` during pipeline freezes does not re-trigger.
+- **Catastrophic failure recovery.** After `MAX_CONSECUTIVE_MISSES_BEFORE_RESEED` (30) frames in a row outside tolerance — usually meaning a clock-domain shift — the offset is cleared and the next valid frame reseeds.
+
+### Queue mechanics
+
+`m_capture_queue` is a `std::deque` capped at `MAX_CAPTURE_QUEUE_SIZE = 120` entries (~4 s at 30 fps), giving comfortable margin for warmup `video_lag` of 1–2 s.
+
+On a successful match, only the matched entry is erased — **not** "everything older than the match." Older DCs may correspond to frames currently in libwebrtc's playout buffer; draining them on each match (the prior behavior) collapsed the queue depth below the in-flight pipeline depth during convergence bursts and left subsequent matches with no candidate older than the most recent DC, turning `video_lag` into a queue-depth artifact. Unmatched stale DCs (e.g. for frames the sender dropped at encode) age out via the queue cap.
+
+### Diagnostic output
+
+Every breakdown emit logs both the ts-matched `video_lag` and the FIFO-oldest / FIFO-newest values it would have reported instead — a persistent gap indicates the matcher is no longer picking the right DC and a reseed is overdue.
+
+```
+[DirectorTransport] Latency breakdown:
+    dc_one_way=   30.5 ms
+    video_lag=    162.0 ms
+    video_lag_fifo_oldest= 3094.5 ms   # all unmatched DCs in queue
+    video_lag_fifo_newest=   12.3 ms   # newest DC (just arrived)
+    queue_depth= 120  match_pos= 110   # matcher picked DC near back
+    display_gap=   1.7 ms
+    total=       194.2 ms
+    clock_offset=  0.0 ms
+    match= ts_us
+```
+
+A one-line `[DT-rolling]` summary every 100 frames carries 100-sample means of every component plus libwebrtc's `jb` and `decode` for cross-check. `[ClockSync] round#` logs per-round chosen min-RTT, window spread, published offset, and the second-best offset so path asymmetry is visible.
 
 **Critical constraint:** `CameraSessionController::frameCaptured` must fire even when no `QVideoSink` is attached (headless mode). In `session_controller.cpp` the preview callback is always registered (it records `pts → capture_ns` regardless of sink); the `QVideoSink` render path is gated on `sink != nullptr` separately. Similarly, `VideoTrack::setTrack()` always calls `startRead()` regardless of whether a video sink is set — the read loop is required to emit `frameReceived` for latency measurement.
 
 ---
 
-## Known issues and current latency investigation
+## Investigation history
 
-### Observed measurements (loopback / GKE, 2026-04-30)
+### Observed measurements (GKE WAN, 2026-05-10, post-matcher-fix)
 
-| Component | Loopback | GKE | Architectural floor |
+| Component | Mean | p50 | p95 |
 |---|---|---|---|
-| dc_one_way | ~1 ms | ~1 ms | ~1 ms ✓ |
-| video_lag | ~1005 ms | ~900 ms | ~900 ms (LiveKit pipeline) |
-| display_gap | 0 ms (headless) / ~3 ms (GUI) | ~3 ms (GUI) | ~3 ms ✓ |
-| **total** | **~1007 ms** | **~900–950 ms** | **~900 ms on this stack** |
+| dc_one_way | 33 ms | 32 ms | 47 ms |
+| video_lag | 162 ms | 163 ms | 178 ms |
+| display_gap (GUI) | ~2 ms | ~2 ms | ~3 ms |
+| **total** | **~194 ms** | **~194 ms** | **~206 ms** |
 
-Camera-side and director-side are at the floor. The remaining budget is consumed by `video_lag`, which is bounded by **the LiveKit pipeline as a whole** (Ingress + SFU + subscriber jitter buffers in series), *not* a single configurable buffer. See "Known limitations" below and ADR-0002 for the full investigation.
+For cross-check, libwebrtc's own `jitter_buffer_delay` over the same window: mean 171 ms, p50 181 ms — `video_lag` tracks it within ~20 ms, which is the expected difference between W3C's `jitter_buffer_delay` (first packet at libwebrtc → emission) and the app-side wall-clock interval (DC arrival → frame visible to application).
+
+Physical validation: stopwatch held in front of the camera, screens compared side-by-side, observed delta ~150–170 ms — agreement with the reported `total` is within the 6–34 ms unaccounted-for floor (see "What is not measured" below).
+
+### Initial misreading: the "architectural floor" that wasn't
+
+For most of the project's early life the reported total sat at ~900–1000 ms regardless of GKE configuration, GOP size, RTP playout-delay extensions, or in-tree `SetJitterBufferMinimumDelay` patches. The conclusion (recorded in ADR-0002) was that the LiveKit + Ingress + WHIP stack imposes a ~1 s architectural floor across its in-series jitter buffers and that no config knob would meaningfully move it.
+
+That conclusion was **wrong** — driven by a bug in the DC matcher, not by the LiveKit pipeline:
+
+- The matcher's queue-erase logic dropped *every* DC older than each successful match, on the assumption that "older = orphaned." During libwebrtc's convergence burst (the SFU emits frames faster than DCs arrive while the buffer drains its backlog), this drained the queue below the in-flight pipeline depth.
+- In steady state the queue was left with only 1–2 DCs, both very recently arrived. Subsequent matches had no candidate older than the current frame, so the matcher always reported `video_lag` ≈ queue-depth × frame-interval — independent of the real DC-to-frame timing.
+- The reported ~900–1000 ms was the *warmup* queue depth (~60 entries × ~33 ms × the queue-cap eviction dynamics), not anything libwebrtc was actually doing.
+
+The fix (see `directortransport.cpp`) is to erase only the matched entry on each match and let unmatched stale DCs age out via the queue cap. After that change, `video_lag` correctly tracks libwebrtc's `jitter_buffer_delay` and the total reports ~194 ms — well within the sub-second range LiveKit was always capable of.
+
+ADR-0002's "architectural floor" claim should be retracted; the configuration attempts logged there (RTP playout-delay extensions, JWT `MaxPlayoutDelay`, etc.) were correct approaches that were obscured by the matcher artifact.
 
 ### Camera-side pipeline reduction (deployed, ~170 ms saved)
 
@@ -77,46 +130,15 @@ av_dict_set(&options, "zerolatency", "1", 0);
 
 drops the encode pipeline depth to 1–3 ms per frame.
 
-### What was tried and what didn't help
+### Sub-100 ms options (architectural, not currently planned)
 
-| Attempt | Result |
-|---|---|
-| `gopSize = 30` (was 60) | Reduced ~1900 → ~1015 ms (combined with `do-timestamp`) |
-| `gopSize = 3` (100 ms per GOP) | No change |
-| `do-timestamp = TRUE` on appsrc | See above |
-| `room.playout_delay: {enabled, min: 0, max: 200}` in livekit.yaml | Hint forwarded as RTP extension; receiver does not honour it as a hard cap |
-| `MaxPlayoutDelay: 0` / `MinPlayoutDelay: 0` in director JWT `RoomConfiguration` | Same — server-side hint, no measurable effect |
-| Reducing `appsink max-buffers` and `frameQueue` capacity | No effect — frames were not piling up there |
-| `surfaces=1`, `delay=0`, `zerolatency=1` on NVENC | **Saved ~170 ms** in `dc_one_way` |
-| Forked `livekit-cpp` to expose `Track::setJitterBufferMinimumDelay`, called with 0.0 on subscribe | **Saved ~8 ms** — the director-side libwebrtc receiver wasn't where the time was spent. Reverted. See ADR-0002 attempt 7. |
+The current ~194 ms total is well below the prior assumed floor and within the range typical of conferencing-grade WebRTC stacks. If a future product requirement makes <100 ms total a hard target, the realistic levers are:
 
-### Root cause of the residual ~1 s — the LiveKit architectural floor
+1. **Direct WebRTC peer-to-peer between camera and director.** Use the existing gRPC server for SDP exchange. No SFU, no Ingress. One libwebrtc connection, one jitter buffer. Realistically 80–150 ms total. Cost: lose SFU-side multicast — needs a separate fanout strategy if multiple directors per session are required.
 
-The ~1000 ms is a fixed pipeline delay, not adaptive jitter:
+2. **Custom thin WHIP→RTP forwarder** replacing the LiveKit Ingress in the camera path. Removes one of the in-series jitter buffers. Few hundred lines of pion or Go.
 
-- Consistent across ALL samples (not just startup)
-- Independent of GOP size
-- Independent of room/JWT playout-delay hints
-- Independent of explicit `SetJitterBufferMinimumDelay(0)` on the director's libwebrtc receiver
-- Confirmed on both loopback (~1005 ms) and GKE (~900 ms) deployments
-
-The latency is not in any single configurable buffer — it is **distributed across the LiveKit pipeline**: the Ingress's WHIP-receive jitter buffer, the Ingress→SFU forwarding, the SFU→subscriber forwarding, and the subscriber decode pacing. Each hop has its own libwebrtc/pion buffer that targets a default playout delay independent of the upstream hints. Touching any single one of them moves the floor by tens of milliseconds at most; the others compensate.
-
-LiveKit + Ingress + WHIP is designed for ~1–2 s live-streaming latency (OBS / Twitch / conference). It is not a sub-second broadcast monitoring stack. The ~1 s reported here is *the floor of this architecture*, not a misconfiguration.
-
-### Future options (not MVP-scope)
-
-These would require architectural changes, not config or knob tuning. Document only — pick from this list only if a future product decision makes <150 ms a hard requirement.
-
-1. **Direct WebRTC peer-to-peer between camera and director.** Use the existing gRPC server for SDP exchange. No SFU, no Ingress. One libwebrtc connection, one jitter buffer. Realistically 100–200 ms total. Cost: lose multicast — needs a separate fanout strategy if multiple directors per session is required.
-
-2. **Custom thin WHIP→RTP forwarder** replacing the LiveKit Ingress in the camera path. Removes one of the in-series jitter buffers. Few hundred lines.
-
-3. **Patch `livekit/ingress` (Go)** the same way attempt 7 patched `livekit-cpp`. Per attempt 7's data, individual buffer patches in this stack tend to produce small wins; gain uncertain.
-
-4. **Wait for upstream LiveKit Ingress to add a `JitterBufferMs` config** for WHIP inputs. Not present in protocol v1.45. Cheapest path if it ever lands.
-
-See ADR-0002 for the full investigation history.
+3. **Forced lower target on the director's libwebrtc playout buffer.** Patching libwebrtc-cpp to set a hard cap on `jitter_buffer_target_delay` would shave ~50–100 ms but produce frame freezes on bursty networks.
 
 ---
 
@@ -132,7 +154,7 @@ The timestamp is recorded in the GStreamer preview callback using `std::chrono::
 
 ### Match degradation on persistent drops
 
-The timestamp-based and estimated-lag matchers (see "Component matching" above) handle the common rate-mismatch case (e.g. encoder produces 30 fps but receiver decodes 10 fps). However, if a frame's matching DC packet is itself lost in transit, no match is possible and that frame's latency report is skipped (`ts-match MISS` in the diagnostic log). With `reliable=true` on the data channel, this is rare on a healthy network. The queue is capped at 60 entries (~2 s at 30 fps), which bounds how far back the matcher can look.
+The timestamp-based and estimated-lag matchers (see "Component matching" above) handle the common rate-mismatch case (e.g. encoder produces 30 fps but receiver decodes 10 fps). However, if a frame's matching DC packet is itself lost in transit, no match is possible and that frame's latency report is skipped (`ts-match MISS` in the diagnostic log). With `reliable=true` on the data channel, this is rare on a healthy network. The queue is capped at 120 entries (~4 s at 30 fps), which bounds how far back the matcher can look.
 
 ---
 
@@ -152,26 +174,31 @@ Typical NTP/SNTP accuracy over LAN is ±1–3 ms. Over the public internet it ma
 
 ## E2E latency test
 
-`client/tests/test_e2e_latency.cpp` provides a headless binary for measuring all three components against a real camera and local docker-compose stack:
+`client/tests/test_e2e_latency.cpp` is a headless binary that drives the full camera→director pipeline through a real signaling server and reports the same three components as the GUI. The wrapper script `scripts/run-latency-test.sh` is the recommended entry point — it auto-rebuilds the binary, runs against GKE by default, and bundles `run.log` plus sysinfo/netinfo into a single `.tar.gz` for sharing.
 
 ```sh
-# Start docker-compose.prod.yaml first
-./client/build/test_e2e_latency --server http://localhost:50051 --samples 30
+./scripts/run-latency-test.sh                 # default: GKE, 5000 samples (~3-4 min)
+./scripts/run-latency-test.sh --samples 200   # quick smoke test
+./scripts/run-latency-test.sh --no-rebuild    # skip cmake build step
+./scripts/run-latency-test.sh --server http://localhost:50051
 ```
+
+Why 5000 samples by default: libwebrtc's adaptive playout buffer takes ~115 s of clean samples to converge. 5000 samples (~165 s at the steady-state sample rate of ~30/s) covers convergence plus ~50 s of clean steady-state data on the back end. Lower counts capture mostly warmup and misrepresent the achievable floor.
 
 Output per sample:
 ```
-[Sample N/30]  dc=1ms  vid=1005ms  gap=0ms  total=1006ms
+[Sample N/5000]  dc=33ms  vid=162ms  gap=2ms  total=197ms
 ```
 
-Statistics (min/mean/p50/p95/max) are printed at the end.
+Final `[Stats]` block carries min/mean/p50/p95/max for each component plus libwebrtc's `jb`/`decode`/`upstream_vid` breakdown.
 
-The headless test always uses the estimated-lag fallback because the test runs too briefly for libwebrtc's RTCP SR clock sync to populate `timestamp_us`. The GUI exercises the timestamp-based path on real deployments.
+If invoking the binary directly, enable debug output (Qt's default `qtlogging.ini` filters `qDebug`):
 
-To enable debug output (Qt debug messages are filtered by `/usr/share/qt6/qtlogging.ini` by default):
 ```sh
 QT_FORCE_STDERR_LOGGING=1 QT_LOGGING_RULES="*.debug=true;qt.*=false" ./client/build/test_e2e_latency ...
 ```
+
+The bundle's `run.log` carries all the `[DT-rolling]`, `[DT-diag] FRAME#`, `[ClockSync]`, and `[DirectorTransport] Latency breakdown` lines needed to validate matcher health (see "Component matching" → "Diagnostic output").
 
 ---
 
@@ -193,4 +220,4 @@ QT_FORCE_STDERR_LOGGING=1 QT_LOGGING_RULES="*.debug=true;qt.*=false" ./client/bu
 3. For each slow-motion frame: note the stopwatch time in the camera feed and on the director screen. The difference is true glass-to-glass latency.
 4. Compare against the reported `total` value from `test_e2e_latency` for the same period.
 
-Expected agreement is within ±30 ms. Larger discrepancy indicates clock offset error or significant camera hardware lag.
+Expected agreement: the physical measurement should be **higher** than the reported `total` by 6–34 ms — that's the unmeasured camera shutter lag plus the display photon gap (see "What is not measured"). Direction reversed, or a gap larger than ~50 ms, indicates a clock-offset error or a matcher state issue.
