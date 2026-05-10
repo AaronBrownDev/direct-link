@@ -209,14 +209,54 @@ void SessionClient::measureLatency() {
             if (m_sync_window_count < SYNC_WINDOW_SIZE) { ++m_sync_window_count; }
 
             double best_rtt_ms = std::numeric_limits<double>::max();
+            double worst_rtt_ms = 0.0;
             qint64 best_offset_ns = sample_offset_ns;
+            // Track second-best RTT for the spread diagnostic.  Wide spread
+            // between best and second-best means path RTT is jittery enough
+            // that the published min could shift drastically between rounds,
+            // and asymmetric paths would bias the chosen offset.
+            double second_best_rtt_ms = std::numeric_limits<double>::max();
+            qint64 second_best_offset_ns = sample_offset_ns;
             for (std::size_t i = 0; i < m_sync_window_count; ++i) {
                 const auto &s = m_sync_window.at(i);
                 if (s.rtt_ms < best_rtt_ms) {
+                    second_best_rtt_ms = best_rtt_ms;
+                    second_best_offset_ns = best_offset_ns;
                     best_rtt_ms = s.rtt_ms;
                     best_offset_ns = s.offset_ns;
+                } else if (s.rtt_ms < second_best_rtt_ms) {
+                    second_best_rtt_ms = s.rtt_ms;
+                    second_best_offset_ns = s.offset_ns;
                 }
+                if (s.rtt_ms > worst_rtt_ms) { worst_rtt_ms = s.rtt_ms; }
             }
+
+            // Per-round diagnostic: shows whether the published offset is
+            // stable across rounds and how much the chosen min-RTT sample
+            // could differ from the second-best one (the offset-vs-RTT trade
+            // is path-asymmetry-sensitive — a 20 ms spread can shift the
+            // published offset by ~10 ms if the second-best sample wins out
+            // on the next round).  Logged unconditionally because clock-sync
+            // happens at most once per few seconds, so cost is negligible.
+            const qint64 offset_change_ns = m_offset_initialized
+                ? (best_offset_ns - m_clock_offset_ns)
+                : 0;
+            const qint64 second_best_offset_delta_ns = (second_best_rtt_ms < std::numeric_limits<double>::max())
+                ? (second_best_offset_ns - best_offset_ns)
+                : 0;
+            qDebug().nospace()
+                << "[ClockSync] round#" << m_sync_round_count
+                << " this_rtt=" << rtt_ms << "ms"
+                << " this_offset=" << (static_cast<double>(sample_offset_ns) / 1e6) << "ms"
+                << " win_n=" << m_sync_window_count
+                << " win_rtt_min=" << best_rtt_ms << "ms"
+                << " win_rtt_max=" << worst_rtt_ms << "ms"
+                << " win_rtt_spread=" << (worst_rtt_ms - best_rtt_ms) << "ms"
+                << " published_offset=" << (static_cast<double>(best_offset_ns) / 1e6) << "ms"
+                << " offset_change=" << (static_cast<double>(offset_change_ns) / 1e6) << "ms"
+                << " 2nd_best_rtt=" << second_best_rtt_ms << "ms"
+                << " 2nd_vs_1st_offset_delta=" << (static_cast<double>(second_best_offset_delta_ns) / 1e6) << "ms";
+            ++m_sync_round_count;
 
             m_clock_offset_ns = best_offset_ns;
             m_offset_initialized = true;

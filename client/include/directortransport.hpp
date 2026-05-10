@@ -144,6 +144,17 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // matcher seeds.
         void resetLatencyMatcher();
 
+        // Current best estimate of video_lag for warmup-gating and seeding
+        // the ts_us offset.  Returns libwebrtc's last reported JB delay
+        // when available — that's a measurement of the actual playout-side
+        // wait time, accurate within a few tens of ms of true video_lag in
+        // steady state — and falls back to INITIAL_VIDEO_LAG_GUESS_NS only
+        // for the first seed of the session (no stats yet) or if stats
+        // haven't been populated.  Used at reseed time so a transient
+        // jitter burst that triggers MAX_CONSECUTIVE_MISSES doesn't snap
+        // the offset back to the 1 s warmup guess in steady state.
+        [[nodiscard]] qint64 currentVideoLagGuessNs() const;
+
         std::unique_ptr<livekit::Room> m_room;
         QString m_connection_state = "disconnected";
         std::unique_ptr<DirectorSession> m_session;
@@ -174,10 +185,13 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // The queue size sets the matching window: timestamp-based matching
         // needs the matching DC to still be in the queue when the frame
         // arrives, so the window must cover at least the actual video_lag
-        // worth of DCs at the current arrival rate.  60 entries covers ~2 s
-        // at 30 DC/s and ~6 s at 10 DC/s — both bound the realistic matching
-        // window for typical and degraded WHIP/Ingress paths respectively.
-        static constexpr std::size_t MAX_CAPTURE_QUEUE_SIZE = 60;
+        // worth of DCs at the current arrival rate.  120 entries covers ~4 s
+        // at 30 DC/s — comfortable margin over the ~1-2 s libwebrtc warmup
+        // video_lag, with headroom for the convergence burst where the
+        // matcher consumes DCs at the same rate they arrive (one-in-one-out
+        // per frame, no over-drain) so the queue does not shrink below the
+        // in-flight pipeline depth.
+        static constexpr std::size_t MAX_CAPTURE_QUEUE_SIZE = 120;
 
         // Timestamp-based matching: each VideoFrameEvent carries a ts_us field
         // (libwebrtc-aligned capture-time estimate, microseconds, in some
@@ -191,14 +205,36 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // Relationship: capture_ns ≈ ts_us * 1000 - m_ts_capture_offset_ns
         qint64 m_ts_capture_offset_ns = 0;
         bool m_ts_offset_initialized = false;
-        // Acceptable mismatch between predicted and found capture_ns.  Three
-        // frame intervals at 30 fps ≈ 100 ms is generous early in stream
-        // (when offset is freshly seeded) without being so wide that a wrong
-        // match becomes possible.
-        static constexpr qint64 TS_MATCH_TOLERANCE_NS = 100'000'000;
-        // Heuristic seed for the very first ts_us-valid frame: the matching
-        // DC arrived approximately this many ns ago.  ~1 s covers the ingress
-        // jitter buffer floor; the EWMA self-corrects within a few frames.
+        // True iff the current seed was computed against the
+        // INITIAL_VIDEO_LAG_GUESS_NS warmup constant (i.e. no libwebrtc JB
+        // stat had arrived yet at seed time).  Such a seed is biased by
+        // ~1 s; once enough JB stats arrive to confirm the buffer has
+        // warmed up, onVideoStats forces a single reseed against the real
+        // (converged) JB number.  Without this flag, transient JB=0
+        // readings during pipeline freezes would re-trigger the recovery
+        // on every pause-resume cycle and drift the offset.
+        bool m_seeded_with_warmup_guess = false;
+        // Count of non-zero JB stats seen since the last warmup-guess
+        // seed.  The forcing reseed waits until this reaches
+        // JB_STATS_BEFORE_RESEED so we don't reseed against the very
+        // first stat (which can be ~10-50 ms while the buffer is still
+        // ramping up) and lock in an under-counted offset.
+        std::uint32_t m_jb_stats_since_warmup_seed = 0;
+        static constexpr std::uint32_t JB_STATS_BEFORE_RESEED = 3;
+        // Acceptable mismatch between predicted and found capture_ns.  A
+        // single network-jitter spike on the GKE WAN path can push the
+        // matching DC's capture_ns 100–200 ms outside the prediction
+        // window; with the previous 100 ms tolerance, 30 such frames in a
+        // row triggered a reseed against the warmup guess and silently
+        // biased the matcher.  250 ms is wide enough to ride out typical
+        // jitter bursts while still being narrow enough that a structurally
+        // wrong match (multi-frame offset shift) gets caught.
+        static constexpr qint64 TS_MATCH_TOLERANCE_NS = 250'000'000;
+        // Heuristic seed for the very FIRST ts_us-valid frame of a session,
+        // before any libwebrtc stats are available.  ~1 s covers the
+        // ingress jitter buffer floor during warmup.  After matching has
+        // produced at least one libwebrtc JB stat reading, the reseed path
+        // uses that stat instead (see currentVideoLagGuessNs).
         static constexpr qint64 INITIAL_VIDEO_LAG_GUESS_NS = 1'000'000'000;
 
         // Fallback when ts_us is never populated (docker prod loopback path).
@@ -265,4 +301,28 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         int m_display_gap_idx = 0;
         int m_display_gap_count = 0;
         qint64 m_display_gap_sum_ns = 0;
+
+        // Rolling diagnostics so steady-state convergence is visible without
+        // scanning every per-sample line.  We keep the last ROLLING_WINDOW
+        // frames worth of values for each component and emit a single
+        // [DT-rolling] summary line every ROLLING_LOG_INTERVAL frames.
+        //
+        // video_lag_fifo_oldest_ms is logged in parallel with the ts_us
+        // match's video_lag — a persistent gap between them is the smoking
+        // gun for ts_us mismatch (matcher picking too-new DCs).
+        static constexpr std::size_t ROLLING_WINDOW = 100;
+        static constexpr std::uint64_t ROLLING_LOG_INTERVAL = 100;
+        std::array<double, ROLLING_WINDOW> m_rolling_dc_ms{};
+        std::array<double, ROLLING_WINDOW> m_rolling_video_lag_ts_ms{};
+        std::array<double, ROLLING_WINDOW> m_rolling_video_lag_fifo_ms{};
+        std::array<double, ROLLING_WINDOW> m_rolling_total_ms{};
+        std::array<double, ROLLING_WINDOW> m_rolling_jb_ms{};
+        std::array<double, ROLLING_WINDOW> m_rolling_decode_ms{};
+        std::size_t m_rolling_idx = 0;
+        std::size_t m_rolling_count = 0;
+        // Latest video stats values, captured from onVideoStats and folded
+        // into the rolling summary on the next breakdown emit.  This couples
+        // the two log streams so the summary shows full attribution.
+        double m_latest_jb_ms = 0.0;
+        double m_latest_decode_ms = 0.0;
 };

@@ -85,5 +85,9 @@ private:
     std::array<SyncSample, SYNC_WINDOW_SIZE> m_sync_window{};
     std::size_t m_sync_window_count = 0;
     std::size_t m_sync_window_idx = 0;
+    // Monotonic counter of completed sync rounds, for the per-round
+    // [ClockSync] diagnostic line.  Unsigned wraparound is fine — at one
+    // round per few seconds, wraparound is centuries away.
+    std::uint64_t m_sync_round_count = 0;
 };
 

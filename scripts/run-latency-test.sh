@@ -2,26 +2,30 @@
 # Run the E2E latency test against GKE and bundle the results for sharing.
 #
 # Usage:
-#   ./scripts/run-latency-test.sh                 # default: GKE, 1800 samples (~80s)
-#   ./scripts/run-latency-test.sh --samples 30    # quick smoke test (~25s)
+#   ./scripts/run-latency-test.sh                 # default: rebuild, GKE, 5000 samples (~3-4 min)
+#   ./scripts/run-latency-test.sh --no-rebuild    # skip cmake build step
+#   ./scripts/run-latency-test.sh --samples 200   # quick smoke test (~30s)
 #   ./scripts/run-latency-test.sh --server http://<host>:50051
 #
 # Output: a single .tar.gz file in the repo root containing:
-#   - run.log              full stderr+stdout from the test (qDebug enabled)
-#   - stats.txt            just the final [Stats] table, easy to eyeball
+#   - run.log              full stderr+stdout from the test (qDebug enabled),
+#                          including [DT-rolling], [DT-diag], [ClockSync],
+#                          [DirectorTransport] Latency breakdown, and
+#                          [DirectorTransport] Video stats lines
+#   - stats.txt            the final [Stats] table, easy to eyeball
 #   - sysinfo.txt          OS / CPU / kernel / camera hardware
-#   - netinfo.txt          default route, link speed, ping to the signaling host
+#   - netinfo.txt          default route, link speed, ping to signaling host
 #
-# Why 1800 samples by default: latency on this stack is dominated by adaptive
-# jitter buffers in libwebrtc / LiveKit Ingress, which take ~30–60 s of clean
-# samples to converge.  Empirically post-settling sample rate is ~30/s, so
-# 1800 samples ≈ 60 s of converged data on top of ~20 s of setup.  Anything
-# under a few hundred samples captures only the inflated initial state and
-# misses the steady-state floor that's actually informative.
+# Why 5000 samples by default: the libwebrtc adaptive playout buffer takes
+# ~2 min of clean samples to fully converge.  Steady-state sample rate is
+# ~30/s, so 5000 samples ≈ 165 s — comfortably past convergence with ~30 s
+# of clean steady state at the end.  Lower counts capture mostly warmup and
+# misrepresent the achievable floor.
 #
-# Send the .tar.gz back. That's everything needed to compare your run against
-# someone else's (the per-sample diagnostics in run.log let us see whether
-# jitter_buffer / upstream_vid trend down over time).
+# Send the .tar.gz back.  The per-sample diagnostics in run.log let me see
+# whether the matcher seed was accurate, whether reseeds happened, and the
+# rolling means at convergence — all of which are needed to validate the
+# matcher fixes end-to-end.
 
 # `set -e` and `pipefail` are intentionally NOT used.  The sysinfo and
 # netinfo gathering blocks call optional tools (ethtool, iwconfig, nvidia-smi,
@@ -31,14 +35,16 @@
 set -u
 
 SERVER="http://34.174.71.83:50051"
-SAMPLES=1800
+SAMPLES=5000
+REBUILD=1
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --server)  SERVER="$2"; shift 2 ;;
-        --samples) SAMPLES="$2"; shift 2 ;;
+        --server)     SERVER="$2"; shift 2 ;;
+        --samples)    SAMPLES="$2"; shift 2 ;;
+        --no-rebuild) REBUILD=0; shift ;;
         -h|--help)
-            sed -n '2,18p' "$0" | sed 's/^# //; s/^#//'
+            sed -n '2,24p' "$0" | sed 's/^# //; s/^#//'
             exit 0
             ;;
         *)
@@ -51,6 +57,21 @@ done
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BIN="${REPO_ROOT}/client/build/test_e2e_latency"
+
+# Auto-rebuild so the test always reflects the current matcher code without
+# the caller needing to remember a cmake invocation.  cmake is incremental,
+# so this is a no-op when nothing changed.
+if [[ $REBUILD -eq 1 ]]; then
+    if [[ ! -d "${REPO_ROOT}/client/build" ]]; then
+        echo "Build dir not found at ${REPO_ROOT}/client/build — configure cmake first." >&2
+        exit 1
+    fi
+    echo "==> Rebuilding test_e2e_latency (use --no-rebuild to skip)..."
+    if ! cmake --build "${REPO_ROOT}/client/build" --target test_e2e_latency -j; then
+        echo "Build failed.  Fix it and rerun, or pass --no-rebuild to use the existing binary." >&2
+        exit 1
+    fi
+fi
 
 if [[ ! -x "${BIN}" ]]; then
     echo "test_e2e_latency binary not found at ${BIN}." >&2

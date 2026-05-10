@@ -38,6 +38,23 @@ DirectorTransport::~DirectorTransport() {
     shutdown();
 }
 
+qint64 DirectorTransport::currentVideoLagGuessNs() const {
+    // libwebrtc's JB stat is the best available estimate of where the
+    // matching DC should land for the current frame.  W3C's
+    // jitterBufferDelay counts from first_packet_at_libwebrtc to
+    // emission, which includes intra-frame packet-arrival spread that
+    // the app does not perceive as latency.  Empirically the true
+    // app-side video_lag is slightly LESS than the JB stat on healthy
+    // paths and slightly more on degraded ones.  Using JB directly as
+    // the guess is closer to truth than any additive constant —
+    // residual bias is absorbed by the EWMA refinement over the first
+    // few hundred matches.
+    if (m_latest_jb_ms > 0.0) {
+        return static_cast<qint64>(m_latest_jb_ms * 1'000'000.0);
+    }
+    return INITIAL_VIDEO_LAG_GUESS_NS;
+}
+
 void DirectorTransport::onParticipantConnected(livekit::Room & /*unused*/, const livekit::ParticipantConnectedEvent &event) {
     qDebug() << "[DirectorTransport] Participant connected.\n\tidentity="
                 << event.participant->identity()
@@ -244,9 +261,21 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
     std::size_t qsize_before = 0;
     bool used_ts_match = false;
     qint64 ts_match_diff_ns = 0;
+    // Captured under the lock so the FIFO-parallel diagnostic (below) can
+    // compare the actual match against what FIFO at either end of the
+    // queue would have produced.  match_pos_in_queue is the index of the
+    // matched entry — a steady drift toward the back means the matcher is
+    // picking too-new DCs and deflating video_lag.
+    qint64 oldest_dc_arrived_steady_ns = 0;
+    qint64 newest_dc_arrived_steady_ns = 0;
+    std::size_t match_pos_in_queue = std::numeric_limits<std::size_t>::max();
     {
         std::lock_guard<std::mutex> lock(m_capture_queue_mutex);
         qsize_before = m_capture_queue.size();
+        if (!m_capture_queue.empty()) {
+            oldest_dc_arrived_steady_ns = m_capture_queue.front().dc_arrived_steady_ns;
+            newest_dc_arrived_steady_ns = m_capture_queue.back().dc_arrived_steady_ns;
+        }
         if (m_capture_queue.empty()) {
             ++m_frame_count;
             qDebug().nospace()
@@ -266,8 +295,9 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
         // Skip frames for matching until the queue spans the expected
         // pipeline depth — DCs keep accumulating in the meantime.
         if (!m_ts_offset_initialized && !m_capture_queue.empty()) {
+            const qint64 video_lag_guess_ns = currentVideoLagGuessNs();
             const qint64 oldest_dc_age = receivedSteadyNs - m_capture_queue.front().dc_arrived_steady_ns;
-            if (oldest_dc_age < INITIAL_VIDEO_LAG_GUESS_NS) {
+            if (oldest_dc_age < video_lag_guess_ns) {
                 ++m_frame_count;
                 if (m_frame_count <= 3 || (m_frame_count % 30) == 0) {
                     qDebug().nospace()
@@ -287,11 +317,14 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
         if (frameTimestampUs > 0) {
             // Seed the offset on first valid ts_us.  We don't know which DC
             // is the true match, but we can guess: the matching DC arrived
-            // ~INITIAL_VIDEO_LAG_GUESS_NS ago.  Pick the queue entry whose
-            // dc_arrived_ns is closest to (receivedNs - INITIAL_VIDEO_LAG_GUESS).
-            // Compute offset from that pairing; the EWMA below will refine.
+            // ~currentVideoLagGuessNs() ago — libwebrtc's last JB stat if
+            // available (correct in steady state), the warmup constant
+            // otherwise.  Pick the queue entry whose dc_arrived_ns is
+            // closest to (receivedNs - guess).  Compute offset from that
+            // pairing; the EWMA below will refine.
             if (!m_ts_offset_initialized) {
-                const qint64 target_dc_arrived = receivedSteadyNs - INITIAL_VIDEO_LAG_GUESS_NS;
+                const qint64 video_lag_guess_ns = currentVideoLagGuessNs();
+                const qint64 target_dc_arrived = receivedSteadyNs - video_lag_guess_ns;
                 auto seed = m_capture_queue.begin();
                 qint64 seed_diff = std::numeric_limits<qint64>::max();
                 for (auto it = m_capture_queue.begin(); it != m_capture_queue.end(); ++it) {
@@ -300,11 +333,15 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
                 }
                 m_ts_capture_offset_ns = frameTimestampUs * 1000 - seed->capture_ns;
                 m_ts_offset_initialized = true;
+                m_seeded_with_warmup_guess = (m_latest_jb_ms == 0.0);
                 qDebug().nospace()
                     << "[DT-diag] ts_us offset seeded: offset_ns=" << m_ts_capture_offset_ns
                     << " from queue entry " << std::distance(m_capture_queue.begin(), seed)
                     << "/" << m_capture_queue.size()
                     << " (seed_dc_age_ms=" << ((receivedSteadyNs - seed->dc_arrived_steady_ns) / 1'000'000)
+                    << " guess_ms=" << (video_lag_guess_ns / 1'000'000)
+                    << " latest_jb_ms=" << m_latest_jb_ms
+                    << " warmup_guess=" << m_seeded_with_warmup_guess
                     << ")";
             }
 
@@ -323,25 +360,41 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
                 entry = *best;
                 ts_match_diff_ns = best_diff;
                 used_ts_match = true;
+                match_pos_in_queue =
+                    static_cast<std::size_t>(std::distance(m_capture_queue.begin(), best));
                 ++m_ts_match_hits;
                 m_ts_consecutive_misses = 0;
-                // Drop everything up to and including the matched entry —
-                // older DCs correspond to frames that came before this one
-                // and are now orphaned (their frames either arrived earlier
-                // or were dropped between sender and decoder).
-                m_capture_queue.erase(m_capture_queue.begin(), std::next(best));
-                // EWMA refinement of the offset.  The offset is naturally
-                // ~1.78e18 ns (different epochs of capture_ns and ts_us*1000),
-                // so the delta form is required — `prior * 7` would overflow
-                // int64.  The delta itself is small (a few ms) for matches.
-                // Use the larger settling-window step while convergence is
-                // happening (post-reset), then drop to the steady divisor.
-                const qint64 observed_offset = frameTimestampUs * 1000 - entry.capture_ns;
-                const qint64 delta = observed_offset - m_ts_capture_offset_ns;
-                const qint64 ewma_divisor = (m_settling_samples_remaining > 0)
-                    ? SETTLING_EWMA_DIVISOR
-                    : STEADY_EWMA_DIVISOR;
-                m_ts_capture_offset_ns += delta / ewma_divisor;
+                // Erase only the matched entry.  Older DCs may still
+                // correspond to frames currently in libwebrtc's playout
+                // buffer — at convergence burst time, frames are emitted
+                // faster than DCs arrive, but each emitted frame must still
+                // pair with its true corresponding DC by ts_us, which may
+                // be older than the previous match.  Draining "everything
+                // older" empties the queue during the burst and leaves
+                // steady-state matches without the right DC to find,
+                // collapsing video_lag to a queue-depth artifact.
+                // Unmatched stale DCs age out via MAX_CAPTURE_QUEUE_SIZE.
+                m_capture_queue.erase(best);
+                // EWMA refinement of the offset is intentionally NOT applied
+                // here.  The offset between ts_us and capture_ns is the
+                // epoch difference between two camera-local clocks
+                // (libwebrtc RTP-derived microsecond timestamp and
+                // std::chrono::system_clock nanoseconds) — a constant on
+                // the timescale of a session.  EWMA refinement on every
+                // match introduces a positive-feedback loop in the
+                // presence of normal sub-millisecond match jitter: the
+                // matcher's predicted target shifts by the refinement
+                // each frame, biasing the next match in the same
+                // direction.  Across thousands of frames at α=1/8 the
+                // cumulative drift is visible in video_lag while JB
+                // stays stable.  The seed (computed once against JB)
+                // is accurate to within a frame or two; that residual
+                // bias is preferable to monotonic drift.
+                //
+                // If a real clock drift develops (camera-local clocks
+                // diverge over a long session), the matcher will start
+                // missing tolerance and trigger a reseed against the
+                // current JB stat — no per-sample refinement needed.
             } else {
                 // No DC within tolerance.  This frame's matching DC was
                 // probably lost in transit, or our offset is still off after
@@ -390,9 +443,11 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
             if (best != m_capture_queue.end() && best_diff <= ESTIMATED_LAG_TOLERANCE_NS) {
                 entry = *best;
                 ts_match_diff_ns = best_diff;
-                // Erase up to and including the matched entry — older DCs
-                // correspond to frames that came before this one.
-                m_capture_queue.erase(m_capture_queue.begin(), std::next(best));
+                match_pos_in_queue =
+                    static_cast<std::size_t>(std::distance(m_capture_queue.begin(), best));
+                // Erase only the matched entry — see comment in the ts_us
+                // path above for why draining "older" entries is wrong.
+                m_capture_queue.erase(best);
                 ++m_fifo_fallbacks;
                 // EWMA refinement: pull the estimate toward the observed lag.
                 // Larger step inside the post-reset settling window.
@@ -406,6 +461,7 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
                 // measurement still emits something for this frame, but it
                 // will be the queue-cap artifact value.
                 entry = m_capture_queue.front();
+                match_pos_in_queue = 0;
                 m_capture_queue.pop_front();
                 ++m_fifo_fallbacks;
             }
@@ -426,6 +482,20 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
     // director — the difference is unaffected by NTP corrections to the
     // system clock between the two reads.
     const double video_lag_ms = static_cast<double>(receivedSteadyNs - entry.dc_arrived_steady_ns) / 1e6;
+
+    // FIFO-parallel diagnostics: what video_lag would have been reported if
+    // we'd used the oldest DC currently in the queue, vs the newest.  These
+    // bracket the true video_lag — if the ts_us match is sound, the reported
+    // value sits somewhere reasonable inside [newest, oldest].  A persistent
+    // gap between video_lag_ms and video_lag_fifo_oldest_ms while the queue
+    // is deep (e.g. 50+ entries) is the smoking gun for the matcher picking
+    // too-new DCs.  Values are 0 when the queue was empty at match time.
+    const double video_lag_fifo_oldest_ms = (oldest_dc_arrived_steady_ns > 0)
+        ? static_cast<double>(receivedSteadyNs - oldest_dc_arrived_steady_ns) / 1e6
+        : 0.0;
+    const double video_lag_fifo_newest_ms = (newest_dc_arrived_steady_ns > 0)
+        ? static_cast<double>(receivedSteadyNs - newest_dc_arrived_steady_ns) / 1e6
+        : 0.0;
 
     const double gap_ms = displayGapMs();
     const double total_ms = dc_one_way_ms + video_lag_ms + gap_ms;
@@ -451,7 +521,10 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
             << " popped_capture_ns=" << entry.capture_ns
             << " popped_dc_arrived_steady_ns=" << entry.dc_arrived_steady_ns
             << " qsize_before_pop=" << qsize_before
+            << " match_pos=" << match_pos_in_queue
             << " video_lag_ms=" << (static_cast<double>(popped_age_ns) / 1'000'000.0)
+            << " vl_fifo_oldest_ms=" << video_lag_fifo_oldest_ms
+            << " vl_fifo_newest_ms=" << video_lag_fifo_newest_ms
             << " ts_match_diff_ms=" << (ts_match_diff_ns / 1'000'000)
             << " hits=" << m_ts_match_hits
             << " misses=" << m_ts_match_misses
@@ -461,10 +534,44 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
     qDebug() << "[DirectorTransport] Latency breakdown:"
              << "\n\tdc_one_way=" << dc_one_way_ms << "ms"
              << "\n\tvideo_lag=" << video_lag_ms << "ms"
+             << "\n\tvideo_lag_fifo_oldest=" << video_lag_fifo_oldest_ms << "ms"
+             << "\n\tvideo_lag_fifo_newest=" << video_lag_fifo_newest_ms << "ms"
+             << "\n\tqueue_depth=" << qsize_before
+             << "\n\tmatch_pos=" << match_pos_in_queue
              << "\n\tdisplay_gap=" << gap_ms << "ms"
              << "\n\ttotal=" << total_ms << "ms"
              << "\n\tclock_offset=" << (static_cast<double>(offset) / 1'000'000.0) << "ms"
              << "\n\tmatch=" << (used_ts_match ? "ts_us" : "fifo");
+
+    // Rolling summary: push current values into ring buffers and once per
+    // ROLLING_LOG_INTERVAL frames emit a single line with the running mean
+    // of every component.  The summary couples DT-side measurements (dc,
+    // video_lag, total) with the VideoTrack-side stats (jb, decode) so all
+    // attribution lives on one line.
+    m_rolling_dc_ms.at(m_rolling_idx) = dc_one_way_ms;
+    m_rolling_video_lag_ts_ms.at(m_rolling_idx) = video_lag_ms;
+    m_rolling_video_lag_fifo_ms.at(m_rolling_idx) = video_lag_fifo_oldest_ms;
+    m_rolling_total_ms.at(m_rolling_idx) = total_ms;
+    m_rolling_jb_ms.at(m_rolling_idx) = m_latest_jb_ms;
+    m_rolling_decode_ms.at(m_rolling_idx) = m_latest_decode_ms;
+    m_rolling_idx = (m_rolling_idx + 1) % ROLLING_WINDOW;
+    if (m_rolling_count < ROLLING_WINDOW) { ++m_rolling_count; }
+    if (m_frame_count > 0 && (m_frame_count % ROLLING_LOG_INTERVAL) == 0
+        && m_rolling_count > 0) {
+        const auto mean = [this](const std::array<double, ROLLING_WINDOW> &buf) {
+            double s = 0.0;
+            for (std::size_t i = 0; i < m_rolling_count; ++i) { s += buf.at(i); }
+            return s / static_cast<double>(m_rolling_count);
+        };
+        qDebug().nospace()
+            << "[DT-rolling] N=" << m_rolling_count
+            << " dc=" << mean(m_rolling_dc_ms) << "ms"
+            << " video_lag_ts=" << mean(m_rolling_video_lag_ts_ms) << "ms"
+            << " video_lag_fifo_oldest=" << mean(m_rolling_video_lag_fifo_ms) << "ms"
+            << " jb=" << mean(m_rolling_jb_ms) << "ms"
+            << " decode=" << mean(m_rolling_decode_ms) << "ms"
+            << " total=" << mean(m_rolling_total_ms) << "ms";
+    }
 
     // Settling window after a matcher reset: suppress emits while the EWMA
     // converges so the UI doesn't display the convergence walk (e.g. a slow
@@ -503,6 +610,44 @@ void DirectorTransport::onVideoStats(double jitterBufferMs, double decodeMs,
             return;
         }
     }
+    // Stash the latest values for the rolling summary in onFrameArrived.
+    // Fine to write without a lock: doubles, single writer per signal hop,
+    // and the summary only needs an approximately-current reading.
+    m_latest_jb_ms = jitterBufferMs;
+    m_latest_decode_ms = decodeMs;
+
+    // Race recovery: lean startup paths (e.g. test_e2e_latency) can seed
+    // the matcher before the 1 Hz video-stats poll has produced its first
+    // delta sample.  When that happens, currentVideoLagGuessNs() falls
+    // back to the 1 s warmup constant and the matcher picks a DC ~1 s
+    // older than reality, locking in a self-reinforcing bias.  Once the
+    // JB stat has had a few readings to converge (the first reading can
+    // be ~10-50 ms while libwebrtc's buffer is still ramping up — using
+    // it as the guess would just swap one bias for another), force a
+    // single reseed against the now-stable JB number.
+    //
+    // Gated on m_seeded_with_warmup_guess (set only when the seed itself
+    // ran with latest_jb_ms == 0) so transient JB=0 readings during
+    // pipeline freezes do NOT keep re-triggering the recovery on every
+    // pause-resume cycle.
+    if (m_seeded_with_warmup_guess && m_latest_jb_ms > 0.0 && m_ts_offset_initialized) {
+        ++m_jb_stats_since_warmup_seed;
+        if (m_jb_stats_since_warmup_seed >= JB_STATS_BEFORE_RESEED) {
+            qDebug().nospace()
+                << "[DT-diag] forcing reseed after " << m_jb_stats_since_warmup_seed
+                << " JB stats (current jb=" << m_latest_jb_ms
+                << " ms), prior seed used 1 s warmup guess";
+            m_ts_offset_initialized = false;
+            m_ts_consecutive_misses = 0;
+            m_seeded_with_warmup_guess = false;
+            m_jb_stats_since_warmup_seed = 0;
+        }
+    }
+
+    qDebug().nospace() << "[DirectorTransport] Video stats: jitter_buffer="
+                       << jitterBufferMs << "ms decode=" << decodeMs
+                       << "ms network_jitter=" << networkJitterMs
+                       << "ms fps=" << framesPerSecond;
     emit videoStatsBreakdown(jitterBufferMs, decodeMs, networkJitterMs, framesPerSecond);
 }
 
