@@ -106,7 +106,7 @@ Physical validation: stopwatch held in front of the camera, screens compared sid
 
 ### Initial misreading: the "architectural floor" that wasn't
 
-For most of the project's early life the reported total sat at ~900–1000 ms regardless of GKE configuration, GOP size, RTP playout-delay extensions, or in-tree `SetJitterBufferMinimumDelay` patches. The conclusion (recorded in ADR-0002) was that the LiveKit + Ingress + WHIP stack imposes a ~1 s architectural floor across its in-series jitter buffers and that no config knob would meaningfully move it.
+For most of the project's early life the reported total sat at ~900–1000 ms regardless of GKE configuration, GOP size, RTP playout-delay extensions, or in-tree `SetJitterBufferMinimumDelay` patches. The conclusion at the time was that the LiveKit + Ingress + WHIP stack imposes a ~1 s architectural floor across its in-series jitter buffers and that no config knob would meaningfully move it.
 
 That conclusion was **wrong** — driven by a bug in the DC matcher, not by the LiveKit pipeline:
 
@@ -114,9 +114,7 @@ That conclusion was **wrong** — driven by a bug in the DC matcher, not by the 
 - In steady state the queue was left with only 1–2 DCs, both very recently arrived. Subsequent matches had no candidate older than the current frame, so the matcher always reported `video_lag` ≈ queue-depth × frame-interval — independent of the real DC-to-frame timing.
 - The reported ~900–1000 ms was the *warmup* queue depth (~60 entries × ~33 ms × the queue-cap eviction dynamics), not anything libwebrtc was actually doing.
 
-The fix (see `directortransport.cpp`) is to erase only the matched entry on each match and let unmatched stale DCs age out via the queue cap. After that change, `video_lag` correctly tracks libwebrtc's `jitter_buffer_delay` and the total reports ~194 ms — well within the sub-second range LiveKit was always capable of.
-
-ADR-0002's "architectural floor" claim should be retracted; the configuration attempts logged there (RTP playout-delay extensions, JWT `MaxPlayoutDelay`, etc.) were correct approaches that were obscured by the matcher artifact.
+The fix (see `directortransport.cpp`) is to erase only the matched entry on each match and let unmatched stale DCs age out via the queue cap. After that change, `video_lag` correctly tracks libwebrtc's `jitter_buffer_delay` and the total reports ~194 ms — well within the sub-second range LiveKit was always capable of. The configuration attempts that were tried against the supposed floor (RTP playout-delay extensions, JWT `MaxPlayoutDelay`, in-tree `SetJitterBufferMinimumDelay` patches) were correct approaches whose effect was obscured by the matcher artifact and can be revisited if a future tuning pass is needed.
 
 ### Camera-side pipeline reduction (deployed, ~170 ms saved)
 
