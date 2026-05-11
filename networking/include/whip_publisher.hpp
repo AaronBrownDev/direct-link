@@ -50,16 +50,20 @@ public:
 
 private:
     void logBusError();
-    // Locate rtpbin inside webrtcbin and hook its "pad-added" signal so we
-    // can attach the buffer probe to send_rtp_src_* the moment it appears.
-    // Called once the pipeline reaches PLAYING; idempotent.
+    // Hook webrtcbin's "deep-element-added" signal so the buffer probe gets
+    // attached to nicesink's sink pad the moment that element appears
+    // anywhere in the webrtcbin tree (it lives inside a transport_send_bin
+    // that's created lazily after DTLS negotiation).  Also eagerly checks
+    // for an existing nicesink in case the signal already fired by hook
+    // time.  Called once the pipeline reaches PLAYING; idempotent.
     void setupSendDelayProbeListener();
-    // Attach the buffer probe to a pad we know is the post-pacer point.
-    // Called from the pad-added signal handler, and (for safety) once from
-    // setupSendDelayProbeListener if the pad already exists at hook time.
+    // Attach the buffer probe to a pad.  Called from the deep-element-added
+    // handler with nicesink's sink pad; also called from the eager check
+    // in setupSendDelayProbeListener if a nicesink already exists.
     void attachSendDelayProbe(GstPad *pad);
     // Static trampolines for GLib signal / pad-probe callbacks.
-    static void onRtpbinPadAdded(GstElement *rtpbin, GstPad *new_pad, gpointer user_data);
+    static void onDeepElementAdded(GstBin *bin, GstBin *subbin,
+                                   GstElement *element, gpointer user_data);
     static GstPadProbeReturn sendDelayProbe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
 
     std::string whipUrl_;
@@ -88,10 +92,12 @@ private:
     std::atomic<double> last_send_delay_ms_{0.0};
     std::uint64_t delay_sum_ns_ = 0;
     std::uint32_t delay_count_ = 0;
-    // rtpbin we hooked pad-added on, retained so stop() can disconnect.
-    GstElement *delay_rtpbin_ = nullptr;
-    gulong delay_pad_added_id_ = 0;
-    // The probe pad we attached to, retained so stop() can remove the probe.
+    // webrtcbin we hooked deep-element-added on, retained so stop() can
+    // disconnect the signal cleanly.
+    GstElement *delay_webrtcbin_ = nullptr;
+    gulong delay_deep_added_id_ = 0;
+    // The probe pad we attached to (nicesink:sink), retained so stop() can
+    // remove the probe before the pipeline is torn down.
     GstPad *delay_probe_pad_ = nullptr;
     gulong delay_probe_id_ = 0;
     static constexpr std::uint32_t SEND_DELAY_WINDOW = 60; // ~2 s at 30 fps

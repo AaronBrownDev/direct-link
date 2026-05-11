@@ -8,39 +8,29 @@
 namespace networking {
 
 namespace {
-// Find rtpbin inside whipsink → webrtcbin.  rtpbin is a static child of
-// webrtcbin (created at webrtcbin instantiation), so it exists once
-// webrtcbin exists — unlike its send_rtp_src_* pads, which are request
-// pads created lazily when the session's transport is wired up after
-// DTLS negotiates with the remote.  Caller owns the returned reference.
-GstElement *findRtpbinInside(GstElement *pipeline) {
+// Find the WHIP webrtcbin inside the outer whipsink wrapper.  webrtcbin is
+// the top-level WebRTC element; nicesink (our probe target) lives inside
+// its lazily-created transport_send_bin and is reached via the
+// "deep-element-added" signal on this webrtcbin.  Caller owns the returned
+// reference.
+GstElement *findWebrtcbinInside(GstElement *pipeline) {
     if (pipeline == nullptr) { return nullptr; }
     GstElement *whipsink = gst_bin_get_by_name(GST_BIN(pipeline), "whip-sink");
     if (whipsink == nullptr) { return nullptr; }
     GstElement *webrtcbin = gst_bin_get_by_name(GST_BIN(whipsink), "whip-webrtcbin");
     gst_object_unref(whipsink);
-    if (webrtcbin == nullptr) { return nullptr; }
+    return webrtcbin;
+}
 
-    GstElement *rtpbin = nullptr;
-    GstIterator *it = gst_bin_iterate_elements(GST_BIN(webrtcbin));
-    GValue v = G_VALUE_INIT;
-    while (gst_iterator_next(it, &v) == GST_ITERATOR_OK) {
-        auto *child = static_cast<GstElement *>(g_value_get_object(&v));
-        GstElementFactory *factory = gst_element_get_factory(child);
-        if (factory != nullptr) {
-            const gchar *fname = GST_OBJECT_NAME(GST_OBJECT_CAST(factory));
-            if (fname != nullptr && std::strstr(fname, "rtpbin") != nullptr) {
-                rtpbin = GST_ELEMENT(gst_object_ref(child));
-                g_value_reset(&v);
-                break;
-            }
-        }
-        g_value_reset(&v);
-    }
-    g_value_unset(&v);
-    gst_iterator_free(it);
-    gst_object_unref(webrtcbin);
-    return rtpbin;
+// Returns true iff the element's factory matches the given factory name
+// (e.g. "nicesink").  Compared by strstr to tolerate the gst-plugins-bad
+// quirk of plugin-prefixed names ("nicesink", "tcpserversink", etc.).
+bool elementFactoryNameContains(GstElement *element, const char *needle) {
+    if (element == nullptr) { return false; }
+    GstElementFactory *factory = gst_element_get_factory(element);
+    if (factory == nullptr) { return false; }
+    const gchar *fname = GST_OBJECT_NAME(GST_OBJECT_CAST(factory));
+    return fname != nullptr && std::strstr(fname, needle) != nullptr;
 }
 } // namespace
 
@@ -126,54 +116,65 @@ void WHIPPublisher::attachSendDelayProbe(GstPad *pad) {
     delay_probe_id_ = gst_pad_add_probe(delay_probe_pad_,
                                         GST_PAD_PROBE_TYPE_BUFFER,
                                         &WHIPPublisher::sendDelayProbe, this, nullptr);
+    GstElement *parent = gst_pad_get_parent_element(delay_probe_pad_);
     std::cerr << "[WHIPPublisher] send-delay probe attached at "
-              << GST_PAD_NAME(delay_probe_pad_) << "\n";
+              << (parent ? GST_OBJECT_NAME(parent) : "?")
+              << ":" << GST_PAD_NAME(delay_probe_pad_) << "\n";
+    if (parent != nullptr) { gst_object_unref(parent); }
 }
 
-void WHIPPublisher::onRtpbinPadAdded(GstElement * /*rtpbin*/, GstPad *new_pad,
-                                     gpointer user_data) {
+void WHIPPublisher::onDeepElementAdded(GstBin * /*bin*/, GstBin * /*subbin*/,
+                                       GstElement *element, gpointer user_data) {
     auto *self = static_cast<WHIPPublisher *>(user_data);
-    if (self == nullptr || new_pad == nullptr) { return; }
-    const gchar *name = GST_PAD_NAME(new_pad);
-    if (name == nullptr || std::strstr(name, "send_rtp_src") == nullptr) {
-        return; // not the pad we want
+    if (self == nullptr || element == nullptr) { return; }
+    if (!elementFactoryNameContains(element, "nicesink")) {
+        return; // not the element we want
     }
-    self->attachSendDelayProbe(new_pad);
+    GstPad *pad = gst_element_get_static_pad(element, "sink");
+    if (pad != nullptr) {
+        self->attachSendDelayProbe(pad);
+        gst_object_unref(pad);
+    }
 }
 
 void WHIPPublisher::setupSendDelayProbeListener() {
-    if (pipeline_ == nullptr || delay_rtpbin_ != nullptr) {
+    if (pipeline_ == nullptr || delay_webrtcbin_ != nullptr) {
         return;
     }
-    GstElement *rtpbin = findRtpbinInside(pipeline_);
-    if (rtpbin == nullptr) {
-        std::cerr << "[WHIPPublisher] send-delay probe: rtpbin not found "
-                     "inside webrtcbin, sender_delay will stay 0\n";
+    GstElement *webrtcbin = findWebrtcbinInside(pipeline_);
+    if (webrtcbin == nullptr) {
+        std::cerr << "[WHIPPublisher] send-delay probe: webrtcbin not found, "
+                     "sender_delay will stay 0\n";
         return;
     }
-    delay_rtpbin_ = rtpbin; // own this ref
-    delay_pad_added_id_ = g_signal_connect(rtpbin, "pad-added",
-                                           G_CALLBACK(&WHIPPublisher::onRtpbinPadAdded),
-                                           this);
-    // The pad might already exist if the pipeline got there before us;
-    // check once eagerly so we don't miss it.  iterate_src_pads enumerates
-    // request pads that have already been created.
-    GstIterator *pit = gst_element_iterate_src_pads(rtpbin);
-    GValue pv = G_VALUE_INIT;
-    while (gst_iterator_next(pit, &pv) == GST_ITERATOR_OK) {
-        auto *pad = static_cast<GstPad *>(g_value_get_object(&pv));
-        const gchar *pname = GST_PAD_NAME(pad);
-        if (pname != nullptr && std::strstr(pname, "send_rtp_src") != nullptr) {
-            attachSendDelayProbe(pad);
-            g_value_reset(&pv);
+    delay_webrtcbin_ = webrtcbin; // own this ref
+    // deep-element-added fires whenever an element is added anywhere in the
+    // webrtcbin tree (recursively into transport_send_bin etc.), which is
+    // exactly when nicesink gets created post-DTLS-negotiation.
+    delay_deep_added_id_ = g_signal_connect(webrtcbin, "deep-element-added",
+                                            G_CALLBACK(&WHIPPublisher::onDeepElementAdded),
+                                            this);
+    // Eager check: if the pipeline raced past nicesink creation before we
+    // hooked the signal, find it by recursive iteration.
+    GstIterator *it = gst_bin_iterate_recurse(GST_BIN(webrtcbin));
+    GValue v = G_VALUE_INIT;
+    while (gst_iterator_next(it, &v) == GST_ITERATOR_OK) {
+        auto *e = static_cast<GstElement *>(g_value_get_object(&v));
+        if (elementFactoryNameContains(e, "nicesink")) {
+            GstPad *pad = gst_element_get_static_pad(e, "sink");
+            if (pad != nullptr) {
+                attachSendDelayProbe(pad);
+                gst_object_unref(pad);
+            }
+            g_value_reset(&v);
             break;
         }
-        g_value_reset(&pv);
+        g_value_reset(&v);
     }
-    g_value_unset(&pv);
-    gst_iterator_free(pit);
+    g_value_unset(&v);
+    gst_iterator_free(it);
     std::cerr << "[WHIPPublisher] send-delay probe: listening for "
-                 "send_rtp_src on rtpbin\n";
+                 "nicesink under webrtcbin\n";
 }
 
 Result
@@ -490,13 +491,13 @@ Result WHIPPublisher::stop() {
         gst_object_unref(delay_probe_pad_);
         delay_probe_pad_ = nullptr;
     }
-    if (delay_rtpbin_ != nullptr) {
-        if (delay_pad_added_id_ != 0) {
-            g_signal_handler_disconnect(delay_rtpbin_, delay_pad_added_id_);
-            delay_pad_added_id_ = 0;
+    if (delay_webrtcbin_ != nullptr) {
+        if (delay_deep_added_id_ != 0) {
+            g_signal_handler_disconnect(delay_webrtcbin_, delay_deep_added_id_);
+            delay_deep_added_id_ = 0;
         }
-        gst_object_unref(delay_rtpbin_);
-        delay_rtpbin_ = nullptr;
+        gst_object_unref(delay_webrtcbin_);
+        delay_webrtcbin_ = nullptr;
     }
 
     // Signal end of stream — flushes encoder and whipsink downstream
