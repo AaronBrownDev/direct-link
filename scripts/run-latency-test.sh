@@ -37,12 +37,14 @@ set -u
 SERVER="http://34.174.71.83:50051"
 SAMPLES=5000
 REBUILD=1
+BENCHMARK=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --server)     SERVER="$2"; shift 2 ;;
-        --samples)    SAMPLES="$2"; shift 2 ;;
-        --no-rebuild) REBUILD=0; shift ;;
+        --server)            SERVER="$2"; shift 2 ;;
+        --samples)           SAMPLES="$2"; shift 2 ;;
+        --no-rebuild)        REBUILD=0; shift ;;
+        --benchmark-latency) BENCHMARK=1; shift ;;
         -h|--help)
             sed -n '2,24p' "$0" | sed 's/^# //; s/^#//'
             exit 0
@@ -176,9 +178,13 @@ EST_SECONDS=$(( SAMPLES / 8 + 20 ))
 echo "==> Running test (estimated ~${EST_SECONDS}s for ${SAMPLES} samples)..."
 START_NS="$(date +%s%N)"
 set +e
+EXTRA_ARGS=()
+if [[ $BENCHMARK -eq 1 ]]; then
+    EXTRA_ARGS+=(--benchmark-latency)
+fi
 QT_FORCE_STDERR_LOGGING=1 \
 QT_LOGGING_RULES="*.debug=true;qt.*=false" \
-stdbuf -oL -eL "${BIN}" --server "${SERVER}" --samples "${SAMPLES}" \
+stdbuf -oL -eL "${BIN}" --server "${SERVER}" --samples "${SAMPLES}" "${EXTRA_ARGS[@]}" \
     > "${WORKDIR}/run.log" 2>&1
 TEST_EXIT=$?
 set -e

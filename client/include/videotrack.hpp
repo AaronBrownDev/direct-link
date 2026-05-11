@@ -98,6 +98,15 @@ class VideoTrack : public QObject {
         void videoStats(double jitterBufferMs, double decodeMs,
                         double networkJitterMs, double framesPerSecond,
                         const QString &participantIdentity);
+        // Benchmark-mode ground-truth latency.  Emitted per frame when the
+        // camera-side latency overlay was successfully decoded from the Y
+        // plane.  decodedServerNs is the camera-side server-domain
+        // timestamp the camera embedded into the captured pixels;
+        // receivedWallNs is the director's local wall clock at frame
+        // read-out.  DirectorTransport pairs them with its own clock
+        // offset to compute capture-to-receive latency without any matcher
+        // involvement — the gold-standard measurement.
+        void benchmarkOverlayDecoded(qint64 decodedServerNs, qint64 receivedWallNs);
 
     private:
         std::unique_ptr<FrameReader> m_frameReader;

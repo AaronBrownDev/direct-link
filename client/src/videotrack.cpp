@@ -3,10 +3,13 @@
 #include <QDebug>
 #include <QPointer>
 #include <livekit/stats.h>
+#include <livekit/video_frame.h>
 
 #include <chrono>
 #include <variant>
 #include <vector>
+
+#include "../../video-core/include/common/latency_overlay.hpp"
 
 VideoTrack::VideoTrack(QObject *parent) : QObject{parent} {
     m_frameReader = std::make_unique<FrameReader>();
@@ -241,6 +244,33 @@ void VideoTrack::readLoop() {
         }
 
         const qint64 frame_ts_us = event.timestamp_us;
+
+        // Benchmark-mode overlay decode.  Sample the top-left 128x128
+        // black/white pattern the camera drew into the Y plane (when run
+        // with --benchmark-latency) and recover the embedded
+        // server-domain capture timestamp.  Must happen before the
+        // std::move below — pushFrame consumes event.frame.  The decode
+        // gracefully no-ops on frames that don't carry the overlay (it
+        // requires 90% of cells to be clearly black/white before
+        // accepting), so normal frames pass through untouched.
+        if (videoCore::benchmark::isLatencyOverlayEnabled() &&
+            event.frame.type() == livekit::VideoBufferType::I420) {
+            const auto planes = event.frame.planeInfos();
+            if (!planes.empty() && planes[0].data_ptr != 0) {
+                const auto *y_data = reinterpret_cast<const std::uint8_t *>(planes[0].data_ptr);
+                std::uint64_t decoded = 0;
+                if (videoCore::decodeTimestampOverlay(
+                        y_data, static_cast<int>(planes[0].stride),
+                        event.frame.width(), event.frame.height(), &decoded)) {
+                    const qint64 received_wall_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    const auto decoded_signed = static_cast<qint64>(decoded);
+                    QMetaObject::invokeMethod(this, [this, decoded_signed, received_wall_ns]() {
+                        emit benchmarkOverlayDecoded(decoded_signed, received_wall_ns);
+                    }, Qt::QueuedConnection);
+                }
+            }
+        }
 
         if (m_frameReader->videoSink() != nullptr) {
             m_frameReader->pushFrame(std::move(event.frame));

@@ -60,6 +60,12 @@ ColumnLayout {
     property double decode_ms: 0.0
     property double network_jitter_ms: 0.0
     property double frames_per_second: 0.0
+    // Benchmark-mode ground-truth latency from the camera-side overlay.
+    // Only non-zero when direct-link was launched with --benchmark-latency
+    // and the overlay successfully decodes from each frame's Y plane.
+    // SessionInfo shows it alongside the matcher's total so the two can
+    // be visually compared (and stopwatch-checked).
+    property double benchmark_latency_ms: 0.0
     property int video_width: 0
     property int video_height: 0
 
@@ -109,6 +115,10 @@ ColumnLayout {
                                        - dl_root_layout.jitter_buffer_ms
                                        - dl_root_layout.decode_ms)
         show_latency: dl_root_layout.user_type === UserRole.director
+        // Pass through the latest overlay reading.  SessionInfo only
+        // renders it when > 0, so production users (no --benchmark-latency
+        // flag) see the existing layout unchanged.
+        benchmark_latency_ms: dl_root_layout.benchmark_latency_ms
         video_width: dl_root_layout.video_width
         video_height: dl_root_layout.video_height
     }
@@ -164,6 +174,10 @@ ColumnLayout {
             dl_root_layout.decode_ms = decMs;
             dl_root_layout.network_jitter_ms = netJitterMs;
             dl_root_layout.frames_per_second = fps;
+        }
+
+        function onBenchmarkLatency(latencyMs) {
+            dl_root_layout.benchmark_latency_ms = latencyMs;
         }
 
         function onVideoResolutionChanged(w, h) {

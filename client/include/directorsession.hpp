@@ -62,6 +62,10 @@ class DirectorSession : public QObject {
                         const QString &participantIdentity);
         // Forwarded from the first VideoTrack that reports a valid resolution.
         void videoResolutionChanged(int width, int height);
+        // Forwarded from VideoTrack::benchmarkOverlayDecoded.  Only emitted
+        // when --benchmark-latency is active on both ends and the camera
+        // drew a valid timestamp into each frame's Y plane.
+        void benchmarkOverlayDecoded(qint64 decodedServerNs, qint64 receivedWallNs);
 
     private:
         std::map<std::string, std::unique_ptr<VideoTrack>> m_trackMap;

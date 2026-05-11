@@ -16,6 +16,12 @@ RowLayout {
     property double upstream_video_ms: 0.0
     property double jitter_buffer_ms: 0.0
     property double decode_ms: 0.0
+    // Ground-truth latency from the benchmark-mode video overlay.  Only
+    // non-zero when direct-link was launched with --benchmark-latency
+    // and the camera-side overlay was decoded from the Y plane.  Rendered
+    // as a second small label below the matcher's total so the two can be
+    // compared at a glance — useful when stopwatch-validating.
+    property double benchmark_latency_ms: 0.0
     property bool show_latency: true
     property int video_width: 0
     property int video_height: 0
@@ -94,6 +100,23 @@ RowLayout {
                 color: Theme.textWhite
                 font.pointSize: 9
             }
+        }
+
+        // Benchmark-mode overlay reading, shown below the breakdown row.
+        // Only visible when --benchmark-latency is on the producer too
+        // (otherwise benchmark_latency_ms stays at 0 and this row hides).
+        // Includes display_gap so the number is directly comparable to the
+        // matcher's headline `latency_ms` total.
+        Text {
+            visible: dl_layout_session_info.benchmark_latency_ms > 0
+            text: "Bench " +
+                  Math.round(dl_layout_session_info.benchmark_latency_ms +
+                             dl_layout_session_info.display_gap_ms) +
+                  "ms (truth)"
+            color: Theme.textWhite
+            font.pointSize: 10
+            font.bold: true
+            Layout.alignment: Qt.AlignHCenter
         }
     }
 

@@ -36,6 +36,14 @@ public:
     Q_INVOKABLE void start(const QString &whipUrl, const QString &streamKey);
     Q_INVOKABLE void stop();
 
+    // Updates the camera-to-server clock offset used by the benchmark-mode
+    // latency overlay to convert the local capture wall time to a
+    // server-domain timestamp before drawing it into each captured frame.
+    // QML wires this from SessionClient::clockOffsetNs so the same offset
+    // CameraLatencySender uses for DC payloads also stamps the overlay.
+    // No-op when the overlay is disabled.
+    Q_INVOKABLE void setClockOffsetNs(qint64 offsetNs);
+
     // Enumerate available cameras.  Returns a list of QVariantMap entries
     // with keys: "id" (string, opaque identifier), "name" (display name),
     // "source" (e.g. "v4l2", "pipewire").  Safe to call from QML; performs
@@ -105,4 +113,9 @@ private:
     // forwards it via senderDelayMsChanged for QML/test wiring.
     QTimer *senderDelayTimer_ = nullptr;
     static constexpr int SENDER_DELAY_POLL_INTERVAL_MS = 1000;
+
+    // Camera-side clock offset (server_ns - local_wall_ns).  Updated via
+    // setClockOffsetNs from QML; read on the capture thread by the preview
+    // callback when the benchmark latency overlay is enabled.
+    std::atomic<qint64> clock_offset_ns_{0};
 };

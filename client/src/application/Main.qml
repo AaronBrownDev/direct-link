@@ -264,6 +264,7 @@ Window {
         function onClockOffsetChanged() {
             DirectorTransport.setClockOffset(SessionClient.clockOffsetNs);
             CameraLatencySender.setClockOffset(SessionClient.clockOffsetNs);
+            CameraSessionController.setClockOffsetNs(SessionClient.clockOffsetNs);
         }
 
         function onSessionCreated(roomCode) {

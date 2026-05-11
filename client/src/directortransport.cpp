@@ -714,6 +714,25 @@ void DirectorTransport::onVideoStats(double jitterBufferMs, double decodeMs,
     emit videoStatsBreakdown(jitterBufferMs, decodeMs, networkJitterMs, framesPerSecond);
 }
 
+void DirectorTransport::onBenchmarkOverlayDecoded(qint64 decodedServerNs,
+                                                  qint64 receivedWallNs) {
+    // The camera embedded (camera_wall_ns + camera_clock_offset_ns) — that's
+    // server-domain time at capture.  At receive on the director, server-
+    // domain time is (receivedWallNs + director_clock_offset_ns).  The
+    // difference is the wall-clock interval between capture and frame
+    // emergence from libwebrtc, which is exactly the camera→app pipeline
+    // latency including every server-side buffer no client-side telemetry
+    // can see.
+    const qint64 offset = m_clock_offset_ns.load(std::memory_order_relaxed);
+    const qint64 receive_server_ns = receivedWallNs + offset;
+    const double latency_ms = static_cast<double>(receive_server_ns - decodedServerNs) / 1e6;
+    qDebug().nospace()
+        << "[benchmark] overlay capture_to_receive_ms=" << latency_ms
+        << " decoded_server_ns=" << decodedServerNs
+        << " receive_server_ns=" << receive_server_ns;
+    emit benchmarkLatency(latency_ms);
+}
+
 void DirectorTransport::onFrameSwapped(qint64 swapSteadyNs) {
     if (!m_frame_pending) { return; }
     m_frame_pending = false;
@@ -791,6 +810,8 @@ void DirectorTransport::connectToRoom(const QString &token, const QString &url) 
                     this, &DirectorTransport::onVideoStats);
             connect(m_session.get(), &DirectorSession::videoResolutionChanged,
                     this, &DirectorTransport::videoResolutionChanged);
+            connect(m_session.get(), &DirectorSession::benchmarkOverlayDecoded,
+                    this, &DirectorTransport::onBenchmarkOverlayDecoded);
             qDebug() << "[DirectorTransport] Connected.";
             emit sessionChanged();
             emit connected();

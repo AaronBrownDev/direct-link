@@ -1,5 +1,6 @@
 #include "session_controller.hpp"
 #include "../../../video-core/include/capture/camera_enumerator.hpp"
+#include "../../../video-core/include/common/latency_overlay.hpp"
 
 #include <QDebug>
 #include <QPointer>
@@ -71,6 +72,26 @@ void CameraSessionController::start(const QString &whipUrl,
                     self->pts_to_capture_ns_.erase(self->pts_to_capture_ns_.begin());
                 }
                 self->pts_to_capture_ns_[frame.pts] = {capture_wall_ns, capture_steady_ns};
+            }
+
+            // Benchmark-only ground-truth latency overlay.  Encodes the
+            // capture moment in server time onto the Y plane so the receiver
+            // can recover it post-decode and compute true end-to-end latency
+            // without involving the DC matcher.  Visible 128x128 artifact in
+            // the top-left corner — gated on a process-wide flag set only
+            // by --benchmark-latency at startup, so this is a no-op for
+            // production runs.
+            if (self && videoCore::benchmark::isLatencyOverlayEnabled() &&
+                frame.frame != nullptr) {
+                const qint64 offset = self->clock_offset_ns_.load(std::memory_order_relaxed);
+                const auto server_time_ns =
+                    static_cast<std::uint64_t>(capture_wall_ns + offset);
+                // The capture pipeline owns the AVFrame's lifetime past the
+                // callback's return (it gets queued for encode after this).
+                // const_cast is honest about what we're doing: mutating
+                // pixels in place for the downstream encode.
+                videoCore::drawTimestampOverlay(
+                    const_cast<::AVFrame *>(frame.frame.get()), server_time_ns);
             }
 
             if (sink == nullptr || frame.frame == nullptr) {
@@ -235,6 +256,10 @@ QVariantList CameraSessionController::listCameras() {
         result.append(entry);
     }
     return result;
+}
+
+void CameraSessionController::setClockOffsetNs(qint64 offsetNs) {
+    clock_offset_ns_.store(offsetNs, std::memory_order_relaxed);
 }
 
 void CameraSessionController::setSelectedCamera(const QString &id) {

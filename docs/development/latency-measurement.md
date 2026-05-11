@@ -158,9 +158,32 @@ The timestamp-based and estimated-lag matchers (see "Component matching" above) 
 
 libwebrtc's `jitter_buffer_delay` stat is **director-side only** — it counts from "first packet at libwebrtc receiver" to "frame emitted from playout buffer." It does not include the time spent in the camera-side `webrtcbin` pacer + RTX/NACK retransmit buffer, which can be 100–300 ms on a lossy WiFi or LEO satellite link.
 
-To close that gap, `WHIPPublisher` attaches a buffer probe to `rtpbin`'s `send_rtp_src_*` pad inside `webrtcbin` (post-pacer, post-retransmit-injection). Each probed buffer's PTS — set at appsrc push by `do-timestamp=TRUE` — is compared to the pipeline's current `running_time` at the probe; the difference is the wall-clock dwell time of that packet through h264parse + rtph264pay + webrtcbin's send pipeline. A rolling mean over the most recent ~60 probed buffers is exposed via `WHIPPublisher::senderPacketDelayMs`, polled at 1 Hz by `CameraSessionController`, forwarded to `CameraLatencySender`, and shipped in the DC payload's v2 trailing `uint32`. `DirectorTransport::currentVideoLagGuessNs` adds it to JB so the matcher seeds against the true camera-to-receiver delay rather than just the receive-side buffer.
+To close that gap, `WHIPPublisher` attaches a buffer probe to `nicesink:sink` inside `webrtcbin` (the deepest reachable point — past the RTX queue, past DTLS encryption, just before UDP send). Each probed buffer's PTS — set at appsrc push by `do-timestamp=TRUE` — is compared to the pipeline's current `running_time` at the probe; the difference is the wall-clock dwell time of that packet through the entire send chain. The mean over the most recent ~60 probed buffers is exposed via `WHIPPublisher::senderPacketDelayMs`, polled at 1 Hz by `CameraSessionController`, forwarded to `CameraLatencySender`, and shipped in the DC payload's v2 trailing `uint32`. `DirectorTransport::currentVideoLagGuessNs` adds it to JB so the matcher seeds against the true camera-to-receiver delay rather than just the receive-side buffer.
 
-If the probe pad isn't found (different GStreamer version, plugin layout change), the probe is a no-op and `sender_delay` stays 0 — the matcher falls back to the JB-only seed, same as before this measurement was added.
+If the probe pad isn't found (different GStreamer version, plugin layout change), the probe is a no-op and `sender_delay` stays 0 — the matcher falls back to the JB-only seed, same as before this measurement was added. Empirically, on healthy paths webrtcbin doesn't hold packets, so `sender_delay` reads ~0 even with the probe wired correctly.
+
+---
+
+## Benchmark mode: ground-truth overlay
+
+The matcher's accuracy is bounded by what it can observe from the client side (JB, sender-pacing probe at best). Server-side buffers in LiveKit Ingress and the SFU forwarder are invisible to it, and on real paths the residual gap to physical observation is typically 30–100 ms.
+
+For absolute end-to-end measurement, run with `--benchmark-latency`. In benchmark mode:
+
+- **Camera side:** before encode, `drawTimestampOverlay` writes the server-domain capture time (`capture_wall_ns + clock_offset_ns`) as 64 bits into the top-left 128×128 corner of every captured frame — an 8×8 grid of 16×16 black/white cells. The pattern survives H.264 DCT quantization at any reasonable bitrate.
+- **Director side:** in `VideoTrack::readLoop`, after each decoded frame, `decodeTimestampOverlay` samples the center 8×8 of each cell, requires ≥90% high-contrast hits before accepting, and recovers the 64-bit value. `DirectorTransport::onBenchmarkOverlayDecoded` computes `latency_ms = (director_now_server_ns - decoded_value_ns) / 1e6` and emits `benchmarkLatency`. This is the genuine wall-clock interval from camera capture to frame visible at the receiver, including every server-side buffer the matcher cannot see.
+
+The overlay rides inside the video pixels through encode, WHIP, Ingress, SFU, libwebrtc jitter buffer, and decode, so the measurement is independent of the DC matcher and immune to clock-sync drift between any intermediary. Clock sync between camera and director (both to the signaling server's `GetServerTime`) is the only shared dependency, contributing ~0.5 ms of error.
+
+**Use cases:**
+- Validating matcher accuracy against ground truth on a given network.
+- Calibrating a per-deployment offset to apply to matcher output if its bias is consistent.
+- Benchmarking infrastructure changes (Ingress version bumps, codec swaps, GOP tuning).
+- Measuring precisely during demos and regression tests.
+
+**Trade-off:** visible 128×128 black/white square in the top-left of the video. Only suitable for tests — not for production. The flag is off by default.
+
+Pass `--benchmark-latency` to both `direct-link` and the test runner. `scripts/run-latency-test.sh --benchmark-latency` enables it for the headless test.
 
 ---
 

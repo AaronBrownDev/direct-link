@@ -121,6 +121,16 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
                                  double networkJitterMs, double framesPerSecond);
         // Emitted once when the first decoded frame with valid dimensions arrives.
         void videoResolutionChanged(int width, int height);
+        // Benchmark-mode ground-truth latency in ms, per decoded frame.
+        // Computed from the camera-side timestamp overlay embedded in the
+        // Y plane: (this director's server-time-now) - (camera's embedded
+        // server-time-at-capture).  Does not depend on the DC matcher,
+        // captures everything the camera pipeline emits to the wire all
+        // the way through libwebrtc's playout buffer and decode, and
+        // closes the gap that camera-side webrtcbin pacing measurements
+        // can't see.  Only fires when --benchmark-latency is set on both
+        // ends and the overlay successfully decodes.
+        void benchmarkLatency(double latencyMs);
 
     private:
         Q_SLOT void onFrameArrived(qint64 receivedSteadyNs, qint64 frameTimestampUs,
@@ -136,6 +146,12 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         Q_SLOT void onVideoStats(double jitterBufferMs, double decodeMs,
                                  double networkJitterMs, double framesPerSecond,
                                  const QString &participantIdentity);
+        // Benchmark-mode: receive the decoded overlay timestamp from
+        // VideoTrack via DirectorSession, convert the local receive wall
+        // time to server domain using m_clock_offset_ns, and emit
+        // benchmarkLatency(ms) with the absolute capture→receive delay.
+        Q_SLOT void onBenchmarkOverlayDecoded(qint64 decodedServerNs,
+                                              qint64 receivedWallNs);
 
         // Reset matcher state and clear the capture queue.  Called from
         // setActiveParticipant() when the user switches main preview, and on

@@ -29,8 +29,10 @@
 #include "session_controller.hpp"
 #include "camera_latency_sender.hpp"
 #include "directortransport.hpp"
+#include "../../video-core/include/common/latency_overlay.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <numeric>
 #include <vector>
 
@@ -99,7 +101,15 @@ int main(int argc, char *argv[]) {
     parser.addHelpOption();
     parser.addOption({"server",  "Signaling gRPC URL",      "url", "http://localhost:50051"});
     parser.addOption({"samples", "Number of samples",        "n",   "30"});
+    parser.addOption({"benchmark-latency",
+                      "Enable the ground-truth video-overlay latency probe "
+                      "(visible artifact in the upper-left of the video)"});
     parser.process(app);
+
+    if (parser.isSet("benchmark-latency")) {
+        videoCore::benchmark::setLatencyOverlayEnabled(true);
+        qInfo() << "[Test] --benchmark-latency enabled";
+    }
 
     const QUrl   server_url    = QUrl(parser.value("server"));
     const int    target        = parser.value("samples").toInt();
@@ -165,6 +175,9 @@ int main(int argc, char *argv[]) {
         loop.exec();
         director.setClockOffset(client.clockOffsetNs());
         sender.setClockOffset(client.clockOffsetNs());
+        // Camera-side overlay (benchmark mode only) uses the same offset
+        // to stamp server-domain time onto each captured frame.
+        camera.setClockOffsetNs(client.clockOffsetNs());
     }
     qDebug() << "[Test] Clock offset:" << (client.clockOffsetNs() / 1e6) << "ms";
 
@@ -208,6 +221,17 @@ int main(int argc, char *argv[]) {
             &sample_loop, [&](double jb, double dec, double /*netJitter*/, double /*fps*/) {
                 latest_jitter_buffer_ms = jb;
                 latest_decode_ms = dec;
+            });
+        // Benchmark-mode ground-truth: when --benchmark-latency is set on
+        // both ends, every decoded frame that has the overlay produces an
+        // absolute latency reading independent of the matcher.  Logged here
+        // alongside the matcher's number so a bundle captures both for
+        // direct comparison.
+        QObject::connect(&director, &DirectorTransport::benchmarkLatency,
+            &sample_loop, [&target, &samples](double overlay_ms) {
+                qDebug().nospace()
+                    << "[Overlay " << samples.size() << "/" << target
+                    << "]  capture_to_receive=" << overlay_ms << "ms";
             });
         QObject::connect(&director, &DirectorTransport::latencyBreakdown,
             &sample_loop, [&](double dc, double vid, double gap) {
