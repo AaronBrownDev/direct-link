@@ -154,6 +154,14 @@ The timestamp is recorded in the GStreamer preview callback using `std::chrono::
 
 The timestamp-based and estimated-lag matchers (see "Component matching" above) handle the common rate-mismatch case (e.g. encoder produces 30 fps but receiver decodes 10 fps). However, if a frame's matching DC packet is itself lost in transit, no match is possible and that frame's latency report is skipped (`ts-match MISS` in the diagnostic log). With `reliable=true` on the data channel, this is rare on a healthy network. The queue is capped at 120 entries (~4 s at 30 fps), which bounds how far back the matcher can look.
 
+### Camera-side sender pacing / NACK retransmit buffer
+
+libwebrtc's `jitter_buffer_delay` stat is **director-side only** — it counts from "first packet at libwebrtc receiver" to "frame emitted from playout buffer." It does not include the time spent in the camera-side `webrtcbin` pacer + RTX/NACK retransmit buffer, which can be 100–300 ms on a lossy WiFi or LEO satellite link.
+
+To close that gap, `WHIPPublisher` attaches a buffer probe to `rtpbin`'s `send_rtp_src_*` pad inside `webrtcbin` (post-pacer, post-retransmit-injection). Each probed buffer's PTS — set at appsrc push by `do-timestamp=TRUE` — is compared to the pipeline's current `running_time` at the probe; the difference is the wall-clock dwell time of that packet through h264parse + rtph264pay + webrtcbin's send pipeline. A rolling mean over the most recent ~60 probed buffers is exposed via `WHIPPublisher::senderPacketDelayMs`, polled at 1 Hz by `CameraSessionController`, forwarded to `CameraLatencySender`, and shipped in the DC payload's v2 trailing `uint32`. `DirectorTransport::currentVideoLagGuessNs` adds it to JB so the matcher seeds against the true camera-to-receiver delay rather than just the receive-side buffer.
+
+If the probe pad isn't found (different GStreamer version, plugin layout change), the probe is a no-op and `sender_delay` stays 0 — the matcher falls back to the JB-only seed, same as before this measurement was added.
+
 ---
 
 ## Clock synchronization

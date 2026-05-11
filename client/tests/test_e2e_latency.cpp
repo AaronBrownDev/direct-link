@@ -242,6 +242,15 @@ int main(int argc, char *argv[]) {
                 &sender, [sp](qint64 captureNs) {
                     if (sp) sp->onFrameCaptured(captureNs);
                 });
+            // Forward the periodic send-pad-probe send-delay reading so each
+            // DC packet's v2 payload trails the latest value, same wiring
+            // SessionPage.qml uses for the UI client.  Without this the
+            // sender ships sender_delay=0 and the director's matcher misses
+            // the upstream pacing/NACK buffer time on lossy paths.
+            QObject::connect(&camera, &CameraSessionController::senderDelayMsChanged,
+                &sender, [sp](double delayMs) {
+                    if (sp) sp->setSenderDelayMs(delayMs);
+                });
 
             camera.start(whip_url, stream_key);
             QTimer::singleShot(25000, &loop, &QEventLoop::quit);

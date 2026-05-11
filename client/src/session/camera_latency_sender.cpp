@@ -107,6 +107,13 @@ void CameraLatencySender::setClockOffset(qint64 offsetNs) {
     m_clock_offset_ns.store(offsetNs, std::memory_order_relaxed);
 }
 
+void CameraLatencySender::setSenderDelayMs(double delayMs) {
+    // Negative values are nonsense; clamp at zero so a transient stats-
+    // reset glitch can't corrupt the receiver's video_lag guess.
+    const double sanitized = (delayMs > 0.0) ? delayMs : 0.0;
+    m_sender_delay_ms.store(sanitized, std::memory_order_relaxed);
+}
+
 void CameraLatencySender::sendTimestamp() {
     if (!m_room || !m_room->localParticipant()) {
         return;
@@ -121,15 +128,32 @@ void CameraLatencySender::sendTimestamp() {
 }
 
 void CameraLatencySender::sendTimestampNs(qint64 serverNs) {
-    // Serialize as big-endian int64 (8 bytes).
-    std::vector<uint8_t> payload(8);
+    // DC payload v2 (12 bytes, big-endian throughout):
+    //   [0..7]   capture_ns, server-clock domain (int64)
+    //   [8..11]  sender pacing+NACK delay in milliseconds (uint32)
+    // v1 (8 bytes, capture_ns only) is still understood by the director —
+    // the new field is treated as 0 when absent.  Both ends are in this
+    // repo, but the length-based version detect keeps a partial deploy
+    // (old director + new camera, or vice versa) from breaking.
+    std::vector<uint8_t> payload(12);
     qint64 tmp = serverNs;
     for (int i = 7; i >= 0; --i) {
         payload[static_cast<std::size_t>(i)] = static_cast<uint8_t>(tmp & 0xFF);
         tmp >>= 8;
     }
+    const double delay_ms = m_sender_delay_ms.load(std::memory_order_relaxed);
+    // Clamp into uint32 range; the matcher clamps the receive side at 500 ms
+    // already, so values above that would be noise and can safely cap.
+    const std::uint32_t delay_clamped = (delay_ms <= 0.0) ? 0u
+        : (delay_ms >= 4'294'967'295.0) ? 4'294'967'295u
+        : static_cast<std::uint32_t>(delay_ms);
+    std::uint32_t d = delay_clamped;
+    for (int i = 11; i >= 8; --i) {
+        payload[static_cast<std::size_t>(i)] = static_cast<uint8_t>(d & 0xFF);
+        d >>= 8;
+    }
     try {
-        // reliable=true: latency timestamps are tiny (8 bytes) and infrequent
+        // reliable=true: latency timestamps are tiny (12 bytes) and infrequent
         // enough that the cost of TCP-style retransmit is negligible, but
         // packet loss directly distorts the FIFO match in DirectorTransport
         // (queue stays at MAX_CAPTURE_QUEUE_SIZE while DC arrival rate at

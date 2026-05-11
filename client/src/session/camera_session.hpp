@@ -31,6 +31,15 @@ public:
     // video frame rates match at the receiver.
     void setPacketEncodedCallback(std::function<void(int64_t pts)> cb);
 
+    // Latest camera-side per-packet send delay reported by WHIPPublisher's
+    // rtpbin send-pad probe (rolling mean over the most recent window of
+    // probed buffers).  Captures pacing + RTX/NACK retransmit dwell time
+    // that the director's JB stat cannot see.  Returns 0 before the first
+    // probe fires.  See WHIPPublisher::senderPacketDelayMs.
+    [[nodiscard]] double senderPacketDelayMs() const noexcept {
+        return whipPublisher_.senderPacketDelayMs();
+    }
+
 private:
     videoCore::pipeline::VideoPipeline pipeline_;
     networking::WHIPPublisher whipPublisher_;

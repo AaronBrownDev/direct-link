@@ -221,6 +221,18 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // ramping up) and lock in an under-counted offset.
         std::uint32_t m_jb_stats_since_warmup_seed = 0;
         static constexpr std::uint32_t JB_STATS_BEFORE_RESEED = 3;
+        // Total non-zero JB stats observed this session.  The early stats
+        // can be ~10-50 ms while libwebrtc's buffer is still ramping up
+        // toward its converged target; seeding against one of those
+        // produces a permanently biased matcher (since EWMA refinement
+        // is intentionally disabled).  currentVideoLagGuessNs falls back
+        // to the warmup constant until this passes MIN_JB_SAMPLES_FOR_GUESS,
+        // so the initial seed uses the warmup-guess path even when JB has
+        // technically published a value already.  Reseed via the existing
+        // m_seeded_with_warmup_guess path then locks the offset against a
+        // stable JB reading.
+        std::uint32_t m_jb_samples_seen = 0;
+        static constexpr std::uint32_t MIN_JB_SAMPLES_FOR_GUESS = 3;
         // Acceptable mismatch between predicted and found capture_ns.  A
         // single network-jitter spike on the GKE WAN path can push the
         // matching DC's capture_ns 100–200 ms outside the prediction
@@ -325,4 +337,13 @@ class DirectorTransport : public QObject, public livekit::RoomDelegate {
         // the two log streams so the summary shows full attribution.
         double m_latest_jb_ms = 0.0;
         double m_latest_decode_ms = 0.0;
+
+        // Camera-side per-packet send delay (pacer + NACK retransmit buffer)
+        // reported by webrtcbin via the v2 DC payload's trailing uint32 ms
+        // field.  Folded into currentVideoLagGuessNs alongside JB to capture
+        // sender-side buffering that JB alone misses on lossy upstream paths.
+        // 0 when the camera is on an old client (8-byte payload) or no
+        // valid stat has landed yet.  Written from the livekit packet thread
+        // (onUserPacketReceived); read from the matcher path.
+        std::atomic<double> m_latest_sender_delay_ms{0.0};
 };

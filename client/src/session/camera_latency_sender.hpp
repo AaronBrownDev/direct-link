@@ -49,6 +49,23 @@ public:
     // the 33ms fallback timer to frame-accurate timestamps on first call.
     Q_INVOKABLE void onFrameCaptured(qint64 captureNs);
 
+    // Latest camera-side per-packet send delay in milliseconds.  Encoded as
+    // a uint32 in the DC payload (v2 12-byte format) so the director can
+    // fold the upstream-side pacing/NACK buffering into its video_lag seed
+    // guess on lossy WiFi paths where it dominates the JB-vs-physical gap.
+    //
+    // Currently UNWIRED — no producer.  GStreamer's webrtcbin on the
+    // versions in production does not expose outbound-rtp stats with
+    // total-packet-send-delay / packets-sent, so the natural source isn't
+    // available.  The DC payload still includes a uint32 trailing field
+    // (value 0) and the director's currentVideoLagGuessNs() folds it in
+    // when non-zero, so a future producer (a GStreamer pad-probe pair on
+    // appsrc→h264parse and rtpbin→network, an upstream GStreamer upgrade,
+    // or a pion-based forwarder) can plug straight into this entry point
+    // without further protocol changes.  See
+    // docs/development/latency-measurement.md "Known limitations".
+    Q_INVOKABLE void setSenderDelayMs(double delayMs);
+
 signals:
     void connected();
     void connectionFailed();
@@ -69,4 +86,9 @@ private:
     // inflates the receiver-side FIFO queue and the reported video_lag).
     std::atomic<std::uint64_t> m_frame_driven_sends{0};
     std::atomic<std::uint64_t> m_timer_driven_sends{0};
+
+    // Camera-side webrtcbin send-delay in ms.  Folded into the DC payload's
+    // v2 trailing uint32 by sendTimestampNs.  Single writer (Qt main thread
+    // via setSenderDelayMs), read on every DC send.
+    std::atomic<double> m_sender_delay_ms{0.0};
 };

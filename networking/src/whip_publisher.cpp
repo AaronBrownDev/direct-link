@@ -6,6 +6,44 @@
 #include <gstreamer-1.0/gst/video/video.h>
 
 namespace networking {
+
+namespace {
+// Find rtpbin inside whipsink → webrtcbin.  rtpbin is a static child of
+// webrtcbin (created at webrtcbin instantiation), so it exists once
+// webrtcbin exists — unlike its send_rtp_src_* pads, which are request
+// pads created lazily when the session's transport is wired up after
+// DTLS negotiates with the remote.  Caller owns the returned reference.
+GstElement *findRtpbinInside(GstElement *pipeline) {
+    if (pipeline == nullptr) { return nullptr; }
+    GstElement *whipsink = gst_bin_get_by_name(GST_BIN(pipeline), "whip-sink");
+    if (whipsink == nullptr) { return nullptr; }
+    GstElement *webrtcbin = gst_bin_get_by_name(GST_BIN(whipsink), "whip-webrtcbin");
+    gst_object_unref(whipsink);
+    if (webrtcbin == nullptr) { return nullptr; }
+
+    GstElement *rtpbin = nullptr;
+    GstIterator *it = gst_bin_iterate_elements(GST_BIN(webrtcbin));
+    GValue v = G_VALUE_INIT;
+    while (gst_iterator_next(it, &v) == GST_ITERATOR_OK) {
+        auto *child = static_cast<GstElement *>(g_value_get_object(&v));
+        GstElementFactory *factory = gst_element_get_factory(child);
+        if (factory != nullptr) {
+            const gchar *fname = GST_OBJECT_NAME(GST_OBJECT_CAST(factory));
+            if (fname != nullptr && std::strstr(fname, "rtpbin") != nullptr) {
+                rtpbin = GST_ELEMENT(gst_object_ref(child));
+                g_value_reset(&v);
+                break;
+            }
+        }
+        g_value_reset(&v);
+    }
+    g_value_unset(&v);
+    gst_iterator_free(it);
+    gst_object_unref(webrtcbin);
+    return rtpbin;
+}
+} // namespace
+
 WHIPPublisher::~WHIPPublisher() {
     if (isRunning()) {
         stop();
@@ -13,6 +51,129 @@ WHIPPublisher::~WHIPPublisher() {
     if (pipeline_ != nullptr) {
         gst_object_unref(pipeline_);
     }
+}
+
+GstPadProbeReturn WHIPPublisher::sendDelayProbe(GstPad * /*pad*/,
+                                                GstPadProbeInfo *info,
+                                                gpointer user_data) {
+    auto *self = static_cast<WHIPPublisher *>(user_data);
+    if (self == nullptr || self->pipeline_ == nullptr) {
+        return GST_PAD_PROBE_OK;
+    }
+    GstBuffer *buffer = GST_PAD_PROBE_INFO_BUFFER(info);
+    if (buffer == nullptr) {
+        return GST_PAD_PROBE_OK;
+    }
+
+    const GstClockTime pts = GST_BUFFER_PTS(buffer);
+    if (!GST_CLOCK_TIME_IS_VALID(pts)) {
+        return GST_PAD_PROBE_OK;
+    }
+
+    // Compare the buffer's pipeline-running-time PTS (set at appsrc push
+    // by do-timestamp=TRUE) to the pipeline's current running_time.  The
+    // difference is the wall-clock dwell time of that buffer through
+    // h264parse + rtph264pay + webrtcbin's pacer + RTX/NACK retransmit
+    // buffer up to this probe point (post-pacer in rtpbin).
+    GstClock *clk = gst_pipeline_get_clock(GST_PIPELINE(self->pipeline_));
+    if (clk == nullptr) {
+        return GST_PAD_PROBE_OK;
+    }
+    const GstClockTime now = gst_clock_get_time(clk);
+    gst_object_unref(clk);
+    const GstClockTime base = gst_element_get_base_time(GST_ELEMENT(self->pipeline_));
+    if (now < base) {
+        return GST_PAD_PROBE_OK;
+    }
+    const GstClockTime running_now = now - base;
+    if (running_now < pts) {
+        // Clock can rarely drift below PTS momentarily during slewing.
+        return GST_PAD_PROBE_OK;
+    }
+    const std::uint64_t delay_ns = static_cast<std::uint64_t>(running_now - pts);
+
+    // Rolling mean over SEND_DELAY_WINDOW samples.  When the window fills,
+    // halve sum and count to maintain a slow-decay average instead of
+    // dropping the window entirely — keeps the published value continuous
+    // across the boundary.  No lock: this probe is invoked from the
+    // streaming thread (a single producer); readers see a relaxed-atomic
+    // snapshot of the published mean.
+    self->delay_sum_ns_ += delay_ns;
+    ++self->delay_count_;
+    if (self->delay_count_ >= SEND_DELAY_WINDOW) {
+        self->delay_sum_ns_ /= 2;
+        self->delay_count_ /= 2;
+    }
+    if (self->delay_count_ > 0) {
+        const double mean_ms =
+            static_cast<double>(self->delay_sum_ns_) /
+            (static_cast<double>(self->delay_count_) * 1'000'000.0);
+        // Clamp identical to receive-side: > 500 ms or < 0 is treated as
+        // a stats glitch and not propagated.
+        const double clamped = (mean_ms < 0.0) ? 0.0
+                             : (mean_ms > 500.0) ? 500.0
+                             : mean_ms;
+        self->last_send_delay_ms_.store(clamped, std::memory_order_relaxed);
+    }
+    return GST_PAD_PROBE_OK;
+}
+
+void WHIPPublisher::attachSendDelayProbe(GstPad *pad) {
+    if (pad == nullptr || delay_probe_pad_ != nullptr) {
+        return;
+    }
+    delay_probe_pad_ = GST_PAD(gst_object_ref(pad));
+    delay_probe_id_ = gst_pad_add_probe(delay_probe_pad_,
+                                        GST_PAD_PROBE_TYPE_BUFFER,
+                                        &WHIPPublisher::sendDelayProbe, this, nullptr);
+    std::cerr << "[WHIPPublisher] send-delay probe attached at "
+              << GST_PAD_NAME(delay_probe_pad_) << "\n";
+}
+
+void WHIPPublisher::onRtpbinPadAdded(GstElement * /*rtpbin*/, GstPad *new_pad,
+                                     gpointer user_data) {
+    auto *self = static_cast<WHIPPublisher *>(user_data);
+    if (self == nullptr || new_pad == nullptr) { return; }
+    const gchar *name = GST_PAD_NAME(new_pad);
+    if (name == nullptr || std::strstr(name, "send_rtp_src") == nullptr) {
+        return; // not the pad we want
+    }
+    self->attachSendDelayProbe(new_pad);
+}
+
+void WHIPPublisher::setupSendDelayProbeListener() {
+    if (pipeline_ == nullptr || delay_rtpbin_ != nullptr) {
+        return;
+    }
+    GstElement *rtpbin = findRtpbinInside(pipeline_);
+    if (rtpbin == nullptr) {
+        std::cerr << "[WHIPPublisher] send-delay probe: rtpbin not found "
+                     "inside webrtcbin, sender_delay will stay 0\n";
+        return;
+    }
+    delay_rtpbin_ = rtpbin; // own this ref
+    delay_pad_added_id_ = g_signal_connect(rtpbin, "pad-added",
+                                           G_CALLBACK(&WHIPPublisher::onRtpbinPadAdded),
+                                           this);
+    // The pad might already exist if the pipeline got there before us;
+    // check once eagerly so we don't miss it.  iterate_src_pads enumerates
+    // request pads that have already been created.
+    GstIterator *pit = gst_element_iterate_src_pads(rtpbin);
+    GValue pv = G_VALUE_INIT;
+    while (gst_iterator_next(pit, &pv) == GST_ITERATOR_OK) {
+        auto *pad = static_cast<GstPad *>(g_value_get_object(&pv));
+        const gchar *pname = GST_PAD_NAME(pad);
+        if (pname != nullptr && std::strstr(pname, "send_rtp_src") != nullptr) {
+            attachSendDelayProbe(pad);
+            g_value_reset(&pv);
+            break;
+        }
+        g_value_reset(&pv);
+    }
+    g_value_unset(&pv);
+    gst_iterator_free(pit);
+    std::cerr << "[WHIPPublisher] send-delay probe: listening for "
+                 "send_rtp_src on rtpbin\n";
 }
 
 Result
@@ -300,6 +461,10 @@ Result WHIPPublisher::start() {
     }
 
     running_ = true;
+    // Hook rtpbin's pad-added so we attach the buffer probe the moment
+    // send_rtp_src_<n> is created — which is after DTLS negotiation
+    // completes, several seconds into the session on a real network.
+    setupSendDelayProbeListener();
     return Result::Success;
 }
 
@@ -310,6 +475,28 @@ Result WHIPPublisher::stop() {
 
     if (!isRunning()) {
         return Result::Success;
+    }
+
+    // Detach the send-delay probe and disconnect the pad-added signal
+    // before tearing down the pipeline so a late callback can't see a
+    // half-destroyed pipeline_.  gst_pad_remove_probe is synchronous
+    // w.r.t. the streaming thread: any probe currently in flight is
+    // allowed to complete, then the source is removed.
+    if (delay_probe_pad_ != nullptr) {
+        if (delay_probe_id_ != 0) {
+            gst_pad_remove_probe(delay_probe_pad_, delay_probe_id_);
+            delay_probe_id_ = 0;
+        }
+        gst_object_unref(delay_probe_pad_);
+        delay_probe_pad_ = nullptr;
+    }
+    if (delay_rtpbin_ != nullptr) {
+        if (delay_pad_added_id_ != 0) {
+            g_signal_handler_disconnect(delay_rtpbin_, delay_pad_added_id_);
+            delay_pad_added_id_ = 0;
+        }
+        gst_object_unref(delay_rtpbin_);
+        delay_rtpbin_ = nullptr;
     }
 
     // Signal end of stream — flushes encoder and whipsink downstream

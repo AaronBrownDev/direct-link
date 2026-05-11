@@ -18,7 +18,13 @@
 
 CameraSessionController::CameraSessionController(QObject *parent)
     : QObject(parent)
-    , session_(std::make_shared<CameraSession>()) {}
+    , session_(std::make_shared<CameraSession>())
+    , senderDelayTimer_(new QTimer(this)) {
+    senderDelayTimer_->setInterval(SENDER_DELAY_POLL_INTERVAL_MS);
+    connect(senderDelayTimer_, &QTimer::timeout, this, [this]() {
+        emit senderDelayMsChanged(session_->senderPacketDelayMs());
+    });
+}
 
 CameraSessionController::~CameraSessionController() {
     if (startFuture_.isRunning()) {
@@ -195,6 +201,7 @@ void CameraSessionController::start(const QString &whipUrl,
 
         if (success) {
             emit sessionStarted();
+            senderDelayTimer_->start();
             qDebug() << "[CameraSessionController] The session has started.";
         }
         else {
@@ -256,6 +263,9 @@ void CameraSessionController::stop() {
     // QThreadPool::start (rather than QtConcurrent::run) — we don't need the
     // QFuture, and ignoring it triggers a [[nodiscard]] warning.
     QThreadPool::globalInstance()->start([session]() { session->stop(); });
+    if (senderDelayTimer_ != nullptr) {
+        senderDelayTimer_->stop();
+    }
     emit sessionStopped();
 }
 

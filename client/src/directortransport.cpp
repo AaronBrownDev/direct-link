@@ -39,18 +39,28 @@ DirectorTransport::~DirectorTransport() {
 }
 
 qint64 DirectorTransport::currentVideoLagGuessNs() const {
-    // libwebrtc's JB stat is the best available estimate of where the
-    // matching DC should land for the current frame.  W3C's
-    // jitterBufferDelay counts from first_packet_at_libwebrtc to
-    // emission, which includes intra-frame packet-arrival spread that
-    // the app does not perceive as latency.  Empirically the true
-    // app-side video_lag is slightly LESS than the JB stat on healthy
-    // paths and slightly more on degraded ones.  Using JB directly as
-    // the guess is closer to truth than any additive constant —
-    // residual bias is absorbed by the EWMA refinement over the first
-    // few hundred matches.
-    if (m_latest_jb_ms > 0.0) {
-        return static_cast<qint64>(m_latest_jb_ms * 1'000'000.0);
+    // libwebrtc's JB stat captures the director-side playout-buffer wait
+    // (first_packet_at_libwebrtc → emission).  On healthy paths JB alone
+    // is close to the true app-side video_lag.  On lossy paths the camera
+    // libwebrtc holds packets in its pacer + NACK retransmit buffer
+    // before sending; the camera ships that delay in the DC payload v2's
+    // trailing uint32 (when its WHIPPublisher produces it) so we fold
+    // both into the seed guess.
+    //
+    // Require multiple JB readings before trusting the value as a guess.
+    // libwebrtc's first 1-2 stat samples can be ~10-50 ms while the
+    // buffer is still ramping up toward its converged target (which can
+    // reach 200+ ms on lossy paths).  Seeding against an early small
+    // reading locks the matcher with EWMA refinement disabled (intentional,
+    // see directortransport.cpp's match block) into a permanently biased
+    // offset that under-reports video_lag for the whole session.  Falling
+    // back to the 1 s warmup constant for the first few samples forces
+    // the initial seed to be marked warmup_guess=true, after which the
+    // existing m_seeded_with_warmup_guess reseed path will re-anchor the
+    // offset against the now-stable JB reading.
+    if (m_latest_jb_ms > 0.0 && m_jb_samples_seen >= MIN_JB_SAMPLES_FOR_GUESS) {
+        const double sender_delay_ms = m_latest_sender_delay_ms.load(std::memory_order_relaxed);
+        return static_cast<qint64>((m_latest_jb_ms + sender_delay_ms) * 1'000'000.0);
     }
     return INITIAL_VIDEO_LAG_GUESS_NS;
 }
@@ -165,7 +175,11 @@ void DirectorTransport::onConnectionStateChanged(livekit::Room & /*unused*/, con
 }
 
 void DirectorTransport::onUserPacketReceived(livekit::Room & /*unused*/, const livekit::UserDataPacketEvent &event) {
-    if (event.topic != "latency" || event.data.size() != 8) {
+    // Accept v1 (8 bytes: capture_ns only) or v2 (12 bytes: capture_ns
+    // followed by uint32 sender_delay_ms).  Lenient on size — anything
+    // larger than v2 with the same prefix is forward-compatible and
+    // currently treated as v2 (extra trailing bytes ignored).
+    if (event.topic != "latency" || event.data.size() < 8) {
         return;
     }
 
@@ -200,6 +214,19 @@ void DirectorTransport::onUserPacketReceived(livekit::Room & /*unused*/, const l
     qint64 capture_ns = 0;
     for (int i = 0; i < 8; ++i) {
         capture_ns = (capture_ns << 8) | static_cast<qint64>(event.data[static_cast<std::size_t>(i)]);
+    }
+
+    // Payload v2: trailing big-endian uint32 with camera-side per-packet
+    // send delay in ms.  v1 (8-byte) payloads have no trailing bytes; treat
+    // as 0.  See CameraLatencySender::sendTimestampNs for the on-wire format.
+    if (event.data.size() >= 12) {
+        std::uint32_t sender_delay_ms = 0;
+        for (int i = 8; i < 12; ++i) {
+            sender_delay_ms = (sender_delay_ms << 8) |
+                              static_cast<std::uint32_t>(event.data[static_cast<std::size_t>(i)]);
+        }
+        m_latest_sender_delay_ms.store(static_cast<double>(sender_delay_ms),
+                                       std::memory_order_relaxed);
     }
 
     // Stamp arrival in two clocks at the same instant.  Wall is used by
@@ -294,6 +321,15 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
         // wrong offset that under-reports video_lag for the entire session.
         // Skip frames for matching until the queue spans the expected
         // pipeline depth — DCs keep accumulating in the meantime.
+        //
+        // Also stale-queue gate: a pipeline freeze (camera-side WHIP stall
+        // or upstream network drop) stops new DCs from arriving while
+        // frames still trickle in on the receiver.  If the matcher then
+        // triggers a reseed via MAX_CONSECUTIVE_MISSES, the queue's newest
+        // entry is many seconds old and seeding picks it (no other choice),
+        // locking the offset against a multi-second-old DC.  Refuse to
+        // seed if the newest queue entry is itself older than the guess
+        // — DCs will resume eventually and the seed will succeed then.
         if (!m_ts_offset_initialized && !m_capture_queue.empty()) {
             const qint64 video_lag_guess_ns = currentVideoLagGuessNs();
             const qint64 oldest_dc_age = receivedSteadyNs - m_capture_queue.front().dc_arrived_steady_ns;
@@ -306,6 +342,19 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
                         << (oldest_dc_age / 1'000'000)
                         << " qsize=" << qsize_before
                         << " (waiting for queue to span video_lag)";
+                }
+                return;
+            }
+            const qint64 newest_dc_age = receivedSteadyNs - m_capture_queue.back().dc_arrived_steady_ns;
+            if (newest_dc_age > video_lag_guess_ns) {
+                ++m_frame_count;
+                if (m_frame_count % 30 == 0) {
+                    qDebug().nospace()
+                        << "[DT-diag] FRAME#" << m_frame_count
+                        << " stale queue: newest_dc_age_ms="
+                        << (newest_dc_age / 1'000'000)
+                        << " guess_ms=" << (video_lag_guess_ns / 1'000'000)
+                        << " (waiting for DCs to resume before reseed)";
                 }
                 return;
             }
@@ -333,7 +382,14 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
                 }
                 m_ts_capture_offset_ns = frameTimestampUs * 1000 - seed->capture_ns;
                 m_ts_offset_initialized = true;
-                m_seeded_with_warmup_guess = (m_latest_jb_ms == 0.0);
+                // True iff the guess actually came from the fallback constant
+                // (either because no JB stat had landed yet, or because fewer
+                // than MIN_JB_SAMPLES_FOR_GUESS samples had been seen so
+                // currentVideoLagGuessNs declined to trust JB).  The flag
+                // gates the force-reseed path in onVideoStats — getting it
+                // wrong here means the matcher stays locked at the warmup
+                // seed for the whole session.
+                m_seeded_with_warmup_guess = (video_lag_guess_ns == INITIAL_VIDEO_LAG_GUESS_NS);
                 qDebug().nospace()
                     << "[DT-diag] ts_us offset seeded: offset_ns=" << m_ts_capture_offset_ns
                     << " from queue entry " << std::distance(m_capture_queue.begin(), seed)
@@ -541,6 +597,7 @@ void DirectorTransport::onFrameArrived(qint64 receivedSteadyNs, qint64 frameTime
              << "\n\tdisplay_gap=" << gap_ms << "ms"
              << "\n\ttotal=" << total_ms << "ms"
              << "\n\tclock_offset=" << (static_cast<double>(offset) / 1'000'000.0) << "ms"
+             << "\n\tsender_delay=" << m_latest_sender_delay_ms.load(std::memory_order_relaxed) << "ms"
              << "\n\tmatch=" << (used_ts_match ? "ts_us" : "fifo");
 
     // Rolling summary: push current values into ring buffers and once per
@@ -615,6 +672,12 @@ void DirectorTransport::onVideoStats(double jitterBufferMs, double decodeMs,
     // and the summary only needs an approximately-current reading.
     m_latest_jb_ms = jitterBufferMs;
     m_latest_decode_ms = decodeMs;
+    // Track total non-zero JB samples seen so currentVideoLagGuessNs can
+    // gate its JB-based answer on having multiple readings (the first one
+    // is unreliable while libwebrtc's buffer is still ramping up).
+    if (jitterBufferMs > 0.0 && m_jb_samples_seen < MIN_JB_SAMPLES_FOR_GUESS) {
+        ++m_jb_samples_seen;
+    }
 
     // Race recovery: lean startup paths (e.g. test_e2e_latency) can seed
     // the matcher before the 1 Hz video-stats poll has produced its first

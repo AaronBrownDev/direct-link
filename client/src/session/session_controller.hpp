@@ -4,6 +4,7 @@
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QString>
+#include <QTimer>
 #include <QVariantList>
 #include <QVideoSink>
 #include <atomic>
@@ -56,6 +57,11 @@ signals:
     // Emitted on the main thread for each captured frame. captureNs is the
     // local wall-clock nanoseconds at the moment the preview callback fired.
     void frameCaptured(qint64 captureNs);
+    // Emitted once per SENDER_DELAY_POLL_INTERVAL_MS while the session is
+    // running, carrying WHIPPublisher's latest send-pad-probe rolling mean.
+    // Wired by QML / test_e2e_latency into CameraLatencySender::setSenderDelayMs
+    // so the next DC packet's v2 payload carries the value to the director.
+    void senderDelayMsChanged(double delayMs);
 
 private:
     std::shared_ptr<CameraSession> session_;
@@ -94,4 +100,9 @@ private:
 
     std::atomic<std::uint64_t> packet_lookup_hits_{0};
     std::atomic<std::uint64_t> packet_lookup_misses_{0};
+
+    // Polls WHIPPublisher's send-pad-probe reading once per second and
+    // forwards it via senderDelayMsChanged for QML/test wiring.
+    QTimer *senderDelayTimer_ = nullptr;
+    static constexpr int SENDER_DELAY_POLL_INTERVAL_MS = 1000;
 };

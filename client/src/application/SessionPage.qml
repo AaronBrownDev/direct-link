@@ -173,12 +173,19 @@ ColumnLayout {
     }
 
     // Forward per-frame capture timestamps to CameraLatencySender so it uses
-    // actual capture times instead of the 33 ms fallback timer.
+    // actual capture times instead of the 33 ms fallback timer.  Also forward
+    // the periodic send-pad-probe send-delay reading so each DC packet's v2
+    // payload carries the value to the director, who folds it into the
+    // matcher's video_lag seed guess.
     Connections {
         target: CameraSessionController
 
         function onFrameCaptured(captureNs) {
             CameraLatencySender.onFrameCaptured(captureNs);
+        }
+
+        function onSenderDelayMsChanged(delayMs) {
+            CameraLatencySender.setSenderDelayMs(delayMs);
         }
     }
 
