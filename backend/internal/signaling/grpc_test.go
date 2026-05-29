@@ -152,7 +152,7 @@ func newUnitTestServer(t *testing.T, mockIngress *mockIngressClient, mockRoom *m
 func seedSession(t *testing.T, store session.Store) *session.Session {
 	t.Helper()
 	sess := &session.Session{
-		ID: "test-session-id", RoomCode: "ROOM-TEST", CreatedBy: "director-1",
+		ID: "test-session-id", RoomCode: "ROOM-123456", CreatedBy: "director-1",
 		CreatedAt: time.Now().UTC(), MaxCameras: 4, Status: "active",
 	}
 	if err := store.CreateSession(context.Background(), sess); err != nil {
@@ -229,7 +229,7 @@ func TestJoinSession(t *testing.T) {
 			seedSession(t, srv.store)
 
 			reply, err := srv.JoinSession(context.Background(), &pb.JoinRequest{
-				RoomCode: "ROOM-TEST",
+				RoomCode: "ROOM-123456",
 				UserId:   "user-1",
 				Role:     tt.role,
 			})
@@ -270,7 +270,7 @@ func TestJoinSession_CameraRole_StoresIngressID(t *testing.T) {
 	sess := seedSession(t, srv.store)
 
 	_, err := srv.JoinSession(context.Background(), &pb.JoinRequest{
-		RoomCode: "ROOM-TEST",
+		RoomCode: "ROOM-123456",
 		UserId:   "camera-1",
 		Role:     "camera",
 	})
@@ -291,7 +291,7 @@ func TestJoinSession_CameraRole_StoresIngressID(t *testing.T) {
 // and no partial state is left in Redis.
 func TestJoinSession_CameraRole_RollsBackIngressOnGrantAccessFailure(t *testing.T) {
 	seededSession := &session.Session{
-		ID: "test-session-id", RoomCode: "ROOM-TEST", CreatedBy: "director-1",
+		ID: "test-session-id", RoomCode: "ROOM-123456", CreatedBy: "director-1",
 		CreatedAt: time.Now().UTC(), MaxCameras: 4, Status: "active",
 	}
 	grantErr := errors.New("simulated GrantAccess failure")
@@ -424,7 +424,7 @@ func TestCloseSession_IngressCleanup(t *testing.T) {
 			}
 
 			_, err := srv.CloseSession(context.Background(), &pb.CloseSessionRequest{
-				RoomCode: "ROOM-TEST",
+				RoomCode: "ROOM-123456",
 				UserId:   "director-1",
 			})
 			if err != nil {
